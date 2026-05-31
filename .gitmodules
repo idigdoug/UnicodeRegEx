@@ -1,0 +1,6 @@
+[submodule "external/boost.regex"]
+	path = external/boost.regex
+	url = https://github.com/boostorg/regex.git
+[submodule "external/microsoft.wil"]
+	path = external/microsoft.wil
+	url = https://github.com/microsoft/wil.git

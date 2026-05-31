@@ -1,0 +1,3 @@
+#include "resource.h"
+
+IDR_UTF8_TORTURE_TEST RCDATA "UTF8-torture-test.txt"

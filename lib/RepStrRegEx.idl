@@ -1,0 +1,341 @@
+// RepStrRegEx.idl
+// Pseudo-COM regex interfaces for use by .NET Framework 4.8 via typelib.
+
+import "oaidl.idl";
+import "ocidl.idl";
+
+/*
+RegExSyntaxFlags based on boost::regex_constants::syntax_option_type:
+
+      perl_syntax_group = 0,                      // default
+      basic_syntax_group = 1,                     // POSIX basic
+      literal = 2,                                // all characters are literals
+      main_option_type = literal | basic_syntax_group | perl_syntax_group, // everything!
+      //
+      // options specific to perl group:
+      //
+      no_bk_refs = 1 << 8,                        // \d not allowed
+      no_perl_ex = 1 << 9,                        // disable perl extensions
+      no_mod_m = 1 << 10,                         // disable Perl m modifier
+      mod_x = 1 << 11,                            // Perl x modifier
+      mod_s = 1 << 12,                            // force s modifier on (overrides match_not_dot_newline)
+      no_mod_s = 1 << 13,                         // force s modifier off (overrides match_not_dot_newline)
+
+      //
+      // options specific to basic group:
+      //
+      no_char_classes = 1 << 8,                   // [[:CLASS:]] not allowed
+      no_intervals = 1 << 9,                      // {x,y} not allowed
+      bk_plus_qm = 1 << 10,                       // uses \+ and \?
+      bk_vbar = 1 << 11,                          // use \| for alternatives
+      emacs_ex = 1 << 12,                         // enables emacs extensions
+
+      //
+      // options common to all groups:
+      //
+      no_escape_in_lists = 1 << 16,                     // '\' not special inside [...]
+      newline_alt = 1 << 17,                            // \n is the same as |
+      no_except = 1 << 18,                              // no exception on error
+      failbit = 1 << 19,                                // error flag
+      icase = 1 << 20,                                  // characters are matched regardless of case
+      nocollate = 0,                                    // don't use locale specific collation (deprecated)
+      collate = 1 << 21,                                // use locale specific collation
+      nosubs = 1 << 22,                                 // don't mark sub-expressions
+      save_subexpression_location = 1 << 23,            // save subexpression locations
+      no_empty_expressions = 1 << 24,                   // no empty expressions allowed
+      optimize = 0,                                     // not really supported
+
+
+
+      basic = basic_syntax_group | collate | no_escape_in_lists,
+      extended = no_bk_refs | collate | no_perl_ex | no_escape_in_lists,
+      normal = 0,
+      emacs = basic_syntax_group | collate | emacs_ex | bk_vbar,
+      awk = no_bk_refs | collate | no_perl_ex,
+      grep = basic | newline_alt,
+      egrep = extended | newline_alt,
+      sed = basic,
+      perl = normal,
+      ECMAScript = normal,
+      JavaScript = normal,
+      JScript = normal
+*/
+#define basic_syntax_group  1
+#define no_bk_refs          (1 << 8)
+#define no_perl_ex          (1 << 9)
+#define no_escape_in_lists  (1 << 16)
+#define newline_alt         (1 << 17)
+#define collate             (1 << 21)
+#define basic               basic_syntax_group | collate | no_escape_in_lists
+#define extended            no_bk_refs | collate | no_perl_ex | no_escape_in_lists
+
+typedef [v1_enum] enum RegExSyntaxFlags
+{
+    RegExSyntaxFlags_icase      = 1 << 20,
+    RegExSyntaxFlags_nosubs     = 1 << 22,
+    RegExSyntaxFlags_optimize   = 0,
+    RegExSyntaxFlags_collate    = collate,
+    RegExSyntaxFlags_ECMAScript = 0,
+    RegExSyntaxFlags_basic      = basic,
+    RegExSyntaxFlags_extended   = extended,
+    RegExSyntaxFlags_awk        = no_bk_refs | collate | no_perl_ex,
+    RegExSyntaxFlags_grep       = basic | newline_alt,
+    RegExSyntaxFlags_egrep      = extended | newline_alt,
+} RegExSyntaxFlags;
+
+#undef basic_syntax_group
+#undef no_bk_refs
+#undef no_perl_ex
+#undef no_escape_in_lists
+#undef newline_alt
+#undef collate
+#undef basic
+#undef extended
+
+/*
+RegExMatchFlags based on boost::regex_constants::match_flag_type:
+
+   match_default = 0,
+   match_not_bol = 1,                                // first is not start of line
+   match_not_eol = match_not_bol << 1,               // last is not end of line
+   match_not_bob = match_not_eol << 1,               // first is not start of buffer
+   match_not_eob = match_not_bob << 1,               // last is not end of buffer
+   match_not_bow = match_not_eob << 1,               // first is not start of word
+   match_not_eow = match_not_bow << 1,               // last is not end of word
+   match_not_dot_newline = match_not_eow << 1,       // \n is not matched by '.'
+   match_not_dot_null = match_not_dot_newline << 1,  // '\0' is not matched by '.'
+   match_prev_avail = match_not_dot_null << 1,       // *--first is a valid expression
+   match_init = match_prev_avail << 1,               // internal use
+   match_any = match_init << 1,                      // don't care what we match
+   match_not_null = match_any << 1,                  // string can't be null
+   match_continuous = match_not_null << 1,           // each grep match must continue from
+                                                     // uninterrupted from the previous one
+   match_partial = match_continuous << 1,            // find partial matches
+   
+   match_stop = match_partial << 1,                  // stop after first match (grep) V3 only
+   match_not_initial_null = match_stop,              // don't match initial null, V4 only
+   match_all = match_stop << 1,                      // must find the whole of input even if match_any is set
+   match_perl = match_all << 1,                      // Use perl matching rules
+   match_posix = match_perl << 1,                    // Use POSIX matching rules
+   match_nosubs = match_posix << 1,                  // don't trap marked subs
+   match_extra = match_nosubs << 1,                  // include full capture information for repeated captures
+   match_single_line = match_extra << 1,             // treat text as single line and ignore any \n's when matching ^ and $.
+   match_unused1 = match_single_line << 1,           // unused
+   match_unused2 = match_unused1 << 1,               // unused
+   match_unused3 = match_unused2 << 1,               // unused
+   match_max = match_unused3,
+
+   format_perl = 0,                                  // perl style replacement
+   format_default = 0,                               // ditto.
+   format_sed = match_max << 1,                      // sed style replacement.
+   format_all = format_sed << 1,                     // enable all extensions to syntax.
+   format_no_copy = format_all << 1,                 // don't copy non-matching segments.
+   format_first_only = format_no_copy << 1,          // Only replace first occurrence.
+   format_is_if = format_first_only << 1,            // internal use only.
+   format_literal = format_is_if << 1,               // treat string as a literal
+*/
+
+typedef [v1_enum] enum RegExMatchFlags
+{
+    RegExMatchFlag_default    = 0,
+    RegExMatchFlag_not_bol    = 1 << 0,
+    RegExMatchFlag_not_eol    = 1 << 1,
+    RegExMatchFlag_not_bow    = 1 << 4,
+    RegExMatchFlag_not_eow    = 1 << 5,
+    RegExMatchFlag_any        = 1 << 10,
+    RegExMatchFlag_not_null   = 1 << 11,
+    RegExMatchFlag_continuous = 1 << 12,
+    RegExMatchFlag_prev_avail = 1 << 8,
+} RegExMatchFlags;
+
+typedef [v1_enum] enum RegExFormatFlags
+{
+    RegExFormatFlag_default = 0,
+    RegExFormatFlag_sed = 1 << 24,
+    RegExFormatFlag_no_copy = 1 << 26,
+    RegExFormatFlag_first_only = 1 << 27,
+} RegExFormatFlags;
+
+/*
+RegExErrorCode based on boost::regex_constants::error_type:
+
+   error_ok = 0,
+   error_no_match = 1,
+   error_bad_pattern = 2,
+   error_collate = 3,
+   error_ctype = 4,
+   error_escape = 5,
+   error_backref = 6,
+   error_brack = 7,
+   error_paren = 8,
+   error_brace = 9,
+   error_badbrace = 10,
+   error_range = 11,
+   error_space = 12,
+   error_badrepeat = 13,
+   error_end = 14,
+   error_size = 15,
+   error_right_paren = 16,
+   error_empty = 17,
+   error_complexity = 18,
+   error_stack = 19,
+   error_perl_extension = 20,
+   error_unknown = 21,
+*/
+
+typedef [v1_enum] enum RegExErrorCode
+{
+    RegExErrorCode_ok = 0,
+    RegExErrorCode_no_match = 1,
+    RegExErrorCode_bad_pattern = 2,
+    RegExErrorCode_collate = 3,
+    RegExErrorCode_ctype = 4,
+    RegExErrorCode_escape = 5,
+    RegExErrorCode_backref = 6,
+    RegExErrorCode_brack = 7,
+    RegExErrorCode_paren = 8,
+    RegExErrorCode_brace = 9,
+    RegExErrorCode_badbrace = 10,
+    RegExErrorCode_range = 11,
+    RegExErrorCode_space = 12,
+    RegExErrorCode_badrepeat = 13,
+    RegExErrorCode_end = 14,
+    RegExErrorCode_size = 15,
+    RegExErrorCode_right_paren = 16,
+    RegExErrorCode_empty = 17,
+    RegExErrorCode_complexity = 18,
+    RegExErrorCode_stack = 19,
+    RegExErrorCode_perl_extension = 20,
+    RegExErrorCode_unknown = 21,
+    RegExErrorCode_bad_alloc = 22,
+} RegExErrorCode;
+
+typedef [v1_enum] enum RegExEncoding
+{
+    RegExEncoding_none = 0,
+    RegExEncoding_latin1,
+    RegExEncoding_utf8,
+    RegExEncoding_utf16le,
+    RegExEncoding_utf16be,
+} RegExEncoding;
+
+typedef [v1_enum] enum RegExEnumerationState
+{
+    RegExEnumerationState_not_started = 0,
+    RegExEnumerationState_enumerating,
+    RegExEnumerationState_finished,
+} RegExEnumerationState;
+
+cpp_quote("// Encoded string definition. data_ptr is treated as a BYTE*. size is measured in bytes.")
+cpp_quote("// For utf16 encodings, data_ptr and size must be multiples of 2.")
+typedef struct RegExString
+{
+    LONGLONG data_ptr;
+    LONGLONG size;
+    RegExEncoding encoding;
+} RegExString;
+
+cpp_quote("// Range of bytes within the input buffer:")
+cpp_quote("// - input_offset is a byte offset relative to input.data_ptr.")
+cpp_quote("// - size is measured in bytes.")
+typedef struct RegExSubMatch
+{
+    LONGLONG input_offset;
+    LONGLONG size;
+    VARIANT_BOOL matched; // whether this submatch was actually matched (e.g. for optional groups)
+} RegExSubMatch;
+
+cpp_quote("// Constructor for IRegEx runtime class.")
+cpp_quote("STDAPI")
+cpp_quote("RepStrRegExCreate(")
+cpp_quote("    _In_ BSTR pattern,")
+cpp_quote("    RegExSyntaxFlags syntaxFlags,")
+cpp_quote("    UINT32 lcid,")
+cpp_quote("    _Out_opt_ RegExErrorCode* pErrorCode,")
+cpp_quote("    _Outptr_ IRegEx** ppRegEx);")
+
+[
+    object,
+    uuid(A8E2B9C1-4F3D-4A1E-B7C6-1D2E3F4A5B6C),
+    oleautomation,
+    pointer_default(unique)
+]
+interface IRegExMatchEnumerator : IUnknown
+{
+    // Retrieves the input string being searched (the value passed to CreateMatchEnumerator).
+    HRESULT GetInput(
+        [out, retval] RegExString* pInput);
+
+    HRESULT GetState(
+        [out, retval] RegExEnumerationState* pState);
+
+    // Advance to next match. Returns true if a match is found, false if no more matches.
+    // Returns E_NOT_VALID_STATE if called after no more matches.
+    HRESULT NextMatch(
+        [out, retval] VARIANT_BOOL* pFound);
+
+    // Number of sub-matches (including 0 = entire match).
+    // Returns 0 if called before first match or after enumeration finished.
+    HRESULT GetSubMatchCount(
+        [out, retval] UINT32* pCount);
+
+    // Get the sub-match offset+size by index (0 = get the entire match).
+    // Returns E_INVALIDARG if index >= GetSubMatchCount().
+    HRESULT GetSubMatch(
+        [in] UINT32 subMatchIndex,
+        [out, retval] RegExSubMatch* pSubMatch);
+
+    // Get the sub-match content by index (0 = get the entire match).
+    // Returned buffer is valid until a subsequent call to NextMatch(), Format(),
+    // GetSubMatchString(), or the enumerator is released.
+    // Returns S_OK with encoding == RegExEncoding_none for no-match.
+    // Returns E_INVALIDARG if index >= GetSubMatchCount().
+    HRESULT GetSubMatchString(
+        [in] UINT32 subMatchIndex,
+        [in] RegExEncoding subMatchEncoding,
+        [out, retval] RegExString* pSubMatchString);
+
+    HRESULT SetFormatTemplate(
+        [in] BSTR formatTemplate,
+        [in] RegExFormatFlags formatFlags);
+
+    // Formats a string based on this match using the formatTemplate and formatFlags from
+    // the most recent call to SetFormatTemplate.
+    // Returned buffer is valid until a subsequent call to NextMatch(), Format(),
+    // GetSubMatchString(), or the enumerator is released.
+    // Returns E_NOT_VALID_STATE if called before first match or after enumeration finished.
+    HRESULT Format(
+        [in] RegExEncoding outputEncoding,
+        [out, retval] RegExString* pOutputString);
+}
+
+[
+    object,
+    uuid(C7D1E2F3-5A4B-4C8D-9E0F-A1B2C3D4E5F6),
+    oleautomation,
+    pointer_default(unique)
+]
+interface IRegEx : IUnknown
+{
+    // Create an enumerator over matches in the given input buffer.
+    HRESULT CreateMatchEnumerator(
+        [in] RegExString const* pInput,
+        [in] RegExMatchFlags matchFlags,
+        [out, retval] IRegExMatchEnumerator** ppEnumerator);
+}
+
+[
+    uuid(F6E5D4C3-B2A1-4089-9E7D-6C5B4A3F2E1D),
+    version(1.0),
+    helpstring("RepStr RegEx Type Library")
+]
+library RepStrRegExLib
+{
+    importlib("stdole2.tlb");
+
+    interface IRegEx;
+    interface IRegExMatchEnumerator;
+
+    enum RegExSyntaxFlags;
+    enum RegExErrorCode;
+}
