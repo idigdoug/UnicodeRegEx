@@ -1,4 +1,5 @@
 .vs/
 out/
+obj/
 /packages/
 *.user

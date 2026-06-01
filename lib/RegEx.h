@@ -24,18 +24,18 @@ public:
 
     // IUnknown
 
-    HRESULT __stdcall
+    HRESULT STDMETHODCALLTYPE
     QueryInterface(REFIID riid, _Outptr_ void** ppvObject) noexcept override;
 
-    ULONG __stdcall
+    ULONG STDMETHODCALLTYPE
     AddRef() noexcept override;
 
-    ULONG __stdcall
+    ULONG STDMETHODCALLTYPE
     Release() noexcept override;
 
     // IRegEx
 
-    HRESULT
+    HRESULT STDMETHODCALLTYPE
     CreateMatchEnumerator(
         _In_ RegExString const* pInput,
         RegExMatchFlags flags,

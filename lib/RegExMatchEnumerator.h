@@ -7,23 +7,29 @@ class RegEx;
 
 class RegExMatchEnumerator final : public IRegExMatchEnumerator
 {
+    using RegexIteratorLatin1 = boost::regex_iterator<latin1::CodePointIterator, char32_t, WindowsChar32RegexTraits>;
+    using RegexIteratorUtf8 = boost::regex_iterator<utf8::CodePointIterator, char32_t, WindowsChar32RegexTraits>;
+    using RegexIteratorUtf16LE = boost::regex_iterator<utf16le::CodePointIterator, char32_t, WindowsChar32RegexTraits>;
+    using RegexIteratorUtf16BE = boost::regex_iterator<utf16be::CodePointIterator, char32_t, WindowsChar32RegexTraits>;
+
     using VariantIterator = std::variant<
         std::monostate,
-        boost::regex_iterator<latin1::CodePointIterator, char32_t, WindowsChar32RegexTraits>,
-        boost::regex_iterator<utf8::CodePointIterator, char32_t, WindowsChar32RegexTraits>,
-        boost::regex_iterator<utf16le::CodePointIterator, char32_t, WindowsChar32RegexTraits>,
-        boost::regex_iterator<utf16be::CodePointIterator, char32_t, WindowsChar32RegexTraits>>;
+        RegexIteratorLatin1,
+        RegexIteratorUtf8,
+        RegexIteratorUtf16LE,
+        RegexIteratorUtf16BE>;
 
     __volatile long m_refCount = 1;
-    boost::regex_constants::match_flag_type m_matchFlags;
-    wil::com_ptr<RegEx> m_regex;
-    void const* m_inputData;
-    size_t m_inputSize;
+    boost::regex_constants::match_flag_type const m_matchFlags;
+    wil::com_ptr<RegEx> const m_regex;
+    void const* const m_inputData;
+    size_t const m_inputSize;
+    RegExEncoding const m_inputEncoding;
     RegExEnumerationState m_state;
-    boost::regex_constants::match_flag_type m_formatFlags;
-    VariantIterator m_variantIterator; // m_variantIterator.index() is the input's encoding.
+    VariantIterator m_variantIterator;
     std::u32string m_formatTemplate;
-    std::u32string m_outputBuffer;
+    boost::regex_constants::match_flag_type m_formatFlags;
+    std::u32string m_outputBuffer; // Sometimes contains char32_t, sometimes contains transcoded bytes.
 
 public:
 
@@ -36,42 +42,42 @@ public:
 
     // IUnknown
 
-    HRESULT __stdcall
+    HRESULT STDMETHODCALLTYPE
     QueryInterface(REFIID riid, _Outptr_ void** ppvObject) noexcept override;
 
-    ULONG __stdcall
+    ULONG STDMETHODCALLTYPE
     AddRef() noexcept override;
 
-    ULONG __stdcall
+    ULONG STDMETHODCALLTYPE
     Release() noexcept override;
 
     // IRegExMatchEnumerator
 
-    HRESULT
+    HRESULT STDMETHODCALLTYPE
     GetInput(_Out_ RegExString* pInput) noexcept override;
 
-    HRESULT
+    HRESULT STDMETHODCALLTYPE
     GetState(_Out_ RegExEnumerationState* pState) noexcept override;
 
-    HRESULT
+    HRESULT STDMETHODCALLTYPE
     NextMatch(_Out_ VARIANT_BOOL* pFound) noexcept override;
 
-    HRESULT
+    HRESULT STDMETHODCALLTYPE
     GetSubMatchCount(_Out_ UINT32* pCount) noexcept override;
 
-    HRESULT
+    HRESULT STDMETHODCALLTYPE
     GetSubMatch(UINT32 subMatchIndex, _Out_ RegExSubMatch* pSubMatch) noexcept override;
 
-    HRESULT
+    HRESULT STDMETHODCALLTYPE
     GetSubMatchString(
         UINT32 subMatchIndex,
         RegExEncoding subMatchEncoding,
         _Out_ RegExString* pSubMatchString) noexcept override;
 
-    HRESULT
+    HRESULT STDMETHODCALLTYPE
     SetFormatTemplate(BSTR formatTemplate, RegExFormatFlags formatFlags) noexcept override;
 
-    HRESULT
+    HRESULT STDMETHODCALLTYPE
     Format(RegExEncoding outputEncoding, _Out_ RegExString* pOutputString) noexcept override;
 
 private:

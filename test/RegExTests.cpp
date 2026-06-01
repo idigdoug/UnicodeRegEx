@@ -4,6 +4,26 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 using namespace std::string_view_literals;
 
+template<class CharT>
+static constexpr RegExString
+MakeString(std::basic_string_view<CharT> sv, RegExEncoding encoding)
+{
+    return {
+        .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(sv.data())),
+        .size = static_cast<LONGLONG>(sv.size() * sizeof(sv[0])),
+        .encoding = encoding
+    };
+}
+
+template<class CharT>
+static constexpr std::basic_string_view<CharT>
+MakeView(RegExString const& str) noexcept
+{
+    return std::basic_string_view<CharT>(
+        reinterpret_cast<CharT const*>(str.data_ptr),
+        static_cast<UINT_PTR>(str.size / sizeof(CharT)));
+}
+
 namespace RegExTests
 {
     TEST_CLASS(RegExCreateTests)
@@ -91,12 +111,7 @@ namespace RegExTests
             wil::com_ptr<IRegEx> regex;
             RepStrRegExCreate(pattern.get(), RegExSyntaxFlags_ECMAScript, 0x0409, nullptr, regex.put());
 
-            const char input[] = "hello world";
-            RegExString inputStr = {
-                .data_ptr = reinterpret_cast<LONGLONG>(input),
-                .size = static_cast<LONGLONG>(strlen(input)),
-                .encoding = RegExEncoding_utf8
-            };
+            RegExString inputStr = MakeString("hello world"sv, RegExEncoding_utf8);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
             HRESULT hr = regex->CreateMatchEnumerator(&inputStr, RegExMatchFlag_default, enumerator.put());
@@ -132,12 +147,7 @@ namespace RegExTests
             wil::com_ptr<IRegEx> regex;
             RepStrRegExCreate(pattern.get(), RegExSyntaxFlags_ECMAScript, 0, nullptr, regex.put());
 
-            const char input[] = "abc 123 def 456";
-            RegExString inputStr = {
-                .data_ptr = reinterpret_cast<LONGLONG>(input),
-                .size = static_cast<LONGLONG>(strlen(input)),
-                .encoding = RegExEncoding_utf8
-            };
+            RegExString inputStr = MakeString("abc 123 def 456"sv, RegExEncoding_utf8);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
             regex->CreateMatchEnumerator(&inputStr, RegExMatchFlag_default, enumerator.put());
@@ -169,12 +179,7 @@ namespace RegExTests
             wil::com_ptr<IRegEx> regex;
             RepStrRegExCreate(pattern.get(), RegExSyntaxFlags_ECMAScript, 0, nullptr, regex.put());
 
-            const char input[] = "hello world";
-            RegExString inputStr = {
-                .data_ptr = reinterpret_cast<LONGLONG>(input),
-                .size = static_cast<LONGLONG>(strlen(input)),
-                .encoding = RegExEncoding_utf8
-            };
+            RegExString inputStr = MakeString("hello world"sv, RegExEncoding_utf8);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
             regex->CreateMatchEnumerator(&inputStr, RegExMatchFlag_default, enumerator.put());
@@ -192,12 +197,7 @@ namespace RegExTests
                 S_OK,
                 RepStrRegExCreate(pattern.get(), RegExSyntaxFlags_ECMAScript, 0, nullptr, regex.put()));
 
-            const char input[] = "$user@host!";
-            RegExString inputStr = {
-                .data_ptr = reinterpret_cast<LONGLONG>(input),
-                .size = static_cast<LONGLONG>(strlen(input)),
-                .encoding = RegExEncoding_utf8
-            };
+            RegExString inputStr = MakeString("$user@host!"sv, RegExEncoding_utf8);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
             Assert::AreEqual(
@@ -228,7 +228,7 @@ namespace RegExTests
                 S_OK,
                 enumerator->GetSubMatchString(0, RegExEncoding_latin1, &str));
             Assert::IsTrue(RegExEncoding_latin1 == str.encoding);
-            Assert::IsTrue("user@host"sv == std::string_view(reinterpret_cast<const char*>(str.data_ptr), str.size));
+            Assert::IsTrue("user@host"sv == MakeView<char>(str));
 
             // Group 1: "user" at offset 1, length 4
 
@@ -243,7 +243,7 @@ namespace RegExTests
                 S_OK,
                 enumerator->GetSubMatchString(1, RegExEncoding_utf16le, &str));
             Assert::IsTrue(RegExEncoding_utf16le == str.encoding);
-            Assert::IsTrue(u"user"sv == std::u16string_view(reinterpret_cast<const char16_t*>(str.data_ptr), str.size / sizeof(char16_t)));
+            Assert::IsTrue(u"user"sv == MakeView<char16_t>(str));
 
             // Group 2: "host" at offset 6, length 4
 
@@ -258,7 +258,7 @@ namespace RegExTests
                 S_OK,
                 enumerator->GetSubMatchString(2, RegExEncoding_utf8, &str));
             Assert::IsTrue(RegExEncoding_utf8 == str.encoding);
-            Assert::IsTrue("host"sv == std::string_view(reinterpret_cast<const char*>(str.data_ptr), str.size));
+            Assert::IsTrue("host"sv == MakeView<char>(str));
         }
 
         TEST_METHOD(Utf16_Turkish)
@@ -280,12 +280,7 @@ namespace RegExTests
                     nullptr, regex_i.put()));
 
             // "İ" (U+0130) should match "i" case-insensitively in Turkish
-            const char16_t input_idot[] = u"\u0130";
-            RegExString inputStr_idot = {
-                .data_ptr = reinterpret_cast<LONGLONG>(input_idot),
-                .size = static_cast<LONGLONG>(1 * sizeof(char16_t)),
-                .encoding = RegExEncoding_utf16le
-            };
+            RegExString inputStr_idot = MakeString(u"\u0130"sv, RegExEncoding_utf16le);
 
             wil::com_ptr<IRegExMatchEnumerator> enum_idot;
             Assert::AreEqual(S_OK, regex_i->CreateMatchEnumerator(&inputStr_idot, RegExMatchFlag_default, enum_idot.put()));
@@ -295,12 +290,7 @@ namespace RegExTests
             Assert::IsTrue(found != 0, L"Turkish 'i' should match '\u0130' (İ) case-insensitively");
 
             // "I" (U+0049) should NOT match "i" case-insensitively in Turkish
-            const char16_t input_I[] = u"I";
-            RegExString inputStr_I = {
-                .data_ptr = reinterpret_cast<LONGLONG>(input_I),
-                .size = static_cast<LONGLONG>(1 * sizeof(char16_t)),
-                .encoding = RegExEncoding_utf16le
-            };
+            RegExString inputStr_I = MakeString(u"I"sv, RegExEncoding_utf16le);
 
             wil::com_ptr<IRegExMatchEnumerator> enum_I;
             Assert::AreEqual(S_OK, regex_i->CreateMatchEnumerator(&inputStr_I, RegExMatchFlag_default, enum_I.put()));
@@ -321,12 +311,7 @@ namespace RegExTests
                     nullptr, regex_I.put()));
 
             // "ı" (U+0131) should match "I" case-insensitively in Turkish
-            const char16_t input_dotless_i[] = u"\u0131";
-            RegExString inputStr_dotless = {
-                .data_ptr = reinterpret_cast<LONGLONG>(input_dotless_i),
-                .size = static_cast<LONGLONG>(1 * sizeof(char16_t)),
-                .encoding = RegExEncoding_utf16le
-            };
+            RegExString inputStr_dotless = MakeString(u"\u0131"sv, RegExEncoding_utf16le);
 
             wil::com_ptr<IRegExMatchEnumerator> enum_dotless;
             Assert::AreEqual(S_OK, regex_I->CreateMatchEnumerator(&inputStr_dotless, RegExMatchFlag_default, enum_dotless.put()));
@@ -336,12 +321,7 @@ namespace RegExTests
             Assert::IsTrue(found != 0, L"Turkish 'I' should match '\u0131' (ı) case-insensitively");
 
             // "i" (U+0069) should NOT match "I" case-insensitively in Turkish
-            const char16_t input_latin_i[] = u"i";
-            RegExString inputStr_latin_i = {
-                .data_ptr = reinterpret_cast<LONGLONG>(input_latin_i),
-                .size = static_cast<LONGLONG>(1 * sizeof(char16_t)),
-                .encoding = RegExEncoding_utf16le
-            };
+            RegExString inputStr_latin_i = MakeString(u"i"sv, RegExEncoding_utf16le);
 
             wil::com_ptr<IRegExMatchEnumerator> enum_latin_i;
             Assert::AreEqual(S_OK, regex_I->CreateMatchEnumerator(&inputStr_latin_i, RegExMatchFlag_default, enum_latin_i.put()));
@@ -357,12 +337,7 @@ namespace RegExTests
             wil::com_ptr<IRegEx> regex;
             RepStrRegExCreate(pattern.get(), RegExSyntaxFlags_ECMAScript, 0, nullptr, regex.put());
 
-            const char16_t input[] = u"hello world";
-            RegExString inputStr = {
-                .data_ptr = reinterpret_cast<LONGLONG>(input),
-                .size = static_cast<LONGLONG>(11 * sizeof(char16_t)),
-                .encoding = RegExEncoding_utf16le
-            };
+            RegExString inputStr = MakeString(u"hello world"sv, RegExEncoding_utf16le);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
             regex->CreateMatchEnumerator(&inputStr, RegExMatchFlag_default, enumerator.put());
@@ -383,12 +358,7 @@ namespace RegExTests
             wil::com_ptr<IRegEx> regex;
             RepStrRegExCreate(pattern.get(), RegExSyntaxFlags_ECMAScript, 0, nullptr, regex.put());
 
-            const char input[] = "a";
-            RegExString inputStr = {
-                .data_ptr = reinterpret_cast<LONGLONG>(input),
-                .size = 1,
-                .encoding = RegExEncoding_utf8
-            };
+            RegExString inputStr = MakeString("a"sv, RegExEncoding_utf8);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
             regex->CreateMatchEnumerator(&inputStr, RegExMatchFlag_default, enumerator.put());
@@ -413,12 +383,7 @@ namespace RegExTests
             wil::com_ptr<IRegEx> regex;
             RepStrRegExCreate(pattern.get(), RegExSyntaxFlags_ECMAScript, 0, nullptr, regex.put());
 
-            const char input[] = "user@host";
-            RegExString inputStr = {
-                .data_ptr = reinterpret_cast<LONGLONG>(input),
-                .size = static_cast<LONGLONG>(strlen(input)),
-                .encoding = RegExEncoding_utf8
-            };
+            RegExString inputStr = MakeString("user@host"sv, RegExEncoding_utf8);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
             regex->CreateMatchEnumerator(&inputStr, RegExMatchFlag_default, enumerator.put());
@@ -437,8 +402,7 @@ namespace RegExTests
             Assert::AreEqual(LONGLONG(9), output.size); // "host@user" = 9 bytes
             Assert::AreEqual((int)RegExEncoding_utf8, (int)output.encoding);
 
-            std::string result(reinterpret_cast<char const*>(output.data_ptr), static_cast<size_t>(output.size));
-            Assert::AreEqual(std::string("host@user"), result);
+            Assert::AreEqual("host@user"sv, MakeView<char>(output));
         }
     };
 }

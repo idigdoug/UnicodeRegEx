@@ -258,10 +258,12 @@
         {
             switch (RuntimeInformation.ProcessArchitecture)
             {
+                case Architecture.X86:
+                    return NativeMethods.RepStrRegExCreate_X86(pattern, syntaxFlags, lcid, out errorCode, out regex);
                 case Architecture.X64:
-                    return NativeMethods.RepStrRegExCreate_x64(pattern, syntaxFlags, lcid, out errorCode, out regex);
+                    return NativeMethods.RepStrRegExCreate_X64(pattern, syntaxFlags, lcid, out errorCode, out regex);
                 case Architecture.Arm64:
-                    return NativeMethods.RepStrRegExCreate_arm64(pattern, syntaxFlags, lcid, out errorCode, out regex);
+                    return NativeMethods.RepStrRegExCreate_Arm64(pattern, syntaxFlags, lcid, out errorCode, out regex);
                 default:
                     throw new PlatformNotSupportedException($"Unsupported architecture: {RuntimeInformation.ProcessArchitecture}");
             }
@@ -269,16 +271,24 @@
 
         private static class NativeMethods
         {
-            [DllImport("RepStrRegEx_x64.dll", CharSet = CharSet.Unicode, EntryPoint = "RepStrRegExCreate", ExactSpelling = true, PreserveSig = true)]
-            public static extern int RepStrRegExCreate_x64(
+            [DllImport("RepStrRegEx_x86.dll", CharSet = CharSet.Unicode, EntryPoint = "RepStrRegExCreate", ExactSpelling = true, PreserveSig = true)]
+            public static extern int RepStrRegExCreate_X86(
                 [MarshalAs(UnmanagedType.BStr)] string pattern,
                 RegExSyntaxFlags syntaxFlags,
                 int lcid,
                 out RegExErrorCode errorCode,
                 out IRegEx regex);
 
-            [DllImport("RepStrRegEx_arm64.dll", CharSet = CharSet.Unicode, EntryPoint = "RepStrRegExCreate", ExactSpelling = true, PreserveSig = true)]
-            public static extern int RepStrRegExCreate_arm64(
+            [DllImport("RepStrRegEx_x64.dll", CharSet = CharSet.Unicode, EntryPoint = "RepStrRegExCreate", ExactSpelling = true, PreserveSig = true)]
+            public static extern int RepStrRegExCreate_X64(
+                [MarshalAs(UnmanagedType.BStr)] string pattern,
+                RegExSyntaxFlags syntaxFlags,
+                int lcid,
+                out RegExErrorCode errorCode,
+                out IRegEx regex);
+
+            [DllImport("RepStrRegEx_ARM64.dll", CharSet = CharSet.Unicode, EntryPoint = "RepStrRegExCreate", ExactSpelling = true, PreserveSig = true)]
+            public static extern int RepStrRegExCreate_Arm64(
                 [MarshalAs(UnmanagedType.BStr)] string pattern,
                 RegExSyntaxFlags syntaxFlags,
                 int lcid,

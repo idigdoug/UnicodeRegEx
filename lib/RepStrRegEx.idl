@@ -213,10 +213,10 @@ typedef [v1_enum] enum RegExErrorCode
 typedef [v1_enum] enum RegExEncoding
 {
     RegExEncoding_none = 0,
-    RegExEncoding_latin1,
-    RegExEncoding_utf8,
-    RegExEncoding_utf16le,
-    RegExEncoding_utf16be,
+    RegExEncoding_utf16le = 1200,
+    RegExEncoding_utf16be = 1201,
+    RegExEncoding_latin1 = 28591,
+    RegExEncoding_utf8 = 65001,
 } RegExEncoding;
 
 typedef [v1_enum] enum RegExEnumerationState
@@ -288,7 +288,7 @@ interface IRegExMatchEnumerator : IUnknown
     // Get the sub-match content by index (0 = get the entire match).
     // Returned buffer is valid until a subsequent call to NextMatch(), Format(),
     // GetSubMatchString(), or the enumerator is released.
-    // Returns S_OK with encoding == RegExEncoding_none for no-match.
+    // Returns S_OK with pSubMatchString->encoding == RegExEncoding_none for no-match.
     // Returns E_INVALIDARG if index >= GetSubMatchCount().
     HRESULT GetSubMatchString(
         [in] UINT32 subMatchIndex,

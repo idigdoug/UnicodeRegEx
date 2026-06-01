@@ -4,7 +4,22 @@
 
 #include <utf.h>
 
-static constexpr size_t InvalidOffset = ~(size_t)0;
+static constexpr RegExString
+MakeString(_In_reads_bytes_(size) void const* data, UINT_PTR size, RegExEncoding encoding) noexcept
+{
+    return {
+        .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(data)),
+        .size = static_cast<LONGLONG>(size),
+        .encoding = encoding,
+    };
+}
+
+template<class CharT>
+static constexpr bool
+StringIsAligned(RegExString const& str) noexcept
+{
+    return 0 == ((str.data_ptr | str.size) & (sizeof(CharT) - 1));
+}
 
 RegExMatchEnumerator::~RegExMatchEnumerator() = default;
 
@@ -15,48 +30,49 @@ RegExMatchEnumerator::RegExMatchEnumerator(
     : m_refCount(1)
     , m_matchFlags(static_cast<boost::regex_constants::match_flag_type>(flags))
     , m_regex(regex)
-    , m_inputData(reinterpret_cast<void const*>(static_cast<INT_PTR>(pInput->data_ptr)))
-    , m_inputSize(static_cast<ULONGLONG>(pInput->size))
+    , m_inputData(reinterpret_cast<void const*>(static_cast<UINT_PTR>(pInput->data_ptr)))
+    , m_inputSize(static_cast<UINT_PTR>(pInput->size))
+    , m_inputEncoding(pInput->encoding)
     , m_state(RegExEnumerationState_not_started)
+    , m_variantIterator()
+    , m_formatTemplate()
     , m_formatFlags(boost::regex_constants::format_default)
+    , m_outputBuffer()
 {
-    static_assert(sizeof(void*) == sizeof(pInput->data_ptr));
-    static_assert(sizeof(m_inputSize) == sizeof(pInput->size));
-
     // Validate the encoding parameter.
     // Initialize m_variantIterator with the correct type of iterator.
     // Iterator is constructed as empty since initial state needs to be not_started.
     // Iterator will be re-constructed with actual data on the first call to NextMatch().
-    switch (pInput->encoding)
+    switch (m_inputEncoding)
     {
     case RegExEncoding_latin1:
 
-        m_variantIterator.emplace<RegExEncoding_latin1>();
+        m_variantIterator.emplace<RegexIteratorLatin1>();
         break;
 
     case RegExEncoding_utf8:
 
-        m_variantIterator.emplace<RegExEncoding_utf8>();
+        m_variantIterator.emplace<RegexIteratorUtf8>();
         break;
 
     case RegExEncoding_utf16le:
 
-        if (pInput->data_ptr % sizeof(char16_t) != 0 || pInput->size % sizeof(char16_t) != 0)
+        if (!StringIsAligned<char16_t>(*pInput))
         {
             THROW_HR(E_INVALIDARG);
         }
 
-        m_variantIterator.emplace<RegExEncoding_utf16le>();
+        m_variantIterator.emplace<RegexIteratorUtf16LE>();
         break;
 
     case RegExEncoding_utf16be:
 
-        if (pInput->data_ptr % sizeof(char16_t) != 0 || pInput->size % sizeof(char16_t) != 0)
+        if (!StringIsAligned<char16_t>(*pInput))
         {
             THROW_HR(E_INVALIDARG);
         }
 
-        m_variantIterator.emplace<RegExEncoding_utf16be>();
+        m_variantIterator.emplace<RegexIteratorUtf16BE>();
         break;
 
     default:
@@ -105,12 +121,7 @@ RegExMatchEnumerator::Release() noexcept
 HRESULT
 RegExMatchEnumerator::GetInput(_Out_ RegExString* pInput) noexcept
 {
-    static_assert(sizeof(void*) == sizeof(pInput->data_ptr));
-    *pInput = {
-        .data_ptr = static_cast<LONGLONG>(reinterpret_cast<INT_PTR>(m_inputData)),
-        .size = static_cast<LONGLONG>(m_inputSize),
-        .encoding = static_cast<RegExEncoding>(m_variantIterator.index()),
-    };
+    *pInput = MakeString(m_inputData, m_inputSize, m_inputEncoding);
     return S_OK;
 }
 
@@ -215,7 +226,7 @@ RegExMatchEnumerator::GetSubMatchString(
             {
                 if (hr != S_OK)
                 {
-                    // No match for the specified subMatchIndex, return data_ptr == 0.
+                    // No match for the specified subMatchIndex, return with encoding == 0.
                     assert(hr == S_FALSE);
                     hr = S_OK;
                 }
@@ -381,8 +392,10 @@ RegExMatchEnumerator::VisitGetSubMatch(
     }
     else
     {
-        pSubMatch->input_offset = submatch.first.ByteOffset(m_inputData);
-        pSubMatch->size = submatch.second.ByteOffset(m_inputData) - pSubMatch->input_offset;
+        auto const firstOffset = submatch.first.ByteOffset(m_inputData);
+        auto const secondOffset = submatch.second.ByteOffset(m_inputData);
+        pSubMatch->input_offset = static_cast<LONGLONG>(firstOffset);
+        pSubMatch->size = static_cast<LONGLONG>(secondOffset - firstOffset);
         pSubMatch->matched = VARIANT_TRUE;
     }
 
@@ -445,39 +458,44 @@ RegExMatchEnumerator::TranscodeOutput(
     RegExEncoding outputEncoding,
     _Out_ RegExString* pOutput) noexcept(false)
 {
-    pOutput->encoding = outputEncoding;
+    void const* data;
+    size_t size;
 
     switch (outputEncoding)
     {
     case RegExEncoding_latin1:
     {
         auto result = latin1::ConvertInPlace(m_outputBuffer);
-        pOutput->data_ptr = reinterpret_cast<INT_PTR>(result.data());
-        pOutput->size = static_cast<LONGLONG>(result.size() * sizeof(result[0]));
-        return S_OK;
+        data = result.data();
+        size = result.size_bytes();
+        break;
     }
     case RegExEncoding_utf8:
     {
         auto result = utf8::ConvertInPlace(m_outputBuffer);
-        pOutput->data_ptr = reinterpret_cast<INT_PTR>(result.data());
-        pOutput->size = static_cast<LONGLONG>(result.size() * sizeof(result[0]));
-        return S_OK;
+        data = result.data();
+        size = result.size_bytes();
+        break;
     }
     case RegExEncoding_utf16le:
     {
         auto result = utf16le::ConvertInPlace(m_outputBuffer);
-        pOutput->data_ptr = reinterpret_cast<INT_PTR>(result.data());
-        pOutput->size = static_cast<LONGLONG>(result.size() * sizeof(result[0]));
-        return S_OK;
+        data = result.data();
+        size = result.size_bytes();
+        break;
     }
     case RegExEncoding_utf16be:
     {
         auto result = utf16be::ConvertInPlace(m_outputBuffer);
-        pOutput->data_ptr = reinterpret_cast<INT_PTR>(result.data());
-        pOutput->size = static_cast<LONGLONG>(result.size() * sizeof(result[0]));
-        return S_OK;
+        data = result.data();
+        size = result.size_bytes();
+        break;
     }
     default:
+        *pOutput = {};
         return E_INVALIDARG;
     }
+
+    *pOutput = MakeString(data, size, outputEncoding);
+    return S_OK;
 }

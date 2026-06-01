@@ -4,6 +4,8 @@
 #include <utf.h>
 #include "resource.h"
 
+#include <boost/regex/v5/unicode_iterator.hpp>
+
 #include <string>
 #include <string_view>
 #include <vector>
@@ -19,7 +21,7 @@
 */
 
 static constexpr unsigned ExpectedMatches = 25840;
-static constexpr unsigned BenchmarkIterations = 250;
+static constexpr unsigned BenchmarkIterations = 50;
 
 // ============================================================================
 // Helpers
@@ -55,7 +57,7 @@ template<class IteratorT>
 static void
 RunIteratorBenchmark(
     char const* label,
-    std::span<typename IteratorT::input_type const> corpus)
+    std::pair<IteratorT, IteratorT> corpus)
 {
     using regex_type = boost::basic_regex<char32_t, WindowsChar32RegexTraits>;
     using regex_iterator = boost::regex_iterator<IteratorT, char32_t, WindowsChar32RegexTraits>;
@@ -71,9 +73,6 @@ RunIteratorBenchmark(
         patterns.emplace_back(pat32.data(), pat32.data() + pat32.size());
     }
 
-    // Create iterators (excluded from timing).
-    auto [begin, end] = IteratorT::FromSpan(corpus);
-
     size_t totalMatches = 0;
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -81,7 +80,7 @@ RunIteratorBenchmark(
     {
         for (auto const& pattern : patterns)
         {
-            regex_iterator it(begin, end, pattern);
+            regex_iterator it(corpus.first, corpus.second, pattern);
             regex_iterator itEnd;
             for (; it != itEnd; ++it)
             {
@@ -181,25 +180,33 @@ Benchmarks()
     printf("Patterns: %zu\n", TestPatternCount);
     printf("---\n");
 
-    // UTF-8
-    RunIteratorBenchmark<utf8::CodePointIterator>("UTF-8",
-        std::span<char8_t const>(reinterpret_cast<char8_t const*>(mobyText.data()), mobyText.size()));
+    using u32_to_u8_it = boost::u8_to_u32_iterator<char8_t const*, char32_t>;
 
-#if 0
+    auto const u8begin = reinterpret_cast<char8_t const*>(mobyText.data());
+    auto const u8end = u8begin + mobyText.size();
+
+    // UTF-8
+    RunIteratorBenchmark("UTF-8-Boost", std::pair(
+        u32_to_u8_it(u8begin, u8begin, u8end),
+        u32_to_u8_it(u8end, u8begin, u8end)));
+    RunIteratorBenchmark("UTF-8",
+        utf8::CodePointIterator::FromSpan({ u8begin, u8end }));
+
+#if 1
     // UTF-16LE
     auto utf16leData = ConvertUtf8ToUtf16LE(mobyText);
     RunIteratorBenchmark<utf16le::CodePointIterator>("UTF-16LE",
-        std::span<char16_t const>(utf16leData.data(), utf16leData.size()));
+        utf16le::CodePointIterator::FromSpan({ utf16leData.data(), utf16leData.size() }));
 
     // UTF-16BE
     auto utf16beData = ConvertUtf8ToUtf16BE(mobyText);
     RunIteratorBenchmark<utf16be::CodePointIterator>("UTF-16BE",
-        std::span<char16_t const>(utf16beData.data(), utf16beData.size()));
+        utf16be::CodePointIterator::FromSpan({ utf16beData.data(), utf16beData.size() }));
 
     // Latin1 (random-access) - properly converted from UTF-8
     auto latin1Data = ConvertUtf8ToLatin1(mobyText);
     RunIteratorBenchmark<latin1::CodePointIterator>("Latin1-Rand",
-        std::span<char const>(latin1Data.data(), latin1Data.size()));
+        latin1::CodePointIterator::FromSpan({ latin1Data.data(), latin1Data.size() }));
 #endif
 
     printf("---\nDone.\n");
