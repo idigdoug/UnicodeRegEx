@@ -2,6 +2,14 @@
 #include <span>
 #include <assert.h>
 
+#ifndef UTF_FORCEINLINE
+#ifdef NDEBUG
+#define UTF_FORCEINLINE __forceinline
+#else // NDEBUG
+#define UTF_FORCEINLINE
+#endif // NDEBUG
+#endif // UTF_FORCEINLINE
+
 namespace _utfDetail
 {
     template<class ImplT>
@@ -49,6 +57,7 @@ namespace _utfDetail
             return (this->m_pos - static_cast<input_type const*>(begin)) * sizeof(input_type);
         }
 
+        UTF_FORCEINLINE
         constexpr value_type
         operator*() const noexcept
         {
@@ -57,12 +66,23 @@ namespace _utfDetail
             return this->Read();
         }
 
+        UTF_FORCEINLINE
         constexpr CodePointIterator&
         operator++() noexcept
         {
             assert(this->m_begin <= this->m_pos);
             assert(this->m_pos < this->m_end);
             this->Increment();
+            return *this;
+        }
+
+        UTF_FORCEINLINE
+        constexpr CodePointIterator&
+        operator--() noexcept
+        {
+            assert(this->m_begin < this->m_pos);
+            assert(this->m_pos <= this->m_end);
+            this->Decrement();
             return *this;
         }
 
@@ -74,15 +94,6 @@ namespace _utfDetail
             auto tmp = *this;
             this->Increment();
             return tmp;
-        }
-
-        constexpr CodePointIterator&
-        operator--() noexcept
-        {
-            assert(this->m_begin < this->m_pos);
-            assert(this->m_pos <= this->m_end);
-            this->Decrement();
-            return *this;
         }
 
         constexpr CodePointIterator
@@ -366,6 +377,18 @@ struct utf8
         InputType const* m_end;
 
         static constexpr bool
+        IsAsciiByte(char8_t ch) noexcept
+        {
+            return static_cast<signed char>(ch) >= 0;
+        }
+
+        static constexpr bool
+        IsLeadByte(char8_t ch) noexcept
+        {
+            return static_cast<unsigned char>(ch - 0xC2) <= 0x32; // 0xC2-0xF4
+        }
+
+        static constexpr bool
         IsTrailByte(char8_t ch) noexcept
         {
             return (ch & 0xC0) == 0x80;
@@ -375,11 +398,9 @@ struct utf8
         static constexpr unsigned
         TrailLength(char8_t lead) noexcept
         {
-            if (lead < 0xC2) return 0; // trail bytes and overlong 2-byte sequences
-            if (lead < 0xE0) return 1;
-            if (lead < 0xF0) return 2;
-            if (lead < 0xF5) return 3;
-            return 0; // F5+ is invalid
+            return IsLeadByte(lead)
+                ? (lead >= 0xe0) + (lead >= 0xf0) + 1
+                : 0;
         }
 
         constexpr
@@ -389,15 +410,17 @@ struct utf8
             , m_end(end)
         {}
 
+        UTF_FORCEINLINE
         constexpr char32_t
         Read() const noexcept
         {
             char8_t const lead = m_pos[0];
-            if (lead < 0x80)
-            {
-                return lead;
-            }
+            return IsAsciiByte(lead) ? lead : ReadNonAscii(lead);
+        }
 
+        constexpr char32_t
+        ReadNonAscii(char8_t const lead) const noexcept
+        {
             unsigned const trailLength = TrailLength(lead);
             if (trailLength == 0 || m_pos + trailLength >= m_end)
             {
@@ -448,67 +471,75 @@ struct utf8
             return cp;
         }
 
+        UTF_FORCEINLINE
         constexpr void
         Increment() noexcept
         {
             char8_t const lead = m_pos[0];
-            if (lead < 0x80)
+            if (IsAsciiByte(lead))
             {
                 m_pos += 1;
             }
             else
             {
-                unsigned const trailLength = TrailLength(lead);
-                if (trailLength == 0)
-                {
-                    // invalid lead byte: advance one byte.
-                    m_pos += 1;
-                }
-                else
-                {
-                    // Advance past as many valid trail bytes as expected.
-                    unsigned advance = 1;
-                    for (; advance <= trailLength; advance += 1)
-                    {
-                        if (m_pos + advance >= m_end || !IsTrailByte(m_pos[advance]))
-                        {
-                            break;
-                        }
-                    }
-                    m_pos += advance;
-                }
+                IncrementNonAscii(lead);
             }
         }
 
         constexpr void
-        Decrement() noexcept
+        IncrementNonAscii(char8_t const lead) noexcept
         {
-            char8_t const* p = m_pos - 1;
-            if (*p < 0x80)
+            unsigned const trailLength = TrailLength(lead);
+            if (trailLength == 0)
             {
-                m_pos = p;
+                // invalid lead byte: advance one byte.
+                m_pos += 1;
             }
             else
             {
-                // Back up over trail bytes (max 3).
-                unsigned trailCount = 0;
-                for (; p > m_begin && IsTrailByte(*p) && trailCount < 3; trailCount += 1)
+                // Advance past as many valid trail bytes as expected.
+                unsigned advance = 1;
+                for (; advance <= trailLength; advance += 1)
                 {
-                    p -= 1;
+                    if (m_pos + advance >= m_end || !IsTrailByte(m_pos[advance]))
+                    {
+                        break;
+                    }
                 }
+                m_pos += advance;
+            }
+        }
 
-                // Check if p points to a valid lead byte that would consume these trail bytes.
-                unsigned const trailLength = TrailLength(*p);
-                if (trailLength > 0 && trailCount <= trailLength)
-                {
-                    // Valid sequence: position at the lead byte.
-                    m_pos = p;
-                }
-                else
-                {
-                    // Invalid sequence: back up only one byte.
-                    m_pos -= 1;
-                }
+        UTF_FORCEINLINE
+        constexpr void
+        Decrement() noexcept
+        {
+            m_pos -= 1;
+            auto const tail = m_pos[0];
+            if (!IsAsciiByte(tail))
+            {
+                DecrementNonAscii();
+            }
+        }
+
+        constexpr void
+        DecrementNonAscii() noexcept
+        {
+            char8_t const* p = m_pos;
+
+            // Back up over trail bytes (max 3).
+            unsigned trailCount = 0;
+            for (; p > m_begin && IsTrailByte(*p) && trailCount < 3; trailCount += 1)
+            {
+                p -= 1;
+            }
+
+            // Check if p points to a valid lead byte that would consume these trail bytes.
+            unsigned const trailLength = TrailLength(*p);
+            if (trailLength > 0 && trailCount <= trailLength)
+            {
+                // Valid sequence: position at the lead byte.
+                m_pos = p;
             }
         }
     };
@@ -609,60 +640,67 @@ struct utf16
             , m_end(end)
         {}
 
+        UTF_FORCEINLINE
         constexpr char32_t
         Read() const noexcept
         {
-            char16_t const ch = Swap16(m_pos[0]);
-            if (ch < 0xD800)
-            {
-                return ch;
-            }
-            else if (ch < 0xDC00)
+            char16_t const first = Swap16(m_pos[0]);
+            return first < 0xD800
+                ? first
+                : ReadComplex(first);
+        }
+
+        constexpr char32_t
+        ReadComplex(char16_t first) const noexcept
+        {
+            if (first < 0xDC00)
             {
                 // High surrogate.
                 if (m_pos + 1 < m_end)
                 {
-                    char16_t const low = Swap16(m_pos[1]);
-                    if (utf::IsLowSurrogate(low))
+                    char16_t const second = Swap16(m_pos[1]);
+                    if (utf::IsLowSurrogate(second))
                     {
-                        return utf::FromSurrogatePair(ch, low);
+                        return utf::FromSurrogatePair(first, second);
                     }
                 }
 
                 // Invalid sequence.
             }
-            else if (ch < 0xE000)
+            else if (first < 0xE000)
             {
                 // Low surrogate without preceding high surrogate is invalid.
             }
             else
             {
-                return ch;
+                return first;
             }
 
             return utf::ReplacementChar;
         }
 
+        UTF_FORCEINLINE
         constexpr void
         Increment() noexcept
         {
-            char16_t const ch = Swap16(m_pos[0]);
+            char16_t const first = Swap16(m_pos[0]);
             m_pos += 1;
-            if (ch < 0xD800)
+            if (first >= 0xD800)
             {
-                // Single code unit, done.
+                IncrementComplex(first);
             }
-            else if (ch < 0xDC00)
+        }
+
+        constexpr void
+        IncrementComplex(char16_t first) noexcept
+        {
+            if (first < 0xDC00)
             {
                 // High surrogate, skip low surrogate if valid.
                 if (m_pos < m_end && utf::IsLowSurrogate(Swap16(m_pos[0])))
                 {
                     m_pos += 1;
                 }
-            }
-            else
-            {
-                // Single code unit or unpaired low surrogate, done.
             }
         }
 
@@ -741,6 +779,7 @@ struct utf16
 
 private:
 
+    UTF_FORCEINLINE
     static constexpr char16_t
     Swap16(char16_t ch16) noexcept
     {

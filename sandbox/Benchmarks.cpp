@@ -9,19 +9,26 @@
 #include <string>
 #include <string_view>
 #include <vector>
-#include <chrono>
+#include <algorithm>
 #include <stdio.h>
 
-#pragma warning(disable: 4505) // C4505: unreferenced local function has been removed
-
 /*
+Baseline:
 ---
-  UTF-8       :  9400ms
+  UTF-8       : median:    1702, min:    1682, stddev: 23317 Kc
+  UTF-16LE    : median:    1739, min:    1711, stddev: 14108 Kc
+  UTF-16BE    : median:    1827, min:    1817, stddev: 13693 Kc
+  Latin1-Rand : median:    1449, min:    1440, stddev: 13511 Kc
 ---
 */
 
 static constexpr unsigned ExpectedMatches = 25840;
-static constexpr unsigned BenchmarkIterations = 250;
+
+#ifdef NDEBUG
+static constexpr unsigned BenchmarkIterations = 17;
+#else
+static constexpr unsigned BenchmarkIterations = 1;
+#endif
 
 // ============================================================================
 // Helpers
@@ -73,33 +80,66 @@ RunIteratorBenchmark(
         patterns.emplace_back(pat32.data(), pat32.data() + pat32.size());
     }
 
-    size_t totalMatches = 0;
-    auto start = std::chrono::high_resolution_clock::now();
-
-    for (unsigned iter = 0; iter < BenchmarkIterations; ++iter)
+    // Warm-up passes to prime I-cache and branch predictors (discarded).
+    for (unsigned warmup = 0; warmup < 2; ++warmup)
     {
         for (auto const& pattern : patterns)
         {
             regex_iterator it(corpus.first, corpus.second, pattern);
             regex_iterator itEnd;
-            for (; it != itEnd; ++it)
-            {
-                ++totalMatches;
-            }
+            for (; it != itEnd; ++it) {}
         }
     }
 
-    auto elapsed = std::chrono::high_resolution_clock::now() - start;
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+    unsigned const GroupCount = 15;
+    uint64_t samples[GroupCount];
 
-    if (totalMatches != ExpectedMatches * BenchmarkIterations)
+    for (unsigned group = 0; group != GroupCount; group += 1)
     {
-        printf("  %-12s: %5lldms (MISMATCH: %zu != %u)\n", label, ms, totalMatches, ExpectedMatches * BenchmarkIterations);
+        size_t totalMatches = 0;
+
+        ULONG64 startCycles, endCycles;
+        QueryThreadCycleTime(GetCurrentThread(), &startCycles);
+        for (unsigned iter = 0; iter < BenchmarkIterations; ++iter)
+        {
+            for (auto const& pattern : patterns)
+            {
+                regex_iterator it(corpus.first, corpus.second, pattern);
+                regex_iterator itEnd;
+                for (; it != itEnd; ++it)
+                {
+                    ++totalMatches;
+                }
+            }
+        }
+        QueryThreadCycleTime(GetCurrentThread(), &endCycles);
+
+        samples[group] = endCycles - startCycles;
+
+        if (totalMatches != ExpectedMatches * BenchmarkIterations)
+        {
+            fprintf(stderr, "ERROR: %s - expected %u matches, got %zu\n", label, ExpectedMatches * BenchmarkIterations, totalMatches);
+            return;
+        }
     }
-    else
+
+    std::sort(samples, samples + GroupCount);
+    uint64_t cyclesMedian = samples[GroupCount / 2];
+    uint64_t cyclesMin = samples[0];
+    double cyclesAvg = 0;
+    for (unsigned i = 0; i < GroupCount; ++i)
+        cyclesAvg += static_cast<double>(samples[i]);
+    cyclesAvg /= GroupCount;
+    double variance = 0;
+    for (unsigned i = 0; i < GroupCount; ++i)
     {
-        printf("  %-12s: %5lldms\n", label, ms);
+        double diff = static_cast<double>(samples[i]) - cyclesAvg;
+        variance += diff * diff;
     }
+    uint64_t cyclesStdDev = static_cast<uint64_t>(std::sqrt(variance / GroupCount));
+
+    printf("  %-12s: median: %7llu, min: %7llu, stddev: %5llu Kc\n", label,
+        cyclesMedian / 1000000, cyclesMin / 1000000, cyclesStdDev / 1000);
 }
 
 // ============================================================================
@@ -183,15 +223,29 @@ Benchmarks()
     auto const u8begin = reinterpret_cast<char8_t const*>(mobyText.data());
     auto const u8end = u8begin + mobyText.size();
 
-    RunIteratorBenchmark("UTF-8",
-        utf8::CodePointIterator::FromSpan({ u8begin, u8end }));
+#ifdef NDEBUG
+    if (!SetThreadAffinityMask(GetCurrentThread(), 2))
+    {
+        printf("Failed to set thread affinity.\n");
+    }
+
+    if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL))
+    {
+        printf("Failed to set thread priority.\n");
+    }
+#endif
 
 #if 0
     using u32_to_u8_it = boost::u8_to_u32_iterator<char8_t const*, char32_t>;
     RunIteratorBenchmark("UTF-8-Boost", std::pair(
         u32_to_u8_it(u8begin, u8begin, u8end),
         u32_to_u8_it(u8end, u8begin, u8end)));
+#endif
 
+    RunIteratorBenchmark("UTF-8",
+        utf8::CodePointIterator::FromSpan({ u8begin, u8end }));
+
+#if 1
     auto utf16leData = ConvertUtf8ToUtf16LE(mobyText);
     RunIteratorBenchmark<utf16le::CodePointIterator>("UTF-16LE",
         utf16le::CodePointIterator::FromSpan({ utf16leData.data(), utf16leData.size() }));
