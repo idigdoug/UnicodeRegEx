@@ -2,6 +2,113 @@
 #include <span>
 #include <assert.h>
 
+namespace _utfDetail
+{
+    template<class ImplT>
+    class CodePointIterator
+        : private ImplT
+    {
+        using InputType = typename ImplT::InputType;
+
+        constexpr
+        CodePointIterator(InputType const* pos, InputType const* begin, InputType const* end) noexcept
+            : ImplT(pos, begin, end)
+        {
+            assert(begin <= pos);
+            assert(pos <= end);
+        }
+
+    public:
+
+        using iterator_category = std::bidirectional_iterator_tag;
+        using value_type = char32_t;
+        using difference_type = std::ptrdiff_t;
+        using pointer = char32_t const*;
+        using reference = char32_t;
+        using input_type = InputType;
+
+        static constexpr std::pair<CodePointIterator, CodePointIterator>
+        FromSpan(std::span<input_type const> chars) noexcept
+        {
+            auto const begin = chars.data();
+            auto const end = chars.data() + chars.size();
+            return { CodePointIterator(begin, begin, end), CodePointIterator(end, begin, end) };
+        }
+
+        constexpr
+        CodePointIterator() noexcept
+            : ImplT(nullptr, nullptr, nullptr) {}
+
+        // Returns the number of bytes between begin and the current iterator position.
+        // The begin value should be chars.data() from the chars value passed to FromSpan.
+        constexpr size_t
+        ByteOffset(void const* begin) const noexcept
+        {
+            assert(this->m_begin == static_cast<input_type const*>(begin));
+            assert(this->m_pos >= static_cast<input_type const*>(begin));
+            return (this->m_pos - static_cast<input_type const*>(begin)) * sizeof(input_type);
+        }
+
+        constexpr value_type
+        operator*() const noexcept
+        {
+            assert(this->m_begin <= this->m_pos);
+            assert(this->m_pos < this->m_end);
+            return this->Read();
+        }
+
+        constexpr CodePointIterator&
+        operator++() noexcept
+        {
+            assert(this->m_begin <= this->m_pos);
+            assert(this->m_pos < this->m_end);
+            this->Increment();
+            return *this;
+        }
+
+        constexpr CodePointIterator
+        operator++(int) noexcept
+        {
+            assert(this->m_begin <= this->m_pos);
+            assert(this->m_pos < this->m_end);
+            auto tmp = *this;
+            this->Increment();
+            return tmp;
+        }
+
+        constexpr CodePointIterator&
+        operator--() noexcept
+        {
+            assert(this->m_begin < this->m_pos);
+            assert(this->m_pos <= this->m_end);
+            this->Decrement();
+            return *this;
+        }
+
+        constexpr CodePointIterator
+        operator--(int) noexcept
+        {
+            assert(this->m_begin < this->m_pos);
+            assert(this->m_pos <= this->m_end);
+            auto tmp = *this;
+            this->Decrement();
+            return tmp;
+        }
+
+        constexpr bool
+        operator==(CodePointIterator const& other) const noexcept
+        {
+            return this->m_pos == other.m_pos;
+        }
+
+        constexpr bool
+        operator!=(CodePointIterator const& other) const noexcept
+        {
+            return this->m_pos != other.m_pos;
+        }
+    };
+} // namespace _utfDetail
+
 // Utilities for 32-bit code points.
 struct utf
 {
@@ -249,18 +356,14 @@ struct latin1
 // Conversions between utf-8 and 32-bit code points.
 struct utf8
 {
-    class CodePointIterator
+    // Implementation for utf8::CodePointIterator.
+    struct _codePointIterator
     {
-        _Field_range_(m_begin, m_end) char8_t const* m_pos;
-        char8_t const* m_begin;
-        char8_t const* m_end;
+        using InputType = char8_t;
 
-        constexpr
-        CodePointIterator(char8_t const* begin, char8_t const* end, char8_t const* pos) noexcept
-            : m_pos(pos)
-            , m_begin(begin)
-            , m_end(end)
-        {}
+        _Field_range_(m_begin, m_end) InputType const* m_pos;
+        InputType const* m_begin;
+        InputType const* m_end;
 
         static constexpr bool
         IsTrailByte(char8_t ch) noexcept
@@ -279,45 +382,16 @@ struct utf8
             return 0; // F5+ is invalid
         }
 
-    public:
-
-        using iterator_category = std::bidirectional_iterator_tag;
-        using value_type = char32_t;
-        using difference_type = std::ptrdiff_t;
-        using pointer = char32_t const*;
-        using reference = char32_t;
-        using input_type = char8_t;
-
-        static constexpr std::pair<CodePointIterator, CodePointIterator>
-        FromSpan(std::span<input_type const> chars) noexcept
-        {
-            auto const begin = chars.data();
-            auto const end = chars.data() + chars.size();
-            return { CodePointIterator(begin, end, begin), CodePointIterator(begin, end, end) };
-        }
-
         constexpr
-        CodePointIterator() noexcept
-            : m_pos(nullptr)
-            , m_begin(nullptr)
-            , m_end(nullptr)
+        _codePointIterator(InputType const* pos, InputType const* begin, InputType const* end) noexcept
+            : m_pos(pos)
+            , m_begin(begin)
+            , m_end(end)
         {}
 
-        // Returns the number of bytes between begin and the current iterator position.
-        // The begin value should be chars.data() from the chars value passed to FromSpan.
-        constexpr size_t
-        ByteOffset(void const* begin) const noexcept
+        constexpr char32_t
+        Read() const noexcept
         {
-            assert(m_begin == static_cast<char8_t const*>(begin));
-            assert(m_pos >= static_cast<char8_t const*>(begin));
-            return (m_pos - static_cast<char8_t const*>(begin)) * sizeof(char8_t);
-        }
-
-        constexpr value_type
-        operator*() const noexcept
-        {
-            assert(m_begin <= m_pos && m_pos < m_end);
-
             char8_t const lead = m_pos[0];
             if (lead < 0x80)
             {
@@ -344,12 +418,12 @@ struct utf8
             {
             case 1:
                 cp = (static_cast<char32_t>(lead & 0x1F) << 6)
-                   | (static_cast<char32_t>(m_pos[1] & 0x3F));
+                    | (static_cast<char32_t>(m_pos[1] & 0x3F));
                 break;
             case 2:
                 cp = (static_cast<char32_t>(lead & 0x0F) << 12)
-                   | (static_cast<char32_t>(m_pos[1] & 0x3F) << 6)
-                   | (static_cast<char32_t>(m_pos[2] & 0x3F));
+                    | (static_cast<char32_t>(m_pos[1] & 0x3F) << 6)
+                    | (static_cast<char32_t>(m_pos[2] & 0x3F));
                 // Reject surrogates and overlong encodings.
                 if (cp < 0x0800 || (cp >= 0xD800 && cp <= 0xDFFF))
                 {
@@ -358,9 +432,9 @@ struct utf8
                 break;
             case 3:
                 cp = (static_cast<char32_t>(lead & 0x07) << 18)
-                   | (static_cast<char32_t>(m_pos[1] & 0x3F) << 12)
-                   | (static_cast<char32_t>(m_pos[2] & 0x3F) << 6)
-                   | (static_cast<char32_t>(m_pos[3] & 0x3F));
+                    | (static_cast<char32_t>(m_pos[1] & 0x3F) << 12)
+                    | (static_cast<char32_t>(m_pos[2] & 0x3F) << 6)
+                    | (static_cast<char32_t>(m_pos[3] & 0x3F));
                 // Reject overlong encodings and values above U+10FFFF.
                 if (cp < 0x10000 || cp > 0x10FFFF)
                 {
@@ -374,11 +448,9 @@ struct utf8
             return cp;
         }
 
-        constexpr CodePointIterator&
-        operator++() noexcept
+        constexpr void
+        Increment() noexcept
         {
-            assert(m_begin <= m_pos && m_pos < m_end);
-
             char8_t const lead = m_pos[0];
             if (lead < 0x80)
             {
@@ -406,23 +478,11 @@ struct utf8
                     m_pos += advance;
                 }
             }
-
-            return *this;
         }
 
-        constexpr CodePointIterator
-        operator++(int) noexcept
+        constexpr void
+        Decrement() noexcept
         {
-            auto tmp = *this;
-            ++*this;
-            return tmp;
-        }
-
-        constexpr CodePointIterator&
-        operator--() noexcept
-        {
-            assert(m_begin < m_pos && m_pos <= m_end);
-
             char8_t const* p = m_pos - 1;
             if (*p < 0x80)
             {
@@ -450,30 +510,12 @@ struct utf8
                     m_pos -= 1;
                 }
             }
-
-            return *this;
-        }
-
-        constexpr CodePointIterator
-        operator--(int) noexcept
-        {
-            auto tmp = *this;
-            --*this;
-            return tmp;
-        }
-
-        constexpr bool
-        operator==(CodePointIterator const& other) const noexcept
-        {
-            return m_pos == other.m_pos;
-        }
-
-        constexpr bool
-        operator!=(CodePointIterator const& other) const noexcept
-        {
-            return m_pos != other.m_pos;
         }
     };
+
+    // A bidirectional iterator over UTF-8 data that dereferences to char32_t.
+    // Invalid sequences are returned as U+FFFD.
+    using CodePointIterator = _utfDetail::CodePointIterator<_codePointIterator>;
 
     // Encodes a single non-ascii code point into UTF-8.
     // Returns the number of bytes written (2-4).
@@ -551,60 +593,25 @@ struct utf8
 template<bool BigEndian = false>
 struct utf16
 {
-    // A bidirectional iterator over UTF-16 data that dereferences to char32_t.
-    // Handles surrogate pairs. Invalid sequences (lone surrogates) are returned as U+FFFD.
-    class CodePointIterator
+    // Implementation for utf16::CodePointIterator.
+    struct _codePointIterator
     {
-        _Field_range_(m_begin, m_end) char16_t const* m_pos;
-        char16_t const* m_begin;
-        char16_t const* m_end;
+        using InputType = char16_t;
+
+        _Field_range_(m_begin, m_end) InputType const* m_pos;
+        InputType const* m_begin;
+        InputType const* m_end;
 
         constexpr
-        CodePointIterator(char16_t const* begin, char16_t const* end, char16_t const* pos) noexcept
+        _codePointIterator(InputType const* pos, InputType const* begin, InputType const* end) noexcept
             : m_pos(pos)
             , m_begin(begin)
             , m_end(end)
         {}
 
-    public:
-
-        using iterator_category = std::bidirectional_iterator_tag;
-        using value_type = char32_t;
-        using difference_type = std::ptrdiff_t;
-        using pointer = char32_t const*;
-        using reference = char32_t;
-        using input_type = char16_t;
-
-        static constexpr std::pair<CodePointIterator, CodePointIterator>
-        FromSpan(std::span<input_type const> chars) noexcept
+        constexpr char32_t
+        Read() const noexcept
         {
-            auto const begin = chars.data();
-            auto const end = chars.data() + chars.size();
-            return { CodePointIterator(begin, end, begin), CodePointIterator(begin, end, end) };
-        }
-
-        constexpr
-        CodePointIterator() noexcept
-            : m_pos(nullptr)
-            , m_begin(nullptr)
-            , m_end(nullptr)
-        {}
-
-        // Returns the number of bytes between begin and the current iterator position.
-        // The begin value should be chars.data() from the chars value passed to FromSpan.
-        constexpr size_t
-        ByteOffset(void const* begin) const noexcept
-        {
-            assert(m_begin == static_cast<char16_t const*>(begin));
-            assert(m_pos >= static_cast<char16_t const*>(begin));
-            return (m_pos - static_cast<char16_t const*>(begin)) * sizeof(char16_t);
-        }
-
-        constexpr value_type
-        operator*() const noexcept
-        {
-            assert(m_begin <= m_pos && m_pos < m_end);
-
             char16_t const ch = Swap16(m_pos[0]);
             if (ch < 0xD800)
             {
@@ -636,11 +643,9 @@ struct utf16
             return utf::ReplacementChar;
         }
 
-        constexpr CodePointIterator&
-        operator++() noexcept
+        constexpr void
+        Increment() noexcept
         {
-            assert(m_begin <= m_pos && m_pos < m_end);
-
             char16_t const ch = Swap16(m_pos[0]);
             m_pos += 1;
             if (ch < 0xD800)
@@ -659,23 +664,11 @@ struct utf16
             {
                 // Single code unit or unpaired low surrogate, done.
             }
-
-            return *this;
         }
 
-        constexpr CodePointIterator
-        operator++(int) noexcept
+        constexpr void
+        Decrement() noexcept
         {
-            auto tmp = *this;
-            ++*this;
-            return tmp;
-        }
-
-        constexpr CodePointIterator&
-        operator--() noexcept
-        {
-            assert(m_begin < m_pos && m_pos <= m_end);
-
             m_pos -= 1;
             if (m_pos > m_begin && utf::IsLowSurrogate(Swap16(m_pos[0])))
             {
@@ -685,29 +678,12 @@ struct utf16
                     m_pos = prev;
                 }
             }
-            return *this;
-        }
-
-        constexpr CodePointIterator
-        operator--(int) noexcept
-        {
-            auto tmp = *this;
-            --*this;
-            return tmp;
-        }
-
-        constexpr bool
-        operator==(CodePointIterator const& other) const noexcept
-        {
-            return m_pos == other.m_pos;
-        }
-
-        constexpr bool
-        operator!=(CodePointIterator const& other) const noexcept
-        {
-            return m_pos != other.m_pos;
         }
     };
+
+    // A bidirectional iterator over UTF-16 data that dereferences to char32_t.
+    // Handles surrogate pairs. Invalid sequences (lone surrogates) are returned as U+FFFD.
+    using CodePointIterator = _utfDetail::CodePointIterator<_codePointIterator>;
 
     // Encodes a single non-BMP code point into UTF-16.
     // Returns the number of 16-bit code units written (1-2).

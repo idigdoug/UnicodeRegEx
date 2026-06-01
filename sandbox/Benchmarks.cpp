@@ -21,7 +21,7 @@
 */
 
 static constexpr unsigned ExpectedMatches = 25840;
-static constexpr unsigned BenchmarkIterations = 50;
+static constexpr unsigned BenchmarkIterations = 250;
 
 // ============================================================================
 // Helpers
@@ -180,30 +180,26 @@ Benchmarks()
     printf("Patterns: %zu\n", TestPatternCount);
     printf("---\n");
 
-    using u32_to_u8_it = boost::u8_to_u32_iterator<char8_t const*, char32_t>;
-
     auto const u8begin = reinterpret_cast<char8_t const*>(mobyText.data());
     auto const u8end = u8begin + mobyText.size();
 
-    // UTF-8
-    RunIteratorBenchmark("UTF-8-Boost", std::pair(
-        u32_to_u8_it(u8begin, u8begin, u8end),
-        u32_to_u8_it(u8end, u8begin, u8end)));
     RunIteratorBenchmark("UTF-8",
         utf8::CodePointIterator::FromSpan({ u8begin, u8end }));
 
-#if 1
-    // UTF-16LE
+#if 0
+    using u32_to_u8_it = boost::u8_to_u32_iterator<char8_t const*, char32_t>;
+    RunIteratorBenchmark("UTF-8-Boost", std::pair(
+        u32_to_u8_it(u8begin, u8begin, u8end),
+        u32_to_u8_it(u8end, u8begin, u8end)));
+
     auto utf16leData = ConvertUtf8ToUtf16LE(mobyText);
     RunIteratorBenchmark<utf16le::CodePointIterator>("UTF-16LE",
         utf16le::CodePointIterator::FromSpan({ utf16leData.data(), utf16leData.size() }));
 
-    // UTF-16BE
     auto utf16beData = ConvertUtf8ToUtf16BE(mobyText);
     RunIteratorBenchmark<utf16be::CodePointIterator>("UTF-16BE",
         utf16be::CodePointIterator::FromSpan({ utf16beData.data(), utf16beData.size() }));
 
-    // Latin1 (random-access) - properly converted from UTF-8
     auto latin1Data = ConvertUtf8ToLatin1(mobyText);
     RunIteratorBenchmark<latin1::CodePointIterator>("Latin1-Rand",
         latin1::CodePointIterator::FromSpan({ latin1Data.data(), latin1Data.size() }));
