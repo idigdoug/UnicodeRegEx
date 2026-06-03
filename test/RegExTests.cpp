@@ -404,5 +404,195 @@ namespace RegExTests
 
             Assert::AreEqual("host@user"sv, MakeView<char>(output));
         }
+
+        TEST_METHOD(EmptyMatches_NoInfiniteLoop)
+        {
+            // Test that empty matches don't cause infinite loops
+            // Pattern a* can match zero or more 'a's, including empty matches
+            wil::unique_bstr pattern(SysAllocString(L"a*"));
+            wil::com_ptr<IRegEx> regex;
+            RepStrRegExCreate(pattern.get(), RegExSyntaxFlags_ECMAScript, 0, nullptr, regex.put());
+
+            RegExString inputStr = MakeString("b"sv, RegExEncoding_utf8);
+
+            wil::com_ptr<IRegExMatchEnumerator> enumerator;
+            regex->CreateMatchEnumerator(&inputStr, RegExMatchFlag_default, enumerator.put());
+
+            // Should find matches but not loop infinitely
+            VARIANT_BOOL found = VARIANT_FALSE;
+            int matchCount = 0;
+
+            while (matchCount < 100) // Safety limit
+            {
+                Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
+                if (!found) break;
+                matchCount++;
+            }
+
+            // Should have terminated naturally (found == FALSE), not hit the safety limit
+            Assert::IsFalse(found != 0);
+            Assert::IsTrue(matchCount < 100);
+            Assert::IsTrue(matchCount > 0); // Should find at least one match
+        }
+
+        TEST_METHOD(EmptyMatches_WordBoundaries)
+        {
+            // Test that word boundaries (\b) are found correctly
+            wil::unique_bstr pattern(SysAllocString(L"\\b"));
+            wil::com_ptr<IRegEx> regex;
+            RepStrRegExCreate(pattern.get(), RegExSyntaxFlags_ECMAScript, 0, nullptr, regex.put());
+
+            RegExString inputStr = MakeString("a b"sv, RegExEncoding_utf8);
+
+            wil::com_ptr<IRegExMatchEnumerator> enumerator;
+            regex->CreateMatchEnumerator(&inputStr, RegExMatchFlag_default, enumerator.put());
+
+            VARIANT_BOOL found = VARIANT_FALSE;
+            RegExSubMatch sub = {};
+            int matchCount = 0;
+
+            while (matchCount < 100) // Safety limit
+            {
+                Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
+                if (!found) break;
+
+                enumerator->GetSubMatch(0, &sub);
+                Assert::AreEqual(LONGLONG(0), sub.size); // Word boundaries are always empty
+                matchCount++;
+            }
+
+            // Should find word boundaries and terminate naturally
+            Assert::IsFalse(found != 0);
+            Assert::IsTrue(matchCount >= 2); // At least 2 word boundaries in "a b"
+            Assert::IsTrue(matchCount < 100); // Should not hit safety limit
+        }
+
+        TEST_METHOD(EmptyMatch_AtStartOfInput)
+        {
+            // Regression: the first call to VisitNextMatch must NOT set match_prev_avail.
+            // Pattern "a*" on "bbb" must match empty at offset 0 (the regex_iterator
+            // constructor's initial regex_search with original flags only).
+            // If match_prev_avail were applied on the first search, the engine would be
+            // told that *(begin - 1) is dereferenceable, which is false at start of input.
+            wil::unique_bstr pattern(SysAllocString(L"a*"));
+            wil::com_ptr<IRegEx> regex;
+            RepStrRegExCreate(pattern.get(), RegExSyntaxFlags_ECMAScript, 0, nullptr, regex.put());
+
+            RegExString inputStr = MakeString("bbb"sv, RegExEncoding_utf8);
+
+            wil::com_ptr<IRegExMatchEnumerator> enumerator;
+            Assert::AreEqual(
+                S_OK,
+                regex->CreateMatchEnumerator(&inputStr, RegExMatchFlag_default, enumerator.put()));
+
+            // First match: empty at offset 0.
+            VARIANT_BOOL found = VARIANT_FALSE;
+            Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
+            Assert::IsTrue(found != 0);
+
+            RegExSubMatch sub = {};
+            enumerator->GetSubMatch(0, &sub);
+            Assert::AreEqual(LONGLONG(0), sub.input_offset);
+            Assert::AreEqual(LONGLONG(0), sub.size);
+
+            // Continue iterating; per the standard's operator++ semantics, "a*" against
+            // "bbb" yields an empty match at every position 0..3 (one past end), for 4 total.
+            int matchCount = 1;
+            LONGLONG lastOffset = 0;
+            while (matchCount < 100)
+            {
+                Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
+                if (!found) break;
+                enumerator->GetSubMatch(0, &sub);
+                Assert::AreEqual(LONGLONG(0), sub.size);
+                Assert::IsTrue(sub.input_offset > lastOffset); // Must make forward progress.
+                lastOffset = sub.input_offset;
+                matchCount++;
+            }
+            Assert::IsFalse(found != 0);
+            Assert::AreEqual(4, matchCount);
+            Assert::AreEqual(LONGLONG(3), lastOffset); // Last empty match is at end-of-input.
+        }
+
+        TEST_METHOD(ZeroLengthRetry_AfterNonEmptyMatch)
+        {
+            // Exercises the persisted match_prev_avail across zero-length retries.
+            // Pattern "a+|\\b" on "aa " matches (ECMAScript leftmost-first alternation):
+            //   1. "aa" at 0..2  (non-zero-length; a+ wins at position 0)
+            //                     This sets match_prev_avail in m_matchFlags.
+            //   2. \b at 2       (zero-length; 'a' is word, ' ' is non-word, so there is
+            //                     a word boundary here. The engine must be able to see
+            //                     *(start-1) == 'a' via match_prev_avail to detect it.)
+            wil::unique_bstr pattern(SysAllocString(L"a+|\\b"));
+            wil::com_ptr<IRegEx> regex;
+            RepStrRegExCreate(pattern.get(), RegExSyntaxFlags_ECMAScript, 0, nullptr, regex.put());
+
+            RegExString inputStr = MakeString("aa "sv, RegExEncoding_utf8);
+
+            wil::com_ptr<IRegExMatchEnumerator> enumerator;
+            Assert::AreEqual(
+                S_OK,
+                regex->CreateMatchEnumerator(&inputStr, RegExMatchFlag_default, enumerator.put()));
+
+            VARIANT_BOOL found = VARIANT_FALSE;
+            RegExSubMatch sub = {};
+
+            // Match 1: "aa" at 0 (non-empty). Sets match_prev_avail going forward.
+            Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
+            Assert::IsTrue(found != 0);
+            enumerator->GetSubMatch(0, &sub);
+            Assert::AreEqual(LONGLONG(0), sub.input_offset);
+            Assert::AreEqual(LONGLONG(2), sub.size);
+
+            // Match 2: \b at 2 (between 'a' and ' '). Requires match_prev_avail to detect.
+            Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
+            Assert::IsTrue(found != 0);
+            enumerator->GetSubMatch(0, &sub);
+            Assert::AreEqual(LONGLONG(2), sub.input_offset);
+            Assert::AreEqual(LONGLONG(0), sub.size);
+
+            // No more matches in " ".
+            Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
+            Assert::IsFalse(found != 0);
+        }
+
+        TEST_METHOD(RejectsMatchPrevAvail)
+        {
+            // CreateMatchEnumerator must reject match_prev_avail from the caller; the
+            // enumerator manages that flag itself per the C++ standard's regex_iterator
+            // semantics.
+            wil::unique_bstr pattern(SysAllocString(L"a"));
+            wil::com_ptr<IRegEx> regex;
+            RepStrRegExCreate(pattern.get(), RegExSyntaxFlags_ECMAScript, 0, nullptr, regex.put());
+
+            RegExString inputStr = MakeString("a"sv, RegExEncoding_utf8);
+
+            wil::com_ptr<IRegExMatchEnumerator> enumerator;
+            HRESULT hr = regex->CreateMatchEnumerator(
+                &inputStr, static_cast<RegExMatchFlags>(1 << 8), enumerator.put());
+            Assert::AreEqual(E_INVALIDARG, hr);
+            Assert::IsNull(enumerator.get());
+        }
+
+        TEST_METHOD(RejectsNoExcept)
+        {
+            // RepStrRegExCreate must reject boost::regex_constants::no_except (bit 1<<18),
+            // because that flag would suppress pattern errors and leave a broken regex
+            // that we couldn't report. The rejection happens up front regardless of
+            // whether the pattern itself is valid.
+            wil::unique_bstr pattern(SysAllocString(L"hello"));
+            RegExErrorCode errorCode = RegExErrorCode_ok;
+            wil::com_ptr<IRegEx> regex;
+
+            HRESULT hr = RepStrRegExCreate(
+                pattern.get(),
+                static_cast<RegExSyntaxFlags>(RegExSyntaxFlags_ECMAScript | (1 << 18)),
+                LOCALE_NEUTRAL,
+                &errorCode, regex.put());
+
+            Assert::AreEqual(E_INVALIDARG, hr);
+            Assert::IsNull(regex.get());
+            Assert::IsTrue(errorCode != RegExErrorCode_ok);
+        }
     };
 }

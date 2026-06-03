@@ -17,7 +17,12 @@ RepStrRegExCreate(
     boost::regex_constants::error_type errorCode;
     PCSTR errorMessage = nullptr;
 
-    try
+    if (syntaxFlags & boost::regex_constants::no_except)
+    {
+        hr = E_INVALIDARG;
+        errorCode = boost::regex_constants::error_unknown;
+    }
+    else try
     {
         static_assert(sizeof(pattern[0]) == sizeof(char16_t), "BSTR must be UTF-16");
         auto patternIterators = utf16le::CodePointIterator::FromSpan(std::span(
@@ -180,7 +185,11 @@ RegEx::CreateMatchEnumerator(
     HRESULT hr;
     std::unique_ptr<RegExMatchEnumerator> pEnumerator;
 
-    try
+    if (flags & boost::match_prev_avail)
+    {
+        hr = E_INVALIDARG;
+    }
+    else try
     {
         pEnumerator = std::make_unique<RegExMatchEnumerator>(this, pInput, flags);
         hr = S_OK;

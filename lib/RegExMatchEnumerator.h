@@ -7,26 +7,36 @@ class RegEx;
 
 class RegExMatchEnumerator final : public IRegExMatchEnumerator
 {
-    using RegexIteratorLatin1 = boost::regex_iterator<latin1::CodePointIterator, char32_t, WindowsChar32RegexTraits>;
-    using RegexIteratorUtf8 = boost::regex_iterator<utf8::CodePointIterator, char32_t, WindowsChar32RegexTraits>;
-    using RegexIteratorUtf16LE = boost::regex_iterator<utf16le::CodePointIterator, char32_t, WindowsChar32RegexTraits>;
-    using RegexIteratorUtf16BE = boost::regex_iterator<utf16be::CodePointIterator, char32_t, WindowsChar32RegexTraits>;
+    template<class IteratorT>
+    struct SearchState
+    {
+        IteratorT begin;
+        IteratorT end;
+        boost::match_results<IteratorT> matchResults;
 
-    using VariantIterator = std::variant<
+        SearchState(_In_reads_bytes_(size) void const* data, size_t size);
+    };
+
+    using SearchStateLatin1 = SearchState<latin1::CodePointIterator>;
+    using SearchStateUtf8 = SearchState<utf8::CodePointIterator>;
+    using SearchStateUtf16LE = SearchState<utf16le::CodePointIterator>;
+    using SearchStateUtf16BE = SearchState<utf16be::CodePointIterator>;
+
+    using VariantSearchState = std::variant<
         std::monostate,
-        RegexIteratorLatin1,
-        RegexIteratorUtf8,
-        RegexIteratorUtf16LE,
-        RegexIteratorUtf16BE>;
+        SearchStateLatin1,
+        SearchStateUtf8,
+        SearchStateUtf16LE,
+        SearchStateUtf16BE>;
 
     __volatile long m_refCount = 1;
-    boost::regex_constants::match_flag_type const m_matchFlags;
+    boost::regex_constants::match_flag_type m_matchFlags;
     wil::com_ptr<RegEx> const m_regex;
     void const* const m_inputData;
     size_t const m_inputSize;
     RegExEncoding const m_inputEncoding;
     RegExEnumerationState m_state;
-    VariantIterator m_variantIterator;
+    VariantSearchState m_variantSearchState;
     std::u32string m_formatTemplate;
     boost::regex_constants::match_flag_type m_formatFlags;
     std::u32string m_outputBuffer; // Sometimes contains char32_t, sometimes contains transcoded bytes.
@@ -91,7 +101,7 @@ private:
     template<class IteratorT>
     HRESULT
     VisitNextMatch(
-        boost::regex_iterator<IteratorT, char32_t, WindowsChar32RegexTraits>& iterator) noexcept(false);
+        SearchState<IteratorT>& state) noexcept(false);
 
     // Returns 0.
     UINT32
@@ -101,8 +111,8 @@ private:
     template<class IteratorT>
     UINT32
     VisitGetSubMatchCount(
-        boost::regex_iterator<IteratorT, char32_t, WindowsChar32RegexTraits>& iterator) noexcept;
-    
+        SearchState<IteratorT>& state) noexcept;
+
     // Returns E_UNEXPECTED.
     HRESULT
     VisitGetSubMatch(std::monostate, UINT32 subMatchIndex, _Inout_ RegExSubMatch* pSubMatch) noexcept;
@@ -111,7 +121,7 @@ private:
     template<class IteratorT>
     HRESULT
     VisitGetSubMatch(
-        boost::regex_iterator<IteratorT, char32_t, WindowsChar32RegexTraits>& iterator,
+        SearchState<IteratorT>& state,
         UINT32 subMatchIndex,
         _Inout_ RegExSubMatch* pSubMatch) noexcept;
 
@@ -124,7 +134,7 @@ private:
     template<class IteratorT>
     HRESULT
     VisitGetSubMatchString(
-        boost::regex_iterator<IteratorT, char32_t, WindowsChar32RegexTraits>& iterator,
+        SearchState<IteratorT>& state,
         UINT32 subMatchIndex) noexcept;
 
     // Returns E_UNEXPECTED.
@@ -135,7 +145,7 @@ private:
     template<class IteratorT>
     HRESULT
     VisitFormat(
-        boost::regex_iterator<IteratorT, char32_t, WindowsChar32RegexTraits>& iterator) noexcept(false);
+        SearchState<IteratorT>& state) noexcept(false);
 
     // Converts m_outputBuffer to the specified encoding and returns it via pOutput.
     HRESULT

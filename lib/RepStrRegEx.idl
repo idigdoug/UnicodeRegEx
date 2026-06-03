@@ -145,7 +145,6 @@ typedef [v1_enum] enum RegExMatchFlags
     RegExMatchFlag_any        = 1 << 10,
     RegExMatchFlag_not_null   = 1 << 11,
     RegExMatchFlag_continuous = 1 << 12,
-    RegExMatchFlag_prev_avail = 1 << 8,
 } RegExMatchFlags;
 
 typedef [v1_enum] enum RegExFormatFlags

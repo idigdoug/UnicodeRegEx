@@ -22,7 +22,6 @@ static_assert(RegExMatchFlag_not_eow == (int)boost::regex_constants::match_not_e
 static_assert(RegExMatchFlag_any == (int)boost::regex_constants::match_any);
 static_assert(RegExMatchFlag_not_null == (int)boost::regex_constants::match_not_null);
 static_assert(RegExMatchFlag_continuous == (int)boost::regex_constants::match_continuous);
-static_assert(RegExMatchFlag_prev_avail == (int)boost::regex_constants::match_prev_avail);
 
 // RegExFormatFlags
 static_assert(RegExFormatFlag_default == (int)boost::regex_constants::format_default);
