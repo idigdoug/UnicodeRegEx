@@ -172,7 +172,7 @@
                 encoding = encoding
             };
 
-            this.enumerator = regex.CreateMatchEnumerator(ref inputString, matchFlags);
+            this.enumerator = regex.CreateMatchEnumerator(ref inputString, 0, matchFlags);
             if (formatTemplate != null)
             {
                 enumerator.SetFormatTemplate(formatTemplate, formatFlags);

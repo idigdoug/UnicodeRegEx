@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 #include <WindowsChar32RegexTraits.h>
 #include <utf.h>
 

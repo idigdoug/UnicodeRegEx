@@ -38,6 +38,7 @@ public:
     HRESULT STDMETHODCALLTYPE
     CreateMatchEnumerator(
         _In_ RegExString const* pInput,
+        _In_ LONGLONG startOffset,
         RegExMatchFlags flags,
         _Outptr_ IRegExMatchEnumerator** ppEnumerator) noexcept override;
 };

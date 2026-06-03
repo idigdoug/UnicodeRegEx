@@ -64,6 +64,21 @@ namespace UtfTests
         return std::basic_string_view<CharT>(vec.data(), vec.size());
     }
 
+    static std::span<char8_t const>
+    LoadTortureTestData()
+    {
+        HMODULE hModule = nullptr;
+        GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+            reinterpret_cast<LPCWSTR>(&CollectCodePoints<utf8::CodePointIterator>), &hModule);
+        HRSRC hRes = FindResourceW(hModule, MAKEINTRESOURCEW(IDR_UTF8_TORTURE_TEST), RT_RCDATA);
+        Assert::IsNotNull(hRes, L"UTF8-torture-test.txt resource not found.");
+        HGLOBAL hData = LoadResource(hModule, hRes);
+        Assert::IsNotNull(hData);
+        auto* ptr = static_cast<char8_t const*>(LockResource(hData));
+        auto size = SizeofResource(hModule, hRes) / sizeof(char8_t);
+        return { ptr, size };
+    }
+
     // ==================== utf struct tests ====================
 
     TEST_CLASS(UtfHelperTests)
@@ -240,6 +255,31 @@ namespace UtfTests
             auto mid = begin + 3;
             Assert::AreEqual(size_t(3), mid.ByteOffset(data.data()));
             Assert::AreEqual(size_t(5), end.ByteOffset(data.data()));
+        }
+
+        TEST_METHOD(FromSpanAndByteOffset_ValidOffsets)
+        {
+            auto data = "ABCDE"sv;
+            for (size_t i = 0; i <= data.size(); i += 1)
+            {
+                auto [pos, begin, end] = latin1::CodePointIterator::FromSpanAndByteOffset(data, i);
+                Assert::IsTrue(pos == begin + static_cast<ptrdiff_t>(i));
+            }
+        }
+
+        TEST_METHOD(FromSpanAndByteOffset_PastEnd)
+        {
+            auto data = "ABCDE"sv;
+            auto [pos, begin, end] = latin1::CodePointIterator::FromSpanAndByteOffset(data, 6);
+            Assert::IsTrue(pos == latin1::CodePointIterator());
+        }
+
+        TEST_METHOD(FromSpanAndByteOffset_Empty)
+        {
+            auto data = ""sv;
+            auto [pos, begin, end] = latin1::CodePointIterator::FromSpanAndByteOffset(data, 0);
+            Assert::IsTrue(pos == begin);
+            Assert::IsTrue(begin == end);
         }
     };
 
@@ -441,17 +481,8 @@ namespace UtfTests
 
         TEST_METHOD(Iterator_TortureTest)
         {
-            HMODULE hModule = nullptr;
-            GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
-                reinterpret_cast<LPCWSTR>(&CollectCodePoints<utf8::CodePointIterator>), &hModule);
-            HRSRC hRes = FindResourceW(hModule, MAKEINTRESOURCEW(IDR_UTF8_TORTURE_TEST), RT_RCDATA);
-            Assert::IsNotNull(hRes, L"UTF8-torture-test.txt resource not found.");
-            HGLOBAL hData = LoadResource(hModule, hRes);
-            Assert::IsNotNull(hData);
-            auto* ptr = static_cast<char8_t const*>(LockResource(hData));
-            auto size = SizeofResource(hModule, hRes);
-
-            auto [begin, end] = utf8::CodePointIterator::FromSpan(std::span(ptr, size));
+            auto tortureTest = LoadTortureTestData();
+            auto [begin, end] = utf8::CodePointIterator::FromSpan(tortureTest);
 
             size_t count = 0;
             for (auto it = begin; it != end; ++it)
@@ -462,12 +493,12 @@ namespace UtfTests
 
             VerifyForwardBackwardConsistency(begin, end);
 
-            for (size_t start = 0; start != size; start += 1)
+            for (size_t start = 0; start != tortureTest.size(); start += 1)
             {
                 auto finish = start + 1;
-                for (unsigned i = 1; i != 5 && finish <= size; i += 1, finish += 1)
+                for (unsigned i = 1; i != 5 && finish <= tortureTest.size(); i += 1, finish += 1)
                 {
-                    auto [subBegin, subEnd] = utf8::CodePointIterator::FromSpan(std::span(ptr + start, finish - start));
+                    auto [subBegin, subEnd] = utf8::CodePointIterator::FromSpan(tortureTest.subspan(start, finish - start));
                     VerifyForwardBackwardConsistency(subBegin, subEnd);
                 }
             }
@@ -537,6 +568,98 @@ namespace UtfTests
             ++it; // past '€' (3 bytes)
             Assert::AreEqual(size_t(6), it.ByteOffset(data.data()));
             Assert::IsTrue(it == end);
+        }
+
+        TEST_METHOD(FromSpanAndByteOffset_ValidBoundaries)
+        {
+            auto data = u8"Aé€"sv; // byte offsets: 0='A', 1='é', 3='€', 6=end
+            size_t validOffsets[] = { 0, 1, 3, 6 };
+            for (auto offset : validOffsets)
+            {
+                auto [pos, begin, end] = utf8::CodePointIterator::FromSpanAndByteOffset(data, offset);
+                Assert::IsTrue(pos != utf8::CodePointIterator(),
+                    (std::wstring(L"Expected valid pos at offset ") + std::to_wstring(offset)).c_str());
+                Assert::AreEqual(offset, pos.ByteOffset(data.data()));
+            }
+        }
+
+        TEST_METHOD(FromSpanAndByteOffset_InvalidMidSequence)
+        {
+            auto data = u8"Aé€"sv; // byte offsets 2, 4, 5 are mid-sequence
+            size_t invalidOffsets[] = { 2, 4, 5 };
+            for (auto offset : invalidOffsets)
+            {
+                auto [pos, begin, end] = utf8::CodePointIterator::FromSpanAndByteOffset(data, offset);
+                Assert::IsTrue(pos == utf8::CodePointIterator(),
+                    (std::wstring(L"Expected invalid pos at offset ") + std::to_wstring(offset)).c_str());
+            }
+        }
+
+        TEST_METHOD(FromSpanAndByteOffset_PastEnd)
+        {
+            auto data = u8"Aé€"sv;
+            auto [pos, begin, end] = utf8::CodePointIterator::FromSpanAndByteOffset(data, 7);
+            Assert::IsTrue(pos == utf8::CodePointIterator());
+        }
+
+        TEST_METHOD(FromSpanAndByteOffset_Empty)
+        {
+            auto [pos, begin, end] = utf8::CodePointIterator::FromSpanAndByteOffset({}, 0);
+            Assert::IsTrue(pos == begin);
+            Assert::IsTrue(begin == end);
+        }
+
+        TEST_METHOD(FromSpanAndByteOffset_FourByteSequence)
+        {
+            auto data = u8"😀X"sv; // 4 + 1 = 5 bytes; valid offsets: 0, 4, 5
+            size_t validOffsets[] = { 0, 4, 5 };
+            for (auto offset : validOffsets)
+            {
+                auto [pos, begin, end] = utf8::CodePointIterator::FromSpanAndByteOffset(data, offset);
+                Assert::IsTrue(pos != utf8::CodePointIterator());
+            }
+            size_t invalidOffsets[] = { 1, 2, 3 };
+            for (auto offset : invalidOffsets)
+            {
+                auto [pos, begin, end] = utf8::CodePointIterator::FromSpanAndByteOffset(data, offset);
+                Assert::IsTrue(pos == utf8::CodePointIterator());
+            }
+        }
+
+        TEST_METHOD(FromSpanAndByteOffset_TortureTest)
+        {
+            auto tortureTest = LoadTortureTestData();
+            size_t testOffset = 0;
+            auto [begin, end] = utf8::CodePointIterator::FromSpan(tortureTest);
+            for (auto goodPos = begin;;)
+            {
+                auto goodOffset = goodPos.ByteOffset(tortureTest.data());
+
+                // Test the invalid offsets.
+                while (testOffset < goodOffset)
+                {
+                    auto [pos, begin2, end2] = utf8::CodePointIterator::FromSpanAndByteOffset(tortureTest, testOffset);
+                    Assert::IsTrue(pos == utf8::CodePointIterator(),
+                        (std::wstring(L"Expected invalid pos at offset ") + std::to_wstring(testOffset)).c_str());
+                    testOffset += 1;
+                }
+
+                // Now test the valid offset.
+                {
+                    auto [pos, begin2, end2] = utf8::CodePointIterator::FromSpanAndByteOffset(tortureTest, testOffset);
+                    Assert::IsTrue(pos != utf8::CodePointIterator(),
+                        (std::wstring(L"Expected valid pos at offset ") + std::to_wstring(testOffset)).c_str());
+                    Assert::AreEqual(goodOffset, pos.ByteOffset(tortureTest.data()));
+                    testOffset += 1;
+                }
+
+                if (goodPos == end)
+                {
+                    break;
+                }
+
+                ++goodPos;
+            }
         }
     };
 
@@ -670,6 +793,63 @@ namespace UtfTests
             ++it; // past 'B' (2 bytes)
             Assert::AreEqual(size_t(8), it.ByteOffset(data.data()));
             Assert::IsTrue(it == end);
+        }
+
+        TEST_METHOD(FromSpanAndByteOffset_Boundaries)
+        {
+            auto data = u"A😀B"sv; // byte offsets: 0='A', 2=high surrogate, 6='B', 8=end
+            size_t validOffsets[] = { 0, 2, 6, 8 };
+            for (size_t offset = 0; offset != data.size(); offset += 1)
+            {
+                auto [pos, begin, end] = utf16le::CodePointIterator::FromSpanAndByteOffset(data, offset);
+                Assert::AreEqual(size_t(0), begin.ByteOffset(data.data()));
+                Assert::AreEqual(data.size() * sizeof(char16_t), end.ByteOffset(data.data()));
+                if (std::find(std::begin(validOffsets), std::end(validOffsets), offset) != std::end(validOffsets))
+                {
+                    Assert::IsTrue(pos != utf16le::CodePointIterator());
+                    Assert::AreEqual(offset, pos.ByteOffset(data.data()));
+                }
+                else
+                {
+                    Assert::IsTrue(pos == utf16le::CodePointIterator());
+                }
+            }
+        }
+
+        TEST_METHOD(FromSpanAndByteOffset_InvalidLowSurrogate)
+        {
+            auto data = u"A😀B"sv; // offset 4 = low surrogate
+            auto [pos, begin, end] = utf16le::CodePointIterator::FromSpanAndByteOffset(data, 4);
+            Assert::IsTrue(pos == utf16le::CodePointIterator());
+        }
+
+        TEST_METHOD(FromSpanAndByteOffset_LowSurrogateAtBeginPlus1)
+        {
+            // Surrogate pair only: offset 2 = low surrogate at element index 1.
+            auto data = u"😀"sv;
+            auto [pos, begin, end] = utf16le::CodePointIterator::FromSpanAndByteOffset(data, 2);
+            Assert::IsTrue(pos == utf16le::CodePointIterator());
+        }
+
+        TEST_METHOD(FromSpanAndByteOffset_OddByteOffset)
+        {
+            auto data = u"AB"sv;
+            auto [pos, begin, end] = utf16le::CodePointIterator::FromSpanAndByteOffset(data, 1);
+            Assert::IsTrue(pos == utf16le::CodePointIterator());
+        }
+
+        TEST_METHOD(FromSpanAndByteOffset_PastEnd)
+        {
+            auto data = u"AB"sv;
+            auto [pos, begin, end] = utf16le::CodePointIterator::FromSpanAndByteOffset(data, 6);
+            Assert::IsTrue(pos == utf16le::CodePointIterator());
+        }
+
+        TEST_METHOD(FromSpanAndByteOffset_Empty)
+        {
+            auto [pos, begin, end] = utf16le::CodePointIterator::FromSpanAndByteOffset({}, 0);
+            Assert::IsTrue(pos == begin);
+            Assert::IsTrue(begin == end);
         }
     };
 

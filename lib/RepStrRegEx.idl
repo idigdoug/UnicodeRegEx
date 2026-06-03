@@ -245,6 +245,7 @@ typedef struct RegExSubMatch
 } RegExSubMatch;
 
 cpp_quote("// Constructor for IRegEx runtime class.")
+cpp_quote("// If pattern is invalid, sets pErrorCode, sets error info, and returns MK_E_SYNTAX.")
 cpp_quote("STDAPI")
 cpp_quote("RepStrRegExCreate(")
 cpp_quote("    _In_ BSTR pattern,")
@@ -319,6 +320,7 @@ interface IRegEx : IUnknown
     // Create an enumerator over matches in the given input buffer.
     HRESULT CreateMatchEnumerator(
         [in] RegExString const* pInput,
+        [in] LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string.
         [in] RegExMatchFlags matchFlags,
         [out, retval] IRegExMatchEnumerator** ppEnumerator);
 }

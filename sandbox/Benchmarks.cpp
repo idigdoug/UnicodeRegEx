@@ -64,7 +64,7 @@ template<class IteratorT>
 static void
 RunIteratorBenchmark(
     char const* label,
-    std::pair<IteratorT, IteratorT> corpus)
+    utf::CodePointRange<IteratorT> corpus)
 {
     using regex_type = boost::basic_regex<char32_t, WindowsChar32RegexTraits>;
     using regex_iterator = boost::regex_iterator<IteratorT, char32_t, WindowsChar32RegexTraits>;
@@ -85,7 +85,7 @@ RunIteratorBenchmark(
     {
         for (auto const& pattern : patterns)
         {
-            regex_iterator it(corpus.first, corpus.second, pattern);
+            regex_iterator it(corpus.begin, corpus.end, pattern);
             regex_iterator itEnd;
             for (; it != itEnd; ++it) {}
         }
@@ -104,7 +104,7 @@ RunIteratorBenchmark(
         {
             for (auto const& pattern : patterns)
             {
-                regex_iterator it(corpus.first, corpus.second, pattern);
+                regex_iterator it(corpus.begin, corpus.end, pattern);
                 regex_iterator itEnd;
                 for (; it != itEnd; ++it)
                 {

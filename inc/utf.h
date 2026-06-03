@@ -10,6 +10,78 @@
 #endif // NDEBUG
 #endif // UTF_FORCEINLINE
 
+// Utilities for 32-bit code points.
+namespace utf
+{
+    constexpr char32_t ReplacementChar = 0xFFFD;
+
+    // codePoint <= 0x7F
+    constexpr bool
+    IsAscii(char32_t codePoint) noexcept
+    {
+        return codePoint <= 0x7F;
+    }
+
+    // codePoint <= 0xFF
+    constexpr bool
+    IsLatin1(char32_t codePoint) noexcept
+    {
+        return codePoint <= 0xFF;
+    }
+
+    // codePoint <= 0xFFFF
+    constexpr bool
+    IsBmp(char32_t codePoint) noexcept
+    {
+        return codePoint <= 0xFFFF;
+    }
+
+    // codePoint <= 0x10FFFF
+    constexpr bool
+    IsCodePoint(char32_t codePoint) noexcept
+    {
+        return codePoint <= 0x10FFFF;
+    }
+
+    // codePoint >= 0xD800 && codePoint <= 0xDC00
+    constexpr bool
+    IsHighSurrogate(char32_t ch) noexcept
+    {
+        return (ch & 0xFFFFFC00) == 0xD800;
+    }
+
+    // codePoint >= 0xDC00 && codePoint <= 0xDFFF
+    constexpr bool
+    IsLowSurrogate(char32_t ch) noexcept
+    {
+        return (ch & 0xFFFFFC00) == 0xDC00;
+    }
+
+    // Convert a surrogate pair to a supplementary-plane code point.
+    constexpr char32_t
+    FromSurrogatePair(char16_t high, char16_t low) noexcept
+    {
+        assert(0xD800 <= high && high <= 0xDBFF);
+        assert(0xDC00 <= low && low <= 0xDFFF);
+        return ((static_cast<char32_t>(high) - 0xD800) << 10) + (low - 0xDC00) + 0x10000;
+    }
+
+    template<class IteratorT>
+    struct CodePointRange
+    {
+        IteratorT begin;
+        IteratorT end;
+    };
+
+    template<class IteratorT>
+    struct CodePointRangeAndPos
+    {
+        IteratorT pos; // May be IteratorT() if the specified position was invalid.
+        IteratorT begin;
+        IteratorT end;
+    };
+} // namespace utf
+
 namespace _utfDetail
 {
     template<class ImplT>
@@ -35,12 +107,39 @@ namespace _utfDetail
         using reference = char32_t;
         using input_type = InputType;
 
-        static constexpr std::pair<CodePointIterator, CodePointIterator>
+        // Returns a begin/end pair of CodePointIterators for the given char span.
+        static constexpr utf::CodePointRange<CodePointIterator>
         FromSpan(std::span<input_type const> chars) noexcept
         {
-            auto const begin = chars.data();
-            auto const end = chars.data() + chars.size();
-            return { CodePointIterator(begin, begin, end), CodePointIterator(end, begin, end) };
+            auto const pBegin = chars.data();
+            auto const pEnd = chars.data() + chars.size();
+            return { CodePointIterator(pBegin, pBegin, pEnd), CodePointIterator(pEnd, pBegin, pEnd) };
+        }
+
+        // Returns begin and end like FromSpan.
+        // Also returns a position iterator for begin + byteOffset, or CodePointIterator() if the
+        // byteOffset is past the end of the span or if it points at an invalid position in the
+        // input byte sequence (e.g. middle of a char16_t, middle of a UTF-8 sequence, etc.).
+        static constexpr utf::CodePointRangeAndPos<CodePointIterator>
+        FromSpanAndByteOffset(std::span<input_type const> chars, size_t byteOffset) noexcept
+        {
+            auto const pBegin = chars.data();
+            auto const pEnd = chars.data() + chars.size();
+            if (byteOffset <= chars.size_bytes() && byteOffset % sizeof(input_type) == 0)
+            {
+                auto const pPos = chars.data() + byteOffset / sizeof(input_type);
+                auto const pos = CodePointIterator(pPos, pBegin, pEnd);
+
+                // Verify that we're not on an invalid position. If we're on a valid position (other
+                // than begin or end) then going backwards one position and then forwards one position
+                // should will always yield the starting position (for utf8 or utf16).
+                if (auto pos2 = pos; pPos == pBegin || pPos == pEnd || ++(--(pos2)) == pos)
+                {
+                    return { pos, CodePointIterator(pBegin, pBegin, pEnd), CodePointIterator(pEnd, pBegin, pEnd) };
+                }
+            }
+
+            return { CodePointIterator(), CodePointIterator(pBegin, pBegin, pEnd), CodePointIterator(pEnd, pBegin, pEnd) };
         }
 
         constexpr
@@ -120,66 +219,13 @@ namespace _utfDetail
     };
 } // namespace _utfDetail
 
-// Utilities for 32-bit code points.
-struct utf
-{
-    static constexpr char32_t ReplacementChar = 0xFFFD;
-
-    // codePoint <= 0x7F
-    static constexpr bool
-    IsAscii(char32_t codePoint) noexcept
-    {
-        return codePoint <= 0x7F;
-    }
-
-    // codePoint <= 0xFF
-    static constexpr bool
-    IsLatin1(char32_t codePoint) noexcept
-    {
-        return codePoint <= 0xFF;
-    }
-
-    // codePoint <= 0xFFFF
-    static constexpr bool
-    IsBmp(char32_t codePoint) noexcept
-    {
-        return codePoint <= 0xFFFF;
-    }
-
-    // codePoint <= 0x10FFFF
-    static constexpr bool
-    IsCodePoint(char32_t codePoint) noexcept
-    {
-        return codePoint <= 0x10FFFF;
-    }
-
-    // codePoint >= 0xD800 && codePoint <= 0xDC00
-    static constexpr bool
-    IsHighSurrogate(char32_t ch) noexcept
-    {
-        return (ch & 0xFFFFFC00) == 0xD800;
-    }
-
-    // codePoint >= 0xDC00 && codePoint <= 0xDFFF
-    static constexpr bool
-    IsLowSurrogate(char32_t ch) noexcept
-    {
-        return (ch & 0xFFFFFC00) == 0xDC00;
-    }
-
-    // Convert a surrogate pair to a supplementary-plane code point.
-    static constexpr char32_t
-    FromSurrogatePair(char16_t high, char16_t low) noexcept
-    {
-        assert(0xD800 <= high && high <= 0xDBFF);
-        assert(0xDC00 <= low && low <= 0xDFFF);
-        return ((static_cast<char32_t>(high) - 0xD800) << 10) + (low - 0xDC00) + 0x10000;
-    }
-};
-
 // Conversions between latin1 (ucs1) and 32-bit code points.
 struct latin1
 {
+    class CodePointIterator;
+    using CodePointRange = utf::CodePointRange<CodePointIterator>;
+    using CodePointRangeAndPos = utf::CodePointRangeAndPos<CodePointIterator>;
+
     // A random-access iterator over char data that dereferences to char32_t (Latin-1 identity mapping).
     class CodePointIterator
     {
@@ -199,12 +245,25 @@ struct latin1
         using reference = char32_t;
         using input_type = char;
 
-        static constexpr std::pair<CodePointIterator, CodePointIterator>
+        // Returns a begin/end pair of CodePointIterators for the given char span.
+        static constexpr CodePointRange
         FromSpan(std::span<input_type const> chars) noexcept
         {
-            auto const begin = chars.data();
-            auto const end = chars.data() + chars.size();
-            return { CodePointIterator(begin), CodePointIterator(end) };
+            auto const pBegin = chars.data();
+            auto const pEnd = chars.data() + chars.size();
+            return { CodePointIterator(pBegin), CodePointIterator(pEnd) };
+        }
+
+        // Returns begin and end like FromSpan.
+        // Also returns a position iterator for begin + byteOffset, or CodePointIterator() if the
+        // byteOffset is past the end of the span.
+        static constexpr CodePointRangeAndPos
+        FromSpanAndByteOffset(std::span<input_type const> chars, size_t byteOffset) noexcept
+        {
+            auto const pBegin = chars.data();
+            auto const pEnd = chars.data() + chars.size();
+            auto const pos = byteOffset <= chars.size_bytes() ? chars.data() + byteOffset : nullptr;
+            return { CodePointIterator(pos), CodePointIterator(pBegin), CodePointIterator(pEnd) };
         }
 
         constexpr
@@ -548,6 +607,12 @@ struct utf8
     // Invalid sequences are returned as U+FFFD.
     using CodePointIterator = _utfDetail::CodePointIterator<_codePointIterator>;
 
+    // A begin/end iterator pair, created by CodePointIterator::FromSpan.
+    using CodePointRange = utf::CodePointRange<CodePointIterator>;
+
+    // A begin/end/pos iterator triple, created by CodePointIterator::FromSpanAndByteOffset.
+    using CodePointRangeAndPos = utf::CodePointRangeAndPos<CodePointIterator>;
+
     // Encodes a single non-ascii code point into UTF-8.
     // Returns the number of bytes written (2-4).
     // Encodes out-of-range code points (above 0x10FFFF) as the replacement character (U+FFFD).
@@ -722,6 +787,12 @@ struct utf16
     // A bidirectional iterator over UTF-16 data that dereferences to char32_t.
     // Handles surrogate pairs. Invalid sequences (lone surrogates) are returned as U+FFFD.
     using CodePointIterator = _utfDetail::CodePointIterator<_codePointIterator>;
+
+    // A begin/end iterator pair, created by CodePointIterator::FromSpan.
+    using CodePointRange = utf::CodePointRange<CodePointIterator>;
+
+    // A begin/end/pos iterator triple, created by CodePointIterator::FromSpanAndByteOffset.
+    using CodePointRangeAndPos = utf::CodePointRangeAndPos<CodePointIterator>;
 
     // Encodes a single non-BMP code point into UTF-16.
     // Returns the number of 16-bit code units written (1-2).

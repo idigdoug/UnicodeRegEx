@@ -11,10 +11,11 @@ class RegExMatchEnumerator final : public IRegExMatchEnumerator
     struct SearchState
     {
         IteratorT begin;
+        IteratorT pos; // Search starts here (allows lookbehind in begin..pos range).
         IteratorT end;
         boost::match_results<IteratorT> matchResults;
 
-        SearchState(_In_reads_bytes_(size) void const* data, size_t size);
+        SearchState(_In_reads_bytes_(size) void const* data, size_t size, size_t startByteOffset);
     };
 
     using SearchStateLatin1 = SearchState<latin1::CodePointIterator>;
@@ -30,7 +31,7 @@ class RegExMatchEnumerator final : public IRegExMatchEnumerator
         SearchStateUtf16BE>;
 
     __volatile long m_refCount = 1;
-    boost::regex_constants::match_flag_type m_matchFlags;
+    boost::regex_constants::match_flag_type const m_matchFlags;
     wil::com_ptr<RegEx> const m_regex;
     void const* const m_inputData;
     size_t const m_inputSize;
@@ -48,6 +49,7 @@ public:
     RegExMatchEnumerator(
         _In_ RegEx* regex,
         _In_ RegExString const* pInput,
+        _In_ UINT_PTR startByteOffset,
         RegExMatchFlags matchFlags);
 
     // IUnknown

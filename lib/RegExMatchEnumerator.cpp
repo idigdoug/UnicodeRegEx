@@ -14,23 +14,28 @@ MakeString(_In_reads_bytes_(size) void const* data, UINT_PTR size, RegExEncoding
     };
 }
 
-template<class CharT>
-static constexpr bool
-StringIsAligned(RegExString const& str) noexcept
-{
-    return 0 == ((str.data_ptr | str.size) & (sizeof(CharT) - 1));
-}
-
 template<class IteratorT>
-RegExMatchEnumerator::SearchState<IteratorT>::SearchState(_In_reads_bytes_(size) void const* data, size_t size)
+RegExMatchEnumerator::SearchState<IteratorT>::SearchState(_In_reads_bytes_(size) void const* data, size_t size, size_t startByteOffset)
     : begin()
+    , pos()
     , end()
     , matchResults()
 {
     using CharT = typename IteratorT::input_type;
-    auto iterators = IteratorT::FromSpan(std::span(static_cast<CharT const*>(data), size / sizeof(CharT)));
-    begin = iterators.first;
-    end = iterators.second;
+    if (0 != ((reinterpret_cast<size_t>(data) | size) & (sizeof(CharT) - 1)))
+    {
+        THROW_HR(E_INVALIDARG);
+    }
+
+    auto rangeAndPos = IteratorT::FromSpanAndByteOffset(std::span(static_cast<CharT const*>(data), size / sizeof(CharT)), startByteOffset);
+    if (rangeAndPos.pos == IteratorT())
+    {
+        THROW_HR(E_INVALIDARG);
+    }
+
+    begin = rangeAndPos.begin;
+    pos = rangeAndPos.pos;
+    end = rangeAndPos.end;
 }
 
 RegExMatchEnumerator::~RegExMatchEnumerator() = default;
@@ -38,6 +43,7 @@ RegExMatchEnumerator::~RegExMatchEnumerator() = default;
 RegExMatchEnumerator::RegExMatchEnumerator(
     _In_ RegEx* regex,
     _In_ RegExString const* pInput,
+    _In_ UINT_PTR startByteOffset,
     RegExMatchFlags flags)
     : m_refCount(1)
     , m_matchFlags(static_cast<boost::regex_constants::match_flag_type>(flags))
@@ -55,27 +61,19 @@ RegExMatchEnumerator::RegExMatchEnumerator(
     switch (m_inputEncoding)
     {
     case RegExEncoding_latin1:
-        m_variantSearchState.emplace<SearchStateLatin1>(m_inputData, m_inputSize);
+        m_variantSearchState.emplace<SearchStateLatin1>(m_inputData, m_inputSize, startByteOffset);
         break;
 
     case RegExEncoding_utf8:
-        m_variantSearchState.emplace<SearchStateUtf8>(m_inputData, m_inputSize);
+        m_variantSearchState.emplace<SearchStateUtf8>(m_inputData, m_inputSize, startByteOffset);
         break;
 
     case RegExEncoding_utf16le:
-        if (!StringIsAligned<char16_t>(*pInput))
-        {
-            THROW_HR(E_INVALIDARG);
-        }
-        m_variantSearchState.emplace<SearchStateUtf16LE>(m_inputData, m_inputSize);
+        m_variantSearchState.emplace<SearchStateUtf16LE>(m_inputData, m_inputSize, startByteOffset);
         break;
 
     case RegExEncoding_utf16be:
-        if (!StringIsAligned<char16_t>(*pInput))
-        {
-            THROW_HR(E_INVALIDARG);
-        }
-        m_variantSearchState.emplace<SearchStateUtf16BE>(m_inputData, m_inputSize);
+        m_variantSearchState.emplace<SearchStateUtf16BE>(m_inputData, m_inputSize, startByteOffset);
         break;
 
     default:
@@ -258,7 +256,7 @@ RegExMatchEnumerator::SetFormatTemplate(BSTR formatTemplate, RegExFormatFlags fo
         auto formatIterators = utf16le::CodePointIterator::FromSpan(std::span(
             reinterpret_cast<char16_t const*>(formatTemplate),
             SysStringLen(formatTemplate)));
-        m_formatTemplate.assign(formatIterators.first, formatIterators.second);
+        m_formatTemplate.assign(formatIterators.begin, formatIterators.end);
         m_formatFlags = static_cast<boost::regex_constants::match_flag_type>(formatFlags);
         hr = S_OK;
     }
@@ -321,11 +319,10 @@ RegExMatchEnumerator::VisitNextMatch(
     bool found;
     if (m_state == RegExEnumerationState_not_started)
     {
-        // First search: behaves like the regex_iterator constructor.
-        // Call regex_search with the original user-provided flags.
+        // First search: start from pos (not begin) to allow lookbehind in begin..pos.
         m_state = RegExEnumerationState_enumerating;
         found = boost::regex_search(
-            state.begin,
+            state.pos,
             state.end,
             state.matchResults,
             m_regex->GetRegex(),
@@ -368,11 +365,7 @@ RegExMatchEnumerator::VisitNextMatch(
 
         if (!found)
         {
-            // Normal case: search from start with match_prev_avail.
-            // Persist match_prev_avail in m_matchFlags so subsequent calls
-            // (including future zero-length retries) also see it, matching
-            // the C++ standard's "sets flags to flags | match_prev_avail".
-            m_matchFlags |= boost::regex_constants::match_prev_avail;
+            // Normal case: search from start. Not using match_prev_avail (instead we pass the base parameter).
             found = boost::regex_search(
                 start,
                 state.end,

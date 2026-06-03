@@ -17,7 +17,7 @@ RepStrRegExCreate(
     boost::regex_constants::error_type errorCode;
     PCSTR errorMessage = nullptr;
 
-    if (syntaxFlags & boost::regex_constants::no_except)
+    if (syntaxFlags & static_cast<RegExSyntaxFlags>(boost::regex_constants::no_except))
     {
         hr = E_INVALIDARG;
         errorCode = boost::regex_constants::error_unknown;
@@ -29,8 +29,8 @@ RepStrRegExCreate(
             reinterpret_cast<char16_t const*>(pattern),
             SysStringLen(pattern)));
         pRegEx = std::make_unique<RegEx>(
-            patternIterators.first,
-            patternIterators.second,
+            patternIterators.begin,
+            patternIterators.end,
             static_cast<boost::regex_constants::syntax_option_type>(syntaxFlags),
             lcid);
         hr = S_OK;
@@ -38,7 +38,7 @@ RepStrRegExCreate(
     }
     catch (boost::regex_error const& ex)
     {
-        hr = E_INVALIDARG;
+        hr = MK_E_SYNTAX;
         errorCode = ex.code();
         errorMessage = WindowsChar32RegexTraits().error_string(errorCode);
     }
@@ -179,19 +179,25 @@ RegEx::Release() noexcept
 HRESULT
 RegEx::CreateMatchEnumerator(
     _In_ RegExString const* pInput,
+    _In_ LONGLONG startByteOffset,
     RegExMatchFlags flags,
     _Outptr_ IRegExMatchEnumerator** ppEnumerator) noexcept
 {
     HRESULT hr;
     std::unique_ptr<RegExMatchEnumerator> pEnumerator;
+    UINT_PTR startOffsetU = static_cast<UINT_PTR>(startByteOffset);
 
-    if (flags & boost::match_prev_avail)
+    if (flags & static_cast<RegExMatchFlags>(boost::match_prev_avail))
+    {
+        hr = E_INVALIDARG;
+    }
+    else if (startOffsetU > static_cast<UINT_PTR>(pInput->size))
     {
         hr = E_INVALIDARG;
     }
     else try
     {
-        pEnumerator = std::make_unique<RegExMatchEnumerator>(this, pInput, flags);
+        pEnumerator = std::make_unique<RegExMatchEnumerator>(this, pInput, startOffsetU, flags);
         hr = S_OK;
     }
     catch (...)
