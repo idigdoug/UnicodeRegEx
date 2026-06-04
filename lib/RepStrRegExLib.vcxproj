@@ -892,7 +892,9 @@ copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
     <ClInclude Include="..\inc\WindowsChar32RegexTraits.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="RegEx.h" />
+    <ClInclude Include="RegExLibrary.h" /><ClInclude Include="RegExMatchBase.h" />
     <ClInclude Include="RegExMatchEnumerator.h" />
+    <ClInclude Include="RegExMatchResults.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -904,12 +906,14 @@ copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="RegEx.cpp" />
-    <ClCompile Include="RepStrRegExCheck.cpp" />
+    <ClCompile Include="RegExLibrary.cpp" /><ClCompile Include="RegExMatchBase.cpp" />
     <ClCompile Include="RegExMatchEnumerator.cpp" />
+    <ClCompile Include="RegExMatchResults.cpp" />
+    <ClCompile Include="RepStrRegExCheck.cpp" />
     <ClCompile Include="WindowsChar32RegexTraits.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <Midl Include="RepStrRegEx.idl" />
+    <Midl Include="..\inc\RepStrRegEx.idl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

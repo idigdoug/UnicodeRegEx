@@ -1,98 +1,9 @@
 #include "pch.h"
 #include "RegEx.h"
 #include "RegExMatchEnumerator.h"
+#include "RegExMatchResults.h"
 
 #include <utf.h>
-
-STDAPI
-RepStrRegExCreate(
-    _In_ BSTR pattern,
-    RegExSyntaxFlags syntaxFlags,
-    UINT32 lcid,
-    _Out_opt_ RegExErrorCode* pErrorCode,
-    _Outptr_ IRegEx** ppRegEx)
-{
-    std::unique_ptr<RegEx> pRegEx;
-    HRESULT hr;
-    boost::regex_constants::error_type errorCode;
-    PCSTR errorMessage = nullptr;
-
-    if (syntaxFlags & static_cast<RegExSyntaxFlags>(boost::regex_constants::no_except))
-    {
-        hr = E_INVALIDARG;
-        errorCode = boost::regex_constants::error_unknown;
-    }
-    else try
-    {
-        static_assert(sizeof(pattern[0]) == sizeof(char16_t), "BSTR must be UTF-16");
-        auto patternIterators = utf16le::CodePointIterator::FromSpan(std::span(
-            reinterpret_cast<char16_t const*>(pattern),
-            SysStringLen(pattern)));
-        pRegEx = std::make_unique<RegEx>(
-            patternIterators.begin,
-            patternIterators.end,
-            static_cast<boost::regex_constants::syntax_option_type>(syntaxFlags),
-            lcid);
-        hr = S_OK;
-        errorCode = boost::regex_constants::error_ok;
-    }
-    catch (boost::regex_error const& ex)
-    {
-        hr = MK_E_SYNTAX;
-        errorCode = ex.code();
-        errorMessage = WindowsChar32RegexTraits().error_string(errorCode);
-    }
-    catch (std::bad_alloc const&)
-    {
-        hr = E_OUTOFMEMORY;
-        errorCode = boost::regex_constants::error_unknown;
-    }
-    catch (...)
-    {
-        hr = wil::ResultFromCaughtException();
-        errorCode = boost::regex_constants::error_unknown;
-    }
-
-    auto setErrorInfo = false;
-    if (errorMessage)
-    {
-        // Convert ASCII error message to BSTR.
-        unsigned cch = static_cast<unsigned>(strnlen(errorMessage, 512));
-        wil::unique_bstr errorMessageBstr(SysAllocStringLen(nullptr, cch));
-        if (errorMessageBstr)
-        {
-            for (unsigned i = 0; i != cch; i += 1)
-            {
-                errorMessageBstr.get()[i] = errorMessage[i];
-            }
-
-            wil::com_ptr<ICreateErrorInfo> createErrorInfo;
-            if (SUCCEEDED(CreateErrorInfo(createErrorInfo.put())) &&
-                SUCCEEDED(createErrorInfo->SetDescription(errorMessageBstr.get())))
-            {
-                auto errorInfo = createErrorInfo.try_query<IErrorInfo>();
-                if (errorInfo && SUCCEEDED(SetErrorInfo(0, errorInfo.get())))
-                {
-                    setErrorInfo = true;
-                }
-            }
-        }
-    }
-
-    if (!setErrorInfo)
-    {
-        // If we failed to set the error info with the error message, clear any existing error info.
-        SetErrorInfo(0, nullptr);
-    }
-
-    if (pErrorCode)
-    {
-        *pErrorCode = static_cast<RegExErrorCode>(errorCode);
-    }
-
-    *ppRegEx = pRegEx.release();
-    return hr;
-}
 
 RegEx::~RegEx() = default;
 
@@ -177,7 +88,74 @@ RegEx::Release() noexcept
 }
 
 HRESULT
-RegEx::CreateMatchEnumerator(
+RegEx::get_Pattern(
+    _Out_ BSTR* pValue) noexcept
+{
+    HRESULT hr;
+
+    try
+    {
+        auto value32 = m_regex.str();
+        auto const chars = utf16le::ConvertInPlace(value32);
+        static_assert(sizeof(chars[0]) == sizeof(OLECHAR), "OLECHAR must be UTF-16");
+        auto const value = SysAllocStringLen(
+            reinterpret_cast<OLECHAR const*>(chars.data()),
+            static_cast<UINT>(chars.size()));
+        *pValue = value;
+        hr = value ? S_OK : E_OUTOFMEMORY;
+    }
+    catch (std::bad_alloc const&)
+    {
+        *pValue = nullptr;
+        hr = E_OUTOFMEMORY;
+    }
+    catch (...)
+    {
+        *pValue = nullptr;
+        hr = wil::ResultFromCaughtException();
+    }
+
+    return hr;
+}
+
+HRESULT
+RegEx::get_Flags(
+    _Out_ RegExSyntaxFlags* pValue) noexcept
+{
+    *pValue = static_cast<RegExSyntaxFlags>(m_regex.flags());
+    return S_OK;
+}
+
+HRESULT
+RegEx::get_Lcid(
+    _Out_ UINT32* pValue) noexcept
+{
+    *pValue = m_regex.getloc();
+    return S_OK;
+}
+
+HRESULT
+RegEx::Match(
+    _In_ RegExString const* pInput,
+    _In_ LONGLONG startByteOffset,
+    RegExMatchFlags flags,
+    _Outptr_opt_result_maybenull_ IRegExMatchResults** ppResults) noexcept
+{
+    return Search(pInput, startByteOffset, flags, true, ppResults);
+}
+
+HRESULT
+RegEx::Search(
+    _In_ RegExString const* pInput,
+    _In_ LONGLONG startByteOffset,
+    RegExMatchFlags flags,
+    _Outptr_opt_result_maybenull_ IRegExMatchResults** ppResults) noexcept
+{
+    return Search(pInput, startByteOffset, flags, false, ppResults);
+}
+
+HRESULT
+RegEx::EnumerateMatches(
     _In_ RegExString const* pInput,
     _In_ LONGLONG startByteOffset,
     RegExMatchFlags flags,
@@ -206,5 +184,38 @@ RegEx::CreateMatchEnumerator(
     }
 
     *ppEnumerator = pEnumerator.release();
+    return hr;
+}
+
+HRESULT
+RegEx::Search(
+    _In_ RegExString const* pInput,
+    _In_ LONGLONG startByteOffset,
+    RegExMatchFlags flags,
+    bool wholeStringMatch,
+    _Outptr_opt_result_maybenull_ IRegExMatchResults** ppResults) noexcept
+{
+    HRESULT hr;
+    IRegExMatchResults* pResults = nullptr;
+    UINT_PTR startOffsetU = static_cast<UINT_PTR>(startByteOffset);
+
+    if (flags & static_cast<RegExMatchFlags>(boost::match_prev_avail))
+    {
+        hr = E_INVALIDARG;
+    }
+    else if (startOffsetU > static_cast<UINT_PTR>(pInput->size))
+    {
+        hr = E_INVALIDARG;
+    }
+    else try
+    {
+        hr = RegExMatchResults::Search(this, pInput, startOffsetU, flags, wholeStringMatch, &pResults);
+    }
+    catch (...)
+    {
+        hr = wil::ResultFromCaughtException();
+    }
+
+    *ppResults = pResults;
     return hr;
 }

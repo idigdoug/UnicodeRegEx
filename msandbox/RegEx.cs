@@ -1,4 +1,4 @@
-﻿namespace msandbox
+namespace msandbox
 {
     using RepStrRegExLib;
     using System;
@@ -172,7 +172,7 @@
                 encoding = encoding
             };
 
-            this.enumerator = regex.CreateMatchEnumerator(ref inputString, 0, matchFlags);
+            this.enumerator = regex.EnumerateMatches(ref inputString, 0, matchFlags);
             if (formatTemplate != null)
             {
                 enumerator.SetFormatTemplate(formatTemplate, formatFlags);
@@ -230,70 +230,81 @@
             RegExSyntaxFlags syntaxFlags = RegExSyntaxFlags.RegExSyntaxFlags_ECMAScript,
             int lcid = 0)
         {
-            const int E_INVALIDARG = -2147024809; // 0x80070057
+            const int MK_E_SYNTAX = unchecked((int)0x800401E4);
 
-            int hresult = Create(pattern, syntaxFlags, lcid, out var errorCode, out var regex);
-            if (hresult < 0)
+            RegExErrorCode errorCode = RegExErrorCode.RegExErrorCode_unknown;
+            try
             {
-                var ex = Marshal.GetExceptionForHR(hresult);
-                if (hresult == E_INVALIDARG)
-                {
-                    throw new RegExException(pattern, syntaxFlags, errorCode, ex?.Message);
-                }
-                else
-                {
-                    throw ex;
-                }
+                return GetLibrary().CreateRegEx(pattern, syntaxFlags, (uint)lcid, out errorCode);
             }
-
-            return regex;
+            catch (COMException ex) when (ex.HResult == MK_E_SYNTAX)
+            {
+                throw new RegExException(pattern, syntaxFlags, errorCode, ex.Message);
+            }
         }
 
-        public static int Create(
-            string pattern,
-            RegExSyntaxFlags syntaxFlags,
-            int lcid,
-            out RegExErrorCode errorCode,
-            out IRegEx regex)
+        private static IRegExLibrary? s_library;
+
+        private static IRegExLibrary GetLibrary()
         {
-            switch (RuntimeInformation.ProcessArchitecture)
+            if (s_library == null)
             {
-                case Architecture.X86:
-                    return NativeMethods.RepStrRegExCreate_X86(pattern, syntaxFlags, lcid, out errorCode, out regex);
-                case Architecture.X64:
-                    return NativeMethods.RepStrRegExCreate_X64(pattern, syntaxFlags, lcid, out errorCode, out regex);
-                case Architecture.Arm64:
-                    return NativeMethods.RepStrRegExCreate_Arm64(pattern, syntaxFlags, lcid, out errorCode, out regex);
-                default:
-                    throw new PlatformNotSupportedException($"Unsupported architecture: {RuntimeInformation.ProcessArchitecture}");
+                IRegExLibrary library;
+                int hr;
+                switch (RuntimeInformation.ProcessArchitecture)
+                {
+                    case Architecture.X86:
+                        hr = NativeMethods.X86.RepStrRegExLibraryCreate(out library);
+                        break;
+                    case Architecture.X64:
+                        hr = NativeMethods.X64.RepStrRegExLibraryCreate(out library);
+                        break;
+                    case Architecture.Arm64:
+                        hr = NativeMethods.Arm64.RepStrRegExLibraryCreate(out library);
+                        break;
+                    default:
+                        throw new PlatformNotSupportedException($"Unsupported architecture: {RuntimeInformation.ProcessArchitecture}");
+                }
+
+                if (hr < 0)
+                {
+                    Marshal.ThrowExceptionForHR(hr);
+                }
+
+                s_library = library;
             }
+
+            return s_library;
         }
 
         private static class NativeMethods
         {
-            [DllImport("RepStrRegEx_x86.dll", CharSet = CharSet.Unicode, EntryPoint = "RepStrRegExCreate", ExactSpelling = true, PreserveSig = true)]
-            public static extern int RepStrRegExCreate_X86(
-                [MarshalAs(UnmanagedType.BStr)] string pattern,
-                RegExSyntaxFlags syntaxFlags,
-                int lcid,
-                out RegExErrorCode errorCode,
-                out IRegEx regex);
+            public static class X86
+            {
+                private const string RepStrRegExLib = "RepStrRegEx_x86.dll";
 
-            [DllImport("RepStrRegEx_x64.dll", CharSet = CharSet.Unicode, EntryPoint = "RepStrRegExCreate", ExactSpelling = true, PreserveSig = true)]
-            public static extern int RepStrRegExCreate_X64(
-                [MarshalAs(UnmanagedType.BStr)] string pattern,
-                RegExSyntaxFlags syntaxFlags,
-                int lcid,
-                out RegExErrorCode errorCode,
-                out IRegEx regex);
+                [DllImport(RepStrRegExLib, ExactSpelling = true, PreserveSig = true)]
+                public static extern int RepStrRegExLibraryCreate(
+                    [MarshalAs(UnmanagedType.Interface)] out IRegExLibrary library);
+            }
 
-            [DllImport("RepStrRegEx_ARM64.dll", CharSet = CharSet.Unicode, EntryPoint = "RepStrRegExCreate", ExactSpelling = true, PreserveSig = true)]
-            public static extern int RepStrRegExCreate_Arm64(
-                [MarshalAs(UnmanagedType.BStr)] string pattern,
-                RegExSyntaxFlags syntaxFlags,
-                int lcid,
-                out RegExErrorCode errorCode,
-                out IRegEx regex);
+            public static class X64
+            {
+                private const string RepStrRegExLib = "RepStrRegEx_x64.dll";
+
+                [DllImport(RepStrRegExLib, ExactSpelling = true, PreserveSig = true)]
+                public static extern int RepStrRegExLibraryCreate(
+                    [MarshalAs(UnmanagedType.Interface)] out IRegExLibrary library);
+            }
+
+            public static class Arm64
+            {
+                private const string RepStrRegExLib = "RepStrRegEx_ARM64.dll";
+
+                [DllImport(RepStrRegExLib, ExactSpelling = true, PreserveSig = true)]
+                public static extern int RepStrRegExLibraryCreate(
+                    [MarshalAs(UnmanagedType.Interface)] out IRegExLibrary library);
+            }
         }
     }
 }

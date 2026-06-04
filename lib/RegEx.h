@@ -36,9 +36,42 @@ public:
     // IRegEx
 
     HRESULT STDMETHODCALLTYPE
-    CreateMatchEnumerator(
+    get_Pattern(_Out_ BSTR* pValue) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    get_Flags(_Out_ RegExSyntaxFlags* pValue) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    get_Lcid(_Out_ UINT32* pValue) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    Match(
+        _In_ RegExString const* pInput,
+        _In_ LONGLONG startOffset,
+        RegExMatchFlags flags,
+        _Outptr_opt_result_maybenull_ IRegExMatchResults** ppResults) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    Search(
+        _In_ RegExString const* pInput,
+        _In_ LONGLONG startOffset,
+        RegExMatchFlags flags,
+        _Outptr_opt_result_maybenull_ IRegExMatchResults** ppResults) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    EnumerateMatches(
         _In_ RegExString const* pInput,
         _In_ LONGLONG startOffset,
         RegExMatchFlags flags,
         _Outptr_ IRegExMatchEnumerator** ppEnumerator) noexcept override;
+
+private:
+
+    HRESULT
+    Search(
+        _In_ RegExString const* pInput,
+        _In_ LONGLONG startOffset,
+        RegExMatchFlags flags,
+        bool wholeStringMatch,
+        _Outptr_opt_result_maybenull_ IRegExMatchResults** ppResults) noexcept;
 };

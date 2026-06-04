@@ -244,44 +244,27 @@ typedef struct RegExSubMatch
     VARIANT_BOOL matched; // whether this submatch was actually matched (e.g. for optional groups)
 } RegExSubMatch;
 
-cpp_quote("// Constructor for IRegEx runtime class.")
-cpp_quote("// If pattern is invalid, sets pErrorCode, sets error info, and returns MK_E_SYNTAX.")
-cpp_quote("STDAPI")
-cpp_quote("RepStrRegExCreate(")
-cpp_quote("    _In_ BSTR pattern,")
-cpp_quote("    RegExSyntaxFlags syntaxFlags,")
-cpp_quote("    UINT32 lcid,")
-cpp_quote("    _Out_opt_ RegExErrorCode* pErrorCode,")
-cpp_quote("    _Outptr_ IRegEx** ppRegEx);")
-
 [
     object,
-    uuid(A8E2B9C1-4F3D-4A1E-B7C6-1D2E3F4A5B6C),
+    uuid("EA639F2B-A9A8-408B-A724-87DA78926507"),
     oleautomation,
     pointer_default(unique)
 ]
-interface IRegExMatchEnumerator : IUnknown
+interface IRegExMatchResults : IUnknown
 {
-    // Retrieves the input string being searched (the value passed to CreateMatchEnumerator).
-    HRESULT GetInput(
-        [out, retval] RegExString* pInput);
-
-    HRESULT GetState(
-        [out, retval] RegExEnumerationState* pState);
-
-    // Advance to next match. Returns true if a match is found, false if no more matches.
-    // Returns E_NOT_VALID_STATE if called after no more matches.
-    HRESULT NextMatch(
-        [out, retval] VARIANT_BOOL* pFound);
+    // Retrieves the input string being searched (the value passed to EnumerateMatches).
+    [propget] HRESULT
+    Input([out, retval] RegExString* pValue);
 
     // Number of sub-matches (including 0 = entire match).
     // Returns 0 if called before first match or after enumeration finished.
-    HRESULT GetSubMatchCount(
-        [out, retval] UINT32* pCount);
+    [propget] HRESULT
+    SubMatchCount([out, retval] UINT32* pValue);
 
     // Get the sub-match offset+size by index (0 = get the entire match).
-    // Returns E_INVALIDARG if index >= GetSubMatchCount().
-    HRESULT GetSubMatch(
+    // Returns E_INVALIDARG if index >= SubMatchCount.
+    HRESULT
+    GetSubMatch(
         [in] UINT32 subMatchIndex,
         [out, retval] RegExSubMatch* pSubMatch);
 
@@ -289,13 +272,15 @@ interface IRegExMatchEnumerator : IUnknown
     // Returned buffer is valid until a subsequent call to NextMatch(), Format(),
     // GetSubMatchString(), or the enumerator is released.
     // Returns S_OK with pSubMatchString->encoding == RegExEncoding_none for no-match.
-    // Returns E_INVALIDARG if index >= GetSubMatchCount().
-    HRESULT GetSubMatchString(
+    // Returns E_INVALIDARG if index >= SubMatchCount.
+    HRESULT
+    GetSubMatchString(
         [in] UINT32 subMatchIndex,
         [in] RegExEncoding subMatchEncoding,
         [out, retval] RegExString* pSubMatchString);
 
-    HRESULT SetFormatTemplate(
+    HRESULT
+    SetFormatTemplate(
         [in] BSTR formatTemplate,
         [in] RegExFormatFlags formatFlags);
 
@@ -304,9 +289,27 @@ interface IRegExMatchEnumerator : IUnknown
     // Returned buffer is valid until a subsequent call to NextMatch(), Format(),
     // GetSubMatchString(), or the enumerator is released.
     // Returns E_NOT_VALID_STATE if called before first match or after enumeration finished.
-    HRESULT Format(
+    HRESULT
+    Format(
         [in] RegExEncoding outputEncoding,
         [out, retval] RegExString* pOutputString);
+};
+
+[
+    object,
+    uuid(A8E2B9C1-4F3D-4A1E-B7C6-1D2E3F4A5B6C),
+    oleautomation,
+    pointer_default(unique)
+]
+interface IRegExMatchEnumerator : IRegExMatchResults
+{
+    [propget] HRESULT
+    State([out, retval] RegExEnumerationState* pValue);
+
+    // Advance to next match. Returns true if a match is found, false if no more matches.
+    // Returns E_NOT_VALID_STATE if called after no more matches.
+    HRESULT
+    NextMatch([out, retval] VARIANT_BOOL* pFound);
 }
 
 [
@@ -317,13 +320,78 @@ interface IRegExMatchEnumerator : IUnknown
 ]
 interface IRegEx : IUnknown
 {
+    [propget] HRESULT
+    Pattern([out, retval] BSTR* pValue);
+
+    [propget] HRESULT
+    Flags([out, retval] RegExSyntaxFlags* pValue);
+
+    [propget] HRESULT
+    Lcid([out, retval] UINT32* pValue);
+
+    // Returns NULL if no match.
+    // Returned object is apartment-threaded.
+    HRESULT
+    Match(
+        [in] RegExString const* pInput,
+        [in] LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string.
+        [in] RegExMatchFlags matchFlags,
+        [out, retval] IRegExMatchResults** ppMatchResults);
+
+    // Returns NULL if no match.
+    // Returned object is apartment-threaded.
+    HRESULT
+    Search(
+        [in] RegExString const* pInput,
+        [in] LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string.
+        [in] RegExMatchFlags matchFlags,
+        [out, retval] IRegExMatchResults** ppMatchResults);
+
     // Create an enumerator over matches in the given input buffer.
-    HRESULT CreateMatchEnumerator(
+    // Returned object is apartment-threaded.
+    HRESULT
+    EnumerateMatches(
         [in] RegExString const* pInput,
         [in] LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string.
         [in] RegExMatchFlags matchFlags,
         [out, retval] IRegExMatchEnumerator** ppEnumerator);
 }
+
+[
+    object,
+    uuid(A5EC5E02-B78E-4728-B0D5-17E005C2EC2B),
+    oleautomation,
+    pointer_default(unique)
+]
+interface IRegExLibrary : IUnknown
+{
+    // Create a compiled regex. Returned object is free-threaded.
+    // If pattern is invalid, sets pErrorCode, sets error info, and returns MK_E_SYNTAX.
+    HRESULT
+    CreateRegEx(
+        [in] BSTR pattern,
+        [in] RegExSyntaxFlags syntaxFlags,
+        [in] UINT32 lcid,
+        [out] RegExErrorCode* pErrorCode,
+        [out, retval] IRegEx** ppRegEx);
+
+    HRESULT
+    EscapePatternLiteral(
+        [in] BSTR patternLiteral,
+        [in] RegExSyntaxFlags syntaxFlags,
+        [out, retval] BSTR* pEscapedPatternLiteral);
+
+    HRESULT
+    EscapeFormatLiteral(
+        [in] BSTR formatLiteral,
+        [in] RegExFormatFlags formatFlags,
+        [out, retval] BSTR* pEscapedFormatLiteral);
+}
+
+cpp_quote("// Constructor for IRegExLibrary runtime class. Returned object is free-threaded.")
+cpp_quote("STDAPI")
+cpp_quote("RepStrRegExLibraryCreate(")
+cpp_quote("    _Outptr_ IRegExLibrary** ppLibrary);")
 
 [
     uuid(F6E5D4C3-B2A1-4089-9E7D-6C5B4A3F2E1D),
@@ -334,9 +402,18 @@ library RepStrRegExLib
 {
     importlib("stdole2.tlb");
 
+    enum RegExSyntaxFlags;
+    enum RegExMatchFlags;
+    enum RegExFormatFlags;
+    enum RegExErrorCode;
+    enum RegExEncoding;
+    enum RegExEnumerationState;
+
+    struct RegExString;
+    struct RegExSubMatch;
+
+    interface IRegExLibrary;
     interface IRegEx;
     interface IRegExMatchEnumerator;
-
-    enum RegExSyntaxFlags;
-    enum RegExErrorCode;
+    interface IRegExMatchResults;
 }
