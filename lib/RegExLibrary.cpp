@@ -4,6 +4,8 @@
 
 #include <utf.h>
 
+using namespace std::string_view_literals;
+
 STDAPI
 RepStrRegExLibraryCreate(
     _Outptr_ IRegExLibrary** ppLibrary)
@@ -177,28 +179,136 @@ RegExLibrary::CreateRegEx(
     return hr;
 }
 
+// Append '\' before each input wide character that matches (as ASCII) one of the
+// characters in charsToEscape, and produce the result as a freshly-allocated BSTR.
+// If charsToEscape is empty, returns a copy of the input with no escaping.
+// On allocation failure, sets *pOutput = nullptr and returns E_OUTOFMEMORY.
+static HRESULT
+EscapeAsciiSpecials(
+    _In_ BSTR input,
+    std::string_view charsToEscape,
+    _Out_ BSTR* pOutput) noexcept
+{
+    *pOutput = nullptr;
+
+    std::wstring_view inputView(input, SysStringLen(input));
+    std::wstring_view outputView;
+    std::wstring output;
+    bool escape[128] = {};
+
+    if (charsToEscape.empty())
+    {
+        outputView = inputView;
+    }
+    else
+    {
+        for (char ch : charsToEscape)
+        {
+            escape[static_cast<unsigned char>(ch)] = true;
+        }
+
+        try
+        {
+            output.reserve(inputView.size() * 2); // Worst case, every character needs escaping.
+            for (wchar_t ch : inputView)
+            {
+                if (ch < 128 && escape[static_cast<unsigned char>(ch)])
+                {
+                    output.push_back(L'\\');
+                }
+                output.push_back(ch);
+            }
+        }
+        catch (std::bad_alloc const&)
+        {
+            return E_OUTOFMEMORY;
+        }
+
+        outputView = output;
+    }
+
+    *pOutput = SysAllocStringLen(outputView.data(), static_cast<UINT>(outputView.size()));
+    return *pOutput ? S_OK : E_OUTOFMEMORY;
+}
+
 HRESULT STDMETHODCALLTYPE
 RegExLibrary::EscapePatternLiteral(
-    _In_ BSTR /*patternLiteral*/,
-    RegExSyntaxFlags /*syntaxFlags*/,
+    _In_ BSTR patternLiteral,
+    RegExSyntaxFlags syntaxFlags,
     _Out_ BSTR* pEscapedPatternLiteral) noexcept
 {
-    if (pEscapedPatternLiteral)
+    if (!pEscapedPatternLiteral)
     {
-        *pEscapedPatternLiteral = nullptr;
+        return E_POINTER;
     }
-    return E_NOTIMPL;
+
+    std::string_view charsToEscape{};
+    auto const flags = static_cast<boost::regex_constants::syntax_option_type>(syntaxFlags);
+    switch (flags & boost::regbase::main_option_type)
+    {
+    case boost::regbase::perl_syntax_group:
+        // Perl engine: extended, normal, awk, egrep, perl, ECMAScript, JavaScript, JScript.
+        charsToEscape = R"(.[{}()\*+?|^$)"sv;
+        break;
+    case boost::regbase::basic_syntax_group:
+        // Basic engine: basic, emacs, grep, sed.
+        charsToEscape = R"(.[\*^$)"sv;
+        break;
+    case boost::regbase::literal:
+        // No escaping necessary.
+        break;
+    default:
+        // Both PERL and BASIC set at the same time.
+        *pEscapedPatternLiteral = nullptr;
+        return E_INVALIDARG;
+    }
+
+    return EscapeAsciiSpecials(patternLiteral, charsToEscape, pEscapedPatternLiteral);
 }
 
 HRESULT STDMETHODCALLTYPE
 RegExLibrary::EscapeFormatLiteral(
-    _In_ BSTR /*formatLiteral*/,
-    RegExFormatFlags /*formatFlags*/,
+    _In_ BSTR formatLiteral,
+    RegExFormatFlags formatFlags,
     _Out_ BSTR* pEscapedFormatLiteral) noexcept
 {
-    if (pEscapedFormatLiteral)
+    constexpr int FormatPerl = boost::regex_constants::format_perl;
+    static_assert(FormatPerl == 0, "FormatPerl is expected to be the lack of FormatSed");
+    constexpr int FormatSed = boost::regex_constants::format_sed;
+    static_assert(0 == (FormatSed & (FormatSed - 1)), "FormatSed is expected to be a single bit flag");
+    constexpr int FormatAll = boost::regex_constants::format_all;
+    static_assert(0 == (FormatAll & (FormatAll - 1)), "FormatAll is expected to be a single bit flag");
+    constexpr int FormatMask = FormatSed | FormatAll;
+
+    if (!pEscapedFormatLiteral)
     {
-        *pEscapedFormatLiteral = nullptr;
+        return E_POINTER;
     }
-    return E_NOTIMPL;
+
+    std::string_view charsToEscape{};
+    auto const flags = static_cast<boost::regex_constants::match_flag_type>(formatFlags);
+    if (!(flags & boost::regex_constants::format_literal))
+    {
+        switch (flags & FormatMask)
+        {
+        case FormatPerl:
+            charsToEscape = R"($\)"sv;
+            break;
+        case FormatPerl | FormatAll:
+            charsToEscape = R"($\()?:)"sv;
+            break;
+        case FormatSed:
+            charsToEscape = R"(&\)"sv;
+            break;
+        case FormatSed | FormatAll:
+            charsToEscape = R"(&\()?:)"sv;
+            break;
+        default:
+            // FormatMask allows 2 bits through. Above set of cases is exhaustive.
+            assert(false);
+            __assume(false);
+        }
+    }
+
+    return EscapeAsciiSpecials(formatLiteral, charsToEscape, pEscapedFormatLiteral);
 }

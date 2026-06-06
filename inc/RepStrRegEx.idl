@@ -11,6 +11,7 @@ RegExSyntaxFlags based on boost::regex_constants::syntax_option_type:
       basic_syntax_group = 1,                     // POSIX basic
       literal = 2,                                // all characters are literals
       main_option_type = literal | basic_syntax_group | perl_syntax_group, // everything!
+
       //
       // options specific to perl group:
       //
@@ -44,8 +45,6 @@ RegExSyntaxFlags based on boost::regex_constants::syntax_option_type:
       save_subexpression_location = 1 << 23,            // save subexpression locations
       no_empty_expressions = 1 << 24,                   // no empty expressions allowed
       optimize = 0,                                     // not really supported
-
-
 
       basic = basic_syntax_group | collate | no_escape_in_lists,
       extended = no_bk_refs | collate | no_perl_ex | no_escape_in_lists,
@@ -388,10 +387,9 @@ interface IRegExLibrary : IUnknown
         [out, retval] BSTR* pEscapedFormatLiteral);
 }
 
-cpp_quote("// Constructor for IRegExLibrary runtime class. Returned object is free-threaded.")
+cpp_quote("// Constructor for IRegExLibrary factory class. Returned object is free-threaded.")
 cpp_quote("STDAPI")
-cpp_quote("RepStrRegExLibraryCreate(")
-cpp_quote("    _Outptr_ IRegExLibrary** ppLibrary);")
+cpp_quote("RepStrRegExLibraryCreate(_Outptr_ IRegExLibrary** ppLibrary);")
 
 [
     uuid(F6E5D4C3-B2A1-4089-9E7D-6C5B4A3F2E1D),
