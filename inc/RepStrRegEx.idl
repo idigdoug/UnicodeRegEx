@@ -278,6 +278,7 @@ interface IRegExMatchResults : IUnknown
         [in] RegExEncoding subMatchEncoding,
         [out, retval] RegExString* pSubMatchString);
 
+    // Sets the template and flags to be used by subsequent Format() calls.
     HRESULT
     SetFormatTemplate(
         [in] BSTR formatTemplate,
@@ -396,7 +397,7 @@ cpp_quote("RepStrRegExLibraryCreate(_Outptr_ IRegExLibrary** ppLibrary);")
     version(1.0),
     helpstring("RepStr RegEx Type Library")
 ]
-library RepStrRegExLib
+library RepStrRegEx
 {
     importlib("stdole2.tlb");
 

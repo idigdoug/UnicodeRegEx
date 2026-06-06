@@ -1,6 +1,6 @@
 namespace msandbox
 {
-    using RepStrRegExLib;
+    using RepStrRegEx;
     using System;
     using System.Runtime.InteropServices;
     using System.Text;

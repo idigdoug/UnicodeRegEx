@@ -5,7 +5,7 @@
     using System.Linq;
     using System.Text;
     using System.Threading.Tasks;
-    using RepStrRegExLib;
+    using RepStrRegEx;
 
     internal class Program
     {

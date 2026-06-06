@@ -713,9 +713,7 @@
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)RepStrRegEx.tlb" "$(SolutionDir)out\."
-
-copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -751,9 +749,7 @@ copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)RepStrRegEx.tlb" "$(SolutionDir)out\."
-
-copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -789,9 +785,7 @@ copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)RepStrRegEx.tlb" "$(SolutionDir)out\."
-
-copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -827,9 +821,7 @@ copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)RepStrRegEx.tlb" "$(SolutionDir)out\."
-
-copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -865,9 +857,7 @@ copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)RepStrRegEx.tlb" "$(SolutionDir)out\."
-
-copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -903,9 +893,7 @@ copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)RepStrRegEx.tlb" "$(SolutionDir)out\."
-
-copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -942,4 +930,14 @@ copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <PropertyGroup>
+    <_TlbImpExe Condition="'$(_TlbImpExe)' == '' AND Exists('$(WindowsSdkDir)bin\NETFX 4.8 Tools\TlbImp.exe')">$(WindowsSdkDir)bin\NETFX 4.8 Tools\TlbImp.exe</_TlbImpExe>
+    <_TlbImpExe Condition="'$(_TlbImpExe)' == '' AND Exists('$(NETFXSDKDir)bin\NETFX 4.8 Tools\TlbImp.exe')">$(NETFXSDKDir)bin\NETFX 4.8 Tools\TlbImp.exe</_TlbImpExe>
+    <_TlbImpExe Condition="'$(_TlbImpExe)' == ''">TlbImp.exe</_TlbImpExe>
+    <_InteropAssembly>$(SolutionDir)out\RepStrRegEx.Interop.dll</_InteropAssembly>
+  </PropertyGroup>
+  <Target Name="GenerateInteropAssembly" AfterTargets="Build" Inputs="$(IntDir)RepStrRegEx.tlb" Outputs="$(_InteropAssembly)">
+    <Message Importance="high" Text="Generating $(_InteropAssembly) from $(IntDir)RepStrRegEx.tlb" />
+    <Exec Command="&quot;$(_TlbImpExe)&quot; &quot;$(IntDir)RepStrRegEx.tlb&quot; /out:&quot;$(_InteropAssembly)&quot; /namespace:RepStrRegEx /silent" />
+  </Target>
 </Project>

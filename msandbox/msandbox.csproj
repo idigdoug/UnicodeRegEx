@@ -84,9 +84,14 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <COMFileReference Include="..\out\RepStrRegEx.tlb">
+    <Reference Include="RepStrRegEx.Interop">
+      <HintPath>..\out\RepStrRegEx.Interop.dll</HintPath>
       <EmbedInteropTypes>true</EmbedInteropTypes>
-    </COMFileReference>
+      <Private>false</Private>
+    </Reference>
+    <ProjectReference Include="..\lib\RepStrRegExLib.vcxproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
