@@ -3,17 +3,19 @@
 
 RegExMatchResults::RegExMatchResults(
     _In_ RegEx* regex,
-    _In_ RegExString const* pInput,
+    _In_ RegExBytes const* pInput,
+    RegExEncoding inputEncoding,
     _In_ UINT_PTR startByteOffset,
     RegExMatchFlags flags)
-    : RegExMatchBase(regex, pInput, startByteOffset, flags)
+    : RegExMatchBase(regex, pInput, inputEncoding, startByteOffset, flags)
 {
 }
 
 HRESULT
 RegExMatchResults::Search(
     _In_ RegEx* regex,
-    _In_ RegExString const* pInput,
+    _In_ RegExBytes const* pInput,
+    RegExEncoding inputEncoding,
     _In_ UINT_PTR startByteOffset,
     RegExMatchFlags flags,
     bool wholeStringMatch,
@@ -25,7 +27,7 @@ RegExMatchResults::Search(
     try
     {
         std::unique_ptr<RegExMatchResults> pResults(
-            new RegExMatchResults(regex, pInput, startByteOffset, flags));
+            new RegExMatchResults(regex, pInput, inputEncoding, startByteOffset, flags));
 
         if (pResults->DoInitialSearch(wholeStringMatch))
         {

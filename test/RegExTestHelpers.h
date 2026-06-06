@@ -1,24 +1,19 @@
 #pragma once
 #include <RepStrRegEx.h>
 
-template<class CharT> struct CharToEncoding;
-template<> struct CharToEncoding<char8_t> : std::integral_constant<RegExEncoding, RegExEncoding_utf8> {};
-template<> struct CharToEncoding<char16_t> : std::integral_constant<RegExEncoding, RegExEncoding_utf16le> {};
-
 template<class CharT>
-constexpr RegExString
+constexpr RegExBytes
 MakeString(std::basic_string_view<CharT> sv)
 {
     return {
         .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(sv.data())),
         .size = static_cast<LONGLONG>(sv.size() * sizeof(sv[0])),
-        .encoding = CharToEncoding<CharT>::value
     };
 }
 
 template<class CharT>
 constexpr std::basic_string_view<CharT>
-MakeView(RegExString const& str) noexcept
+MakeView(RegExBytes const& str) noexcept
 {
     return std::basic_string_view<CharT>(
         reinterpret_cast<CharT const*>(str.data_ptr),

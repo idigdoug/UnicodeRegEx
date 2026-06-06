@@ -46,21 +46,24 @@ public:
 
     HRESULT STDMETHODCALLTYPE
     Match(
-        _In_ RegExString const* pInput,
+        _In_ RegExBytes const* pInput,
+        _In_ RegExEncoding inputEncoding,
         _In_ LONGLONG startOffset,
         RegExMatchFlags flags,
         _Outptr_opt_result_maybenull_ IRegExMatchResults** ppResults) noexcept override;
 
     HRESULT STDMETHODCALLTYPE
     Search(
-        _In_ RegExString const* pInput,
+        _In_ RegExBytes const* pInput,
+        _In_ RegExEncoding inputEncoding,
         _In_ LONGLONG startOffset,
         RegExMatchFlags flags,
         _Outptr_opt_result_maybenull_ IRegExMatchResults** ppResults) noexcept override;
 
     HRESULT STDMETHODCALLTYPE
     EnumerateMatches(
-        _In_ RegExString const* pInput,
+        _In_ RegExBytes const* pInput,
+        _In_ RegExEncoding inputEncoding,
         _In_ LONGLONG startOffset,
         RegExMatchFlags flags,
         _Outptr_ IRegExMatchEnumerator** ppEnumerator) noexcept override;
@@ -69,7 +72,8 @@ private:
 
     HRESULT
     Search(
-        _In_ RegExString const* pInput,
+        _In_ RegExBytes const* pInput,
+        _In_ RegExEncoding inputEncoding,
         _In_ LONGLONG startOffset,
         RegExMatchFlags flags,
         bool wholeStringMatch,

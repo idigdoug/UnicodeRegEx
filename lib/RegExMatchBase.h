@@ -54,7 +54,8 @@ protected:
 
     RegExMatchBase(
         _In_ RegEx* regex,
-        _In_ RegExString const* pInput,
+        _In_ RegExBytes const* pInput,
+        _In_ RegExEncoding inputEncoding,
         _In_ UINT_PTR startByteOffset,
         RegExMatchFlags matchFlags);
 
@@ -77,7 +78,10 @@ public:
     // IRegExMatchResults
 
     HRESULT STDMETHODCALLTYPE
-    get_Input(_Out_ RegExString* pInput) noexcept override;
+    get_Input(_Out_ RegExBytes* pInput) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    get_InputEncoding(_Out_ RegExEncoding* pEncoding) noexcept override;
 
     HRESULT STDMETHODCALLTYPE
     get_SubMatchCount(_Out_ UINT32* pCount) noexcept override;
@@ -86,16 +90,10 @@ public:
     GetSubMatch(UINT32 subMatchIndex, _Out_ RegExSubMatch* pSubMatch) noexcept override;
 
     HRESULT STDMETHODCALLTYPE
-    GetSubMatchString(
-        UINT32 subMatchIndex,
-        RegExEncoding subMatchEncoding,
-        _Out_ RegExString* pSubMatchString) noexcept override;
-
-    HRESULT STDMETHODCALLTYPE
     SetFormatTemplate(BSTR formatTemplate, RegExFormatFlags formatFlags) noexcept override;
 
     HRESULT STDMETHODCALLTYPE
-    Format(RegExEncoding outputEncoding, _Out_ RegExString* pOutputString) noexcept override;
+    Format(RegExEncoding outputEncoding, _Out_ RegExBytes* pOutputString) noexcept override;
 
     // IRegExMatchEnumerator
 
@@ -180,5 +178,5 @@ private:
     HRESULT
     TranscodeOutput(
         RegExEncoding outputEncoding,
-        _Out_ RegExString* pOutput) noexcept(false);
+        _Out_ RegExBytes* pOutput) noexcept(false);
 };

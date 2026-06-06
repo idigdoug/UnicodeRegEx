@@ -136,27 +136,30 @@ RegEx::get_Lcid(
 
 HRESULT
 RegEx::Match(
-    _In_ RegExString const* pInput,
+    _In_ RegExBytes const* pInput,
+    RegExEncoding inputEncoding,
     _In_ LONGLONG startByteOffset,
     RegExMatchFlags flags,
     _Outptr_opt_result_maybenull_ IRegExMatchResults** ppResults) noexcept
 {
-    return Search(pInput, startByteOffset, flags, true, ppResults);
+    return Search(pInput, inputEncoding, startByteOffset, flags, true, ppResults);
 }
 
 HRESULT
 RegEx::Search(
-    _In_ RegExString const* pInput,
+    _In_ RegExBytes const* pInput,
+    RegExEncoding inputEncoding,
     _In_ LONGLONG startByteOffset,
     RegExMatchFlags flags,
     _Outptr_opt_result_maybenull_ IRegExMatchResults** ppResults) noexcept
 {
-    return Search(pInput, startByteOffset, flags, false, ppResults);
+    return Search(pInput, inputEncoding, startByteOffset, flags, false, ppResults);
 }
 
 HRESULT
 RegEx::EnumerateMatches(
-    _In_ RegExString const* pInput,
+    _In_ RegExBytes const* pInput,
+    RegExEncoding inputEncoding,
     _In_ LONGLONG startByteOffset,
     RegExMatchFlags flags,
     _Outptr_ IRegExMatchEnumerator** ppEnumerator) noexcept
@@ -175,7 +178,7 @@ RegEx::EnumerateMatches(
     }
     else try
     {
-        pEnumerator = std::make_unique<RegExMatchEnumerator>(this, pInput, startOffsetU, flags);
+        pEnumerator = std::make_unique<RegExMatchEnumerator>(this, pInput, inputEncoding, startOffsetU, flags);
         hr = S_OK;
     }
     catch (...)
@@ -189,7 +192,8 @@ RegEx::EnumerateMatches(
 
 HRESULT
 RegEx::Search(
-    _In_ RegExString const* pInput,
+    _In_ RegExBytes const* pInput,
+    RegExEncoding inputEncoding,
     _In_ LONGLONG startByteOffset,
     RegExMatchFlags flags,
     bool wholeStringMatch,
@@ -209,7 +213,7 @@ RegEx::Search(
     }
     else try
     {
-        hr = RegExMatchResults::Search(this, pInput, startOffsetU, flags, wholeStringMatch, &pResults);
+        hr = RegExMatchResults::Search(this, pInput, inputEncoding, startOffsetU, flags, wholeStringMatch, &pResults);
     }
     catch (...)
     {

@@ -131,14 +131,13 @@ namespace RegExTests
 
             auto regex = MakeRegEx(escaped);
 
-            RegExString inputStr = {
+            RegExBytes inputStr = {
                 .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(literal.data())),
                 .size = static_cast<LONGLONG>(literal.size() * sizeof(wchar_t)),
-                .encoding = RegExEncoding_utf16le
             };
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(S_OK,
-                regex->Match(&inputStr, 0, RegExMatchFlag_default, results.put()));
+                regex->Match(&inputStr, RegExEncoding_utf16le, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
         }
 

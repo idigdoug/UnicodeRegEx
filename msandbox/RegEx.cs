@@ -47,26 +47,6 @@ namespace msandbox
         private static Encoding? encodingLatin1; // ISO-8859-1 = GetEncoding(28591)
 
         /// <summary>
-        /// Returns the string content of the specified sub-match, or null if the sub-match did not
-        /// participate in the match. Use subMatchIndex = 0 to get the entire match.
-        /// </summary>
-        public static string? SubMatchString(
-            this IRegExMatchEnumerator enumerator,
-            int subMatchIndex)
-        {
-            var subMatchString = enumerator.GetSubMatchString((uint)subMatchIndex, RegExEncoding.RegExEncoding_utf16le);
-            switch (subMatchString.encoding)
-            {
-                case RegExEncoding.RegExEncoding_none:
-                    return null;
-                case RegExEncoding.RegExEncoding_utf16le:
-                    return Marshal.PtrToStringUni((IntPtr)subMatchString.data_ptr, (int)(subMatchString.size / sizeof(char)));
-                default:
-                    throw new NotSupportedException($"Unsupported regex encoding: {subMatchString.encoding}");
-            }
-        }
-
-        /// <summary>
         /// Formats this match based on the formatTemplate specified in the call to Matches() or in the most recent
         /// call to SetFormatTemplate. If the template has not been set, this method returns an empty string.
         /// </summary>
@@ -77,12 +57,12 @@ namespace msandbox
         }
 
         /// <summary>
-        /// Returns a string for the bytes contained in the RegExString buffer.
+        /// Returns a string for the bytes contained in the RegExBytes buffer.
         /// The buffer is valid until the next call into the match enumerator.
         /// </summary>
-        public static string GetString(this RegExString regexString)
+        public static string GetString(this RegExBytes regexString, RegExEncoding encoding)
         {
-            switch (regexString.encoding)
+            switch (encoding)
             {
                 case RegExEncoding.RegExEncoding_latin1:
                     unsafe
@@ -107,7 +87,7 @@ namespace msandbox
                     }
                 case RegExEncoding.RegExEncoding_none:
                 default:
-                    throw new NotSupportedException($"Unsupported regex encoding: {regexString.encoding}");
+                    throw new NotSupportedException($"Unsupported regex encoding: {encoding}");
             }
         }
 
@@ -165,14 +145,13 @@ namespace msandbox
             RegExFormatFlags formatFlags)
         {
             this.pin = pin;
-            var inputString = new RegExString
+            var inputString = new RegExBytes
             {
                 data_ptr = (long)(pin.IsAllocated ? pin.AddrOfPinnedObject() : data),
                 size = (long)size,
-                encoding = encoding
             };
 
-            this.enumerator = regex.EnumerateMatches(ref inputString, 0, matchFlags);
+            this.enumerator = regex.EnumerateMatches(ref inputString, encoding, 0, matchFlags);
             if (formatTemplate != null)
             {
                 enumerator.SetFormatTemplate(formatTemplate, formatFlags);

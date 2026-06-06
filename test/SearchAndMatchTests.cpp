@@ -14,10 +14,10 @@ namespace RegExTests
         {
             auto regex = MakeRegEx(L"\\d+");
 
-            RegExString inputStr = MakeString(u8"abc 123 def 456"sv);
+            RegExBytes inputBytes = MakeString(u8"abc 123 def 456"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
-            HRESULT hr = regex->Search(&inputStr, 0, RegExMatchFlag_default, results.put());
+            HRESULT hr = regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
             Assert::AreEqual(S_OK, hr);
             Assert::IsNotNull(results.get());
 
@@ -33,10 +33,10 @@ namespace RegExTests
         {
             auto regex = MakeRegEx(L"xyz");
 
-            RegExString inputStr = MakeString(u8"hello world"sv);
+            RegExBytes inputBytes = MakeString(u8"hello world"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
-            HRESULT hr = regex->Search(&inputStr, 0, RegExMatchFlag_default, results.put());
+            HRESULT hr = regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
             Assert::AreEqual(S_OK, hr);
             Assert::IsNull(results.get());
         }
@@ -46,12 +46,12 @@ namespace RegExTests
             // With startByteOffset past the first match, Search should find the second.
             auto regex = MakeRegEx(L"\\d+");
 
-            RegExString inputStr = MakeString(u8"abc 123 def 456"sv);
+            RegExBytes inputBytes = MakeString(u8"abc 123 def 456"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Search(&inputStr, 8, RegExMatchFlag_default, results.put()));
+                regex->Search(&inputBytes, RegExEncoding_utf8, 8, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};
@@ -64,12 +64,12 @@ namespace RegExTests
         {
             auto regex = MakeRegEx(L"(\\w+)@(\\w+)");
 
-            RegExString inputStr = MakeString(u8"$user@host!"sv);
+            RegExBytes inputBytes = MakeString(u8"$user@host!"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Search(&inputStr, 0, RegExMatchFlag_default, results.put()));
+                regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
 
             UINT32 count = 0;
@@ -90,12 +90,12 @@ namespace RegExTests
         {
             auto regex = MakeRegEx(L"(\\w+) (\\w+)");
 
-            RegExString inputStr = MakeString(u8"hello world"sv);
+            RegExBytes inputBytes = MakeString(u8"hello world"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Search(&inputStr, 0, RegExMatchFlag_default, results.put()));
+                regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
 
             wil::unique_bstr formatTemplate(SysAllocString(L"$2 $1"));
@@ -103,11 +103,10 @@ namespace RegExTests
                 S_OK,
                 results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default));
 
-            RegExString output = {};
+            RegExBytes output = {};
             Assert::AreEqual(
                 S_OK,
                 results->Format(RegExEncoding_utf8, &output));
-            Assert::IsTrue(RegExEncoding_utf8 == output.encoding);
             Assert::AreEqual(std::string_view("world hello"), MakeView<char>(output));
         }
 
@@ -115,12 +114,12 @@ namespace RegExTests
         {
             auto regex = MakeRegEx(L"x");
 
-            RegExString inputStr = MakeString(u8"x"sv);
+            RegExBytes inputBytes = MakeString(u8"x"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Search(&inputStr, 0, RegExMatchFlag_default, results.put()));
+                regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
@@ -133,11 +132,12 @@ namespace RegExTests
         {
             auto regex = MakeRegEx(L"x");
 
-            RegExString inputStr = MakeString(u8"x"sv);
+            RegExBytes inputBytes = MakeString(u8"x"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
             HRESULT hr = regex->Search(
-                &inputStr,
+                &inputBytes,
+                RegExEncoding_utf8,
                 0,
                 static_cast<RegExMatchFlags>(boost::regex_constants::match_prev_avail),
                 results.put());
@@ -149,10 +149,10 @@ namespace RegExTests
         {
             auto regex = MakeRegEx(L"x");
 
-            RegExString inputStr = MakeString(u8"hello"sv);
+            RegExBytes inputBytes = MakeString(u8"hello"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
-            HRESULT hr = regex->Search(&inputStr, 999, RegExMatchFlag_default, results.put());
+            HRESULT hr = regex->Search(&inputBytes, RegExEncoding_utf8, 999, RegExMatchFlag_default, results.put());
             Assert::AreEqual(E_INVALIDARG, hr);
             Assert::IsNull(results.get());
         }
@@ -162,10 +162,10 @@ namespace RegExTests
             // regex_match requires the pattern to consume the entire input.
             auto regex = MakeRegEx(L"\\d+");
 
-            RegExString inputStr = MakeString(u8"12345"sv);
+            RegExBytes inputBytes = MakeString(u8"12345"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
-            HRESULT hr = regex->Match(&inputStr, 0, RegExMatchFlag_default, results.put());
+            HRESULT hr = regex->Match(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
             Assert::AreEqual(S_OK, hr);
             Assert::IsNotNull(results.get());
 
@@ -181,19 +181,19 @@ namespace RegExTests
             // though Search would succeed.
             auto regex = MakeRegEx(L"\\d+");
 
-            RegExString inputStr = MakeString(u8"123 abc"sv);
+            RegExBytes inputBytes = MakeString(u8"123 abc"sv);
 
             wil::com_ptr<IRegExMatchResults> matchResults;
             Assert::AreEqual(
                 S_OK,
-                regex->Match(&inputStr, 0, RegExMatchFlag_default, matchResults.put()));
+                regex->Match(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, matchResults.put()));
             Assert::IsNull(matchResults.get());
 
             // Sanity check: Search does succeed on the same input.
             wil::com_ptr<IRegExMatchResults> searchResults;
             Assert::AreEqual(
                 S_OK,
-                regex->Search(&inputStr, 0, RegExMatchFlag_default, searchResults.put()));
+                regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, searchResults.put()));
             Assert::IsNotNull(searchResults.get());
         }
 
@@ -201,40 +201,45 @@ namespace RegExTests
         {
             auto regex = MakeRegEx(L"(\\w+)=(\\w+)");
 
-            RegExString inputStr = MakeString(u8"key=value"sv);
+            RegExBytes inputBytes = MakeString(u8"key=value"sv);
+            RegExSubMatch sub = {};
 
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Match(&inputStr, 0, RegExMatchFlag_default, results.put()));
+                regex->Match(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
 
             UINT32 count = 0;
             results->get_SubMatchCount(&count);
             Assert::AreEqual(UINT32(3), count);
 
-            RegExString str = {};
+            RegExBytes str = {};
             Assert::AreEqual(
                 S_OK,
-                results->GetSubMatchString(1, RegExEncoding_utf8, &str));
-            Assert::AreEqual(std::string_view("key"), MakeView<char>(str));
+                results->GetSubMatch(1, &sub));
+            Assert::AreEqual(LONGLONG(0), sub.input_offset);
+            Assert::AreEqual(LONGLONG(3), sub.size);
+            Assert::AreEqual(VARIANT_TRUE, sub.matched);
 
             Assert::AreEqual(
                 S_OK,
-                results->GetSubMatchString(2, RegExEncoding_utf8, &str));
-            Assert::AreEqual(std::string_view("value"), MakeView<char>(str));
+                results->GetSubMatch(2, &sub));
+            Assert::AreEqual(LONGLONG(4), sub.input_offset);
+            Assert::AreEqual(LONGLONG(5), sub.size);
+            Assert::AreEqual(VARIANT_TRUE, sub.matched);
         }
 
         TEST_METHOD(Match_NoMatch_ReturnsNull)
         {
             auto regex = MakeRegEx(L"\\d+");
 
-            RegExString inputStr = MakeString(u8"abc"sv);
+            RegExBytes inputBytes = MakeString(u8"abc"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Match(&inputStr, 0, RegExMatchFlag_default, results.put()));
+                regex->Match(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNull(results.get());
         }
 
@@ -243,12 +248,12 @@ namespace RegExTests
             // With startByteOffset = 4, regex_match should match only the suffix "def".
             auto regex = MakeRegEx(L"\\w+");
 
-            RegExString inputStr = MakeString(u8"abc def"sv);
+            RegExBytes inputBytes = MakeString(u8"abc def"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Match(&inputStr, 4, RegExMatchFlag_default, results.put()));
+                regex->Match(&inputBytes, RegExEncoding_utf8, 4, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};

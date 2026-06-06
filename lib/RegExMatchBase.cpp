@@ -4,13 +4,12 @@
 
 #include <utf.h>
 
-static constexpr RegExString
-MakeString(_In_reads_bytes_(size) void const* data, UINT_PTR size, RegExEncoding encoding) noexcept
+static constexpr RegExBytes
+MakeString(_In_reads_bytes_(size) void const* data, UINT_PTR size) noexcept
 {
     return {
         .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(data)),
         .size = static_cast<LONGLONG>(size),
-        .encoding = encoding,
     };
 }
 
@@ -42,7 +41,8 @@ RegExMatchBase::~RegExMatchBase() = default;
 
 RegExMatchBase::RegExMatchBase(
     _In_ RegEx* regex,
-    _In_ RegExString const* pInput,
+    _In_ RegExBytes const* pInput,
+    RegExEncoding inputEncoding,
     _In_ UINT_PTR startByteOffset,
     RegExMatchFlags flags)
     : m_refCount(1)
@@ -50,7 +50,7 @@ RegExMatchBase::RegExMatchBase(
     , m_regex(regex)
     , m_inputData(reinterpret_cast<void const*>(static_cast<UINT_PTR>(pInput->data_ptr)))
     , m_inputSize(static_cast<UINT_PTR>(pInput->size))
-    , m_inputEncoding(pInput->encoding)
+    , m_inputEncoding(inputEncoding)
     , m_state(RegExEnumerationState_not_started)
     , m_variantSearchState()
     , m_formatTemplate()
@@ -117,9 +117,16 @@ RegExMatchBase::DoInitialSearch(bool wholeStringMatch)
 }
 
 HRESULT
-RegExMatchBase::get_Input(_Out_ RegExString* pInput) noexcept
+RegExMatchBase::get_Input(_Out_ RegExBytes* pInput) noexcept
 {
-    *pInput = MakeString(m_inputData, m_inputSize, m_inputEncoding);
+    *pInput = MakeString(m_inputData, m_inputSize);
+    return S_OK;
+}
+
+HRESULT
+RegExMatchBase::get_InputEncoding(_Out_ RegExEncoding* pEncoding) noexcept
+{
+    *pEncoding = m_inputEncoding;
     return S_OK;
 }
 
@@ -162,52 +169,6 @@ RegExMatchBase::GetSubMatch(UINT32 subMatchIndex, _Out_ RegExSubMatch* pSubMatch
 }
 
 HRESULT
-RegExMatchBase::GetSubMatchString(
-    UINT32 subMatchIndex,
-    RegExEncoding subMatchEncoding,
-    _Out_ RegExString* pSubMatchString) noexcept
-{
-    HRESULT hr;
-    *pSubMatchString = {};
-
-    if (m_state != RegExEnumerationState_enumerating)
-    {
-        // get_SubMatchCount is 0, so any index is out of range.
-        hr = E_INVALIDARG;
-    }
-    else
-    {
-        try
-        {
-            m_outputBuffer.clear();
-            hr = std::visit([this, subMatchIndex](auto& state)
-                { return VisitGetSubMatchString(state, subMatchIndex); },
-                m_variantSearchState);
-
-            if (SUCCEEDED(hr))
-            {
-                if (hr != S_OK)
-                {
-                    // No match for the specified subMatchIndex, return with encoding == 0.
-                    assert(hr == S_FALSE);
-                    hr = S_OK;
-                }
-                else
-                {
-                    hr = TranscodeOutput(subMatchEncoding, pSubMatchString);
-                }
-            }
-        }
-        catch (...)
-        {
-            hr = wil::ResultFromCaughtException();
-        }
-    }
-
-    return hr;
-}
-
-HRESULT
 RegExMatchBase::SetFormatTemplate(BSTR formatTemplate, RegExFormatFlags formatFlags) noexcept
 {
     HRESULT hr;
@@ -233,7 +194,7 @@ RegExMatchBase::SetFormatTemplate(BSTR formatTemplate, RegExFormatFlags formatFl
 HRESULT
 RegExMatchBase::Format(
     RegExEncoding outputEncoding,
-    _Out_ RegExString* pOutput) noexcept
+    _Out_ RegExBytes* pOutput) noexcept
 {
     HRESULT hr;
     *pOutput = {};
@@ -526,7 +487,7 @@ RegExMatchBase::VisitFormat(
 HRESULT
 RegExMatchBase::TranscodeOutput(
     RegExEncoding outputEncoding,
-    _Out_ RegExString* pOutput) noexcept(false)
+    _Out_ RegExBytes* pOutput) noexcept(false)
 {
     void const* data;
     size_t size;
@@ -566,6 +527,6 @@ RegExMatchBase::TranscodeOutput(
         return E_INVALIDARG;
     }
 
-    *pOutput = MakeString(data, size, outputEncoding);
+    *pOutput = MakeString(data, size);
     return S_OK;
 }
