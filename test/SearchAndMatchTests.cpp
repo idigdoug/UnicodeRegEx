@@ -261,5 +261,255 @@ namespace RegExTests
             Assert::AreEqual(LONGLONG(4), sub.input_offset);
             Assert::AreEqual(LONGLONG(3), sub.size);
         }
+
+        TEST_METHOD(InputEncoding_Property)
+        {
+            auto regex = MakeRegEx(L"x");
+
+            RegExBytes inputBytes = MakeString(u"x"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            Assert::AreEqual(
+                S_OK,
+                regex->Search(&inputBytes, RegExEncoding_utf16le, 0, RegExMatchFlag_default, results.put()));
+            Assert::IsNotNull(results.get());
+
+            RegExEncoding encoding = RegExEncoding_none;
+            Assert::AreEqual(S_OK, results->get_InputEncoding(&encoding));
+            Assert::AreEqual((int)RegExEncoding_utf16le, (int)encoding);
+        }
+
+        TEST_METHOD(FormatTo_Stream)
+        {
+            auto regex = MakeRegEx(L"(\\w+) (\\w+)");
+
+            RegExBytes inputBytes = MakeString(u8"hello world"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            Assert::AreEqual(
+                S_OK,
+                regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
+
+            wil::unique_bstr formatTemplate(SysAllocString(L"$2 $1"));
+            Assert::AreEqual(
+                S_OK,
+                results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default));
+
+            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            Assert::AreEqual(S_OK, results->FormatTo(RegExEncoding_utf8, stream.get()));
+            Assert::AreEqual("world hello"sv, stream->View<char>());
+        }
+
+        TEST_METHOD(FormatTo_DifferentEncoding)
+        {
+            // Input is UTF-8, but format output is UTF-16LE.
+            auto regex = MakeRegEx(L"(\\w+) (\\w+)");
+
+            RegExBytes inputBytes = MakeString(u8"hello world"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            Assert::AreEqual(
+                S_OK,
+                regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
+
+            wil::unique_bstr formatTemplate(SysAllocString(L"$2 $1"));
+            Assert::AreEqual(
+                S_OK,
+                results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default));
+
+            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            Assert::AreEqual(S_OK, results->FormatTo(RegExEncoding_utf16le, stream.get()));
+            Assert::IsTrue(u"world hello"sv == stream->View<char16_t>());
+        }
+
+        TEST_METHOD(FormatTo_NullStream)
+        {
+            auto regex = MakeRegEx(L"x");
+
+            RegExBytes inputBytes = MakeString(u8"x"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+
+            wil::unique_bstr formatTemplate(SysAllocString(L"y"));
+            results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default);
+
+            Assert::AreEqual(E_POINTER, results->FormatTo(RegExEncoding_utf8, nullptr));
+        }
+
+        TEST_METHOD(FormatTo_InvalidEncoding)
+        {
+            auto regex = MakeRegEx(L"x");
+
+            RegExBytes inputBytes = MakeString(u8"x"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+
+            wil::unique_bstr formatTemplate(SysAllocString(L"y"));
+            results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default);
+
+            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            Assert::AreEqual(E_INVALIDARG, results->FormatTo(static_cast<RegExEncoding>(9999), stream.get()));
+        }
+
+        TEST_METHOD(CopyInput_Utf8Input)
+        {
+            // Input is UTF-8, CopyInput always returns BSTR (UTF-16LE).
+            auto regex = MakeRegEx(L"world");
+
+            RegExBytes inputBytes = MakeString(u8"hello world"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+
+            // Copy bytes 0..5 ("hello") into a BSTR.
+            wil::unique_bstr output;
+            Assert::AreEqual(S_OK, results->CopyInput(0, 5, output.put()));
+            Assert::AreEqual(L"hello"sv, MakeView(output.get()));
+        }
+
+        TEST_METHOD(CopyInput_Utf16Input_FastPath)
+        {
+            // Input is already UTF-16LE so CopyInput takes the fast path.
+            auto regex = MakeRegEx(L"world");
+
+            RegExBytes inputBytes = MakeString(u"hello world"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            regex->Search(&inputBytes, RegExEncoding_utf16le, 0, RegExMatchFlag_default, results.put());
+
+            // Bytes 12..22 = "world" (offsets 6..11 chars * 2 = 12..22).
+            wil::unique_bstr output;
+            Assert::AreEqual(S_OK, results->CopyInput(12, 10, output.put()));
+            Assert::AreEqual(L"world"sv, MakeView(output.get()));
+        }
+
+        TEST_METHOD(CopyInput_OutOfBounds)
+        {
+            auto regex = MakeRegEx(L"h");
+
+            RegExBytes inputBytes = MakeString(u8"hello"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+
+            wil::unique_bstr output;
+            // Offset+size goes past end (5 bytes total).
+            Assert::AreEqual(E_INVALIDARG, results->CopyInput(3, 5, output.put()));
+        }
+
+        TEST_METHOD(CopyInput_NegativeOffset)
+        {
+            auto regex = MakeRegEx(L"h");
+
+            RegExBytes inputBytes = MakeString(u8"hello"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+
+            wil::unique_bstr output;
+            Assert::AreEqual(E_INVALIDARG, results->CopyInput(-1, 2, output.put()));
+        }
+
+        TEST_METHOD(CopyInput_OddOffset_Utf16)
+        {
+            auto regex = MakeRegEx(L"A");
+
+            RegExBytes inputBytes = MakeString(u"AB"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            regex->Search(&inputBytes, RegExEncoding_utf16le, 0, RegExMatchFlag_default, results.put());
+
+            wil::unique_bstr output;
+            // Odd offset is invalid for UTF-16.
+            Assert::AreEqual(E_INVALIDARG, results->CopyInput(1, 2, output.put()));
+        }
+
+        TEST_METHOD(CopyInput_EmptyRange)
+        {
+            auto regex = MakeRegEx(L"h");
+
+            RegExBytes inputBytes = MakeString(u8"hello"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+
+            wil::unique_bstr output;
+            Assert::AreEqual(S_OK, results->CopyInput(2, 0, output.put()));
+            Assert::AreEqual(L""sv, MakeView(output.get()));
+        }
+
+        TEST_METHOD(CopyInputTo_SameEncoding_FastPath)
+        {
+            // Same encoding: bytes copied directly to stream.
+            auto regex = MakeRegEx(L"h");
+
+            RegExBytes inputBytes = MakeString(u8"hello world"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+
+            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            Assert::AreEqual(S_OK, results->CopyInputTo(6, 5, RegExEncoding_utf8, stream.get()));
+            Assert::AreEqual("world"sv, stream->View<char>());
+        }
+
+        TEST_METHOD(CopyInputTo_DifferentEncoding_Transcodes)
+        {
+            // UTF-8 input -> UTF-16LE output requires transcoding.
+            auto regex = MakeRegEx(L"h");
+
+            RegExBytes inputBytes = MakeString(u8"hello"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+
+            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            Assert::AreEqual(S_OK, results->CopyInputTo(0, 5, RegExEncoding_utf16le, stream.get()));
+            Assert::IsTrue(u"hello"sv == stream->View<char16_t>());
+        }
+
+        TEST_METHOD(CopyInputTo_NullStream)
+        {
+            auto regex = MakeRegEx(L"h");
+
+            RegExBytes inputBytes = MakeString(u8"hello"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+
+            Assert::AreEqual(E_POINTER, results->CopyInputTo(0, 5, RegExEncoding_utf8, nullptr));
+        }
+
+        TEST_METHOD(CopyInputTo_InvalidOutputEncoding)
+        {
+            auto regex = MakeRegEx(L"h");
+
+            RegExBytes inputBytes = MakeString(u8"hello"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+
+            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            Assert::AreEqual(
+                E_INVALIDARG,
+                results->CopyInputTo(0, 5, static_cast<RegExEncoding>(9999), stream.get()));
+        }
+
+        TEST_METHOD(CopyInputTo_OutOfBounds)
+        {
+            auto regex = MakeRegEx(L"h");
+
+            RegExBytes inputBytes = MakeString(u8"hello"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+
+            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            Assert::AreEqual(
+                E_INVALIDARG,
+                results->CopyInputTo(3, 5, RegExEncoding_utf8, stream.get()));
+        }
     };
 }
