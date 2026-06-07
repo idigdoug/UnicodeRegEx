@@ -583,5 +583,31 @@ namespace RegExTests
             enumerator->NextMatch(&found);
             Assert::IsFalse(found != 0);
         }
+
+        TEST_METHOD(NextMatch_AfterEnumerationEnded_ReturnsNotValidState)
+        {
+            // After NextMatch returns found=false, the enumerator is in the finished
+            // state and any further NextMatch call must return E_NOT_VALID_STATE.
+            auto regex = MakeRegEx(L"a");
+
+            RegExBytes inputBytes = MakeString(u8"a"sv);
+
+            wil::com_ptr<IRegExMatchEnumerator> enumerator;
+            regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
+
+            VARIANT_BOOL found = VARIANT_FALSE;
+            // First call: finds the match.
+            Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
+            Assert::IsTrue(found != 0);
+
+            // Second call: no more matches; state becomes finished.
+            Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
+            Assert::IsFalse(found != 0);
+
+            // Third call: enumerator is finished; must return E_NOT_VALID_STATE.
+            HRESULT hr = enumerator->NextMatch(&found);
+            Assert::AreEqual(E_NOT_VALID_STATE, hr);
+            Assert::IsFalse(found != 0);
+        }
     };
 }

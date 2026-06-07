@@ -279,6 +279,24 @@ namespace RegExTests
             Assert::AreEqual((int)RegExEncoding_utf16le, (int)encoding);
         }
 
+        TEST_METHOD(Input_Property_ReturnsOriginalBytes)
+        {
+            auto regex = MakeRegEx(L"world");
+
+            RegExBytes inputBytes = MakeString(u8"hello world"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            Assert::AreEqual(
+                S_OK,
+                regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
+            Assert::IsNotNull(results.get());
+
+            RegExBytes echo = {};
+            Assert::AreEqual(S_OK, results->get_Input(&echo));
+            Assert::AreEqual(inputBytes.data_ptr, echo.data_ptr);
+            Assert::AreEqual(inputBytes.size, echo.size);
+        }
+
         TEST_METHOD(FormatTo_Stream)
         {
             auto regex = MakeRegEx(L"(\\w+) (\\w+)");
@@ -510,6 +528,58 @@ namespace RegExTests
             Assert::AreEqual(
                 E_INVALIDARG,
                 results->CopyInputTo(3, 5, RegExEncoding_utf8, stream.get()));
+        }
+
+        TEST_METHOD(GetSubMatch_NonParticipatingGroup)
+        {
+            // Pattern with two alternatives in optional groups. Matching "b" causes
+            // group 1 ((a)) to not participate; matched should be VARIANT_FALSE.
+            auto regex = MakeRegEx(L"(a)?(b)?");
+
+            RegExBytes inputBytes = MakeString(u8"b"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            Assert::AreEqual(
+                S_OK,
+                regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
+            Assert::IsNotNull(results.get());
+
+            // Group 0 = entire match "b".
+            RegExSubMatch sub = {};
+            Assert::AreEqual(S_OK, results->GetSubMatch(0, &sub));
+            Assert::AreEqual(VARIANT_TRUE, sub.matched);
+
+            // Group 1 = (a) did not match.
+            sub = {};
+            Assert::AreEqual(S_OK, results->GetSubMatch(1, &sub));
+            Assert::AreEqual(VARIANT_FALSE, sub.matched);
+            Assert::AreEqual(LONGLONG(0), sub.input_offset);
+            Assert::AreEqual(LONGLONG(0), sub.size);
+
+            // Group 2 = (b) matched.
+            sub = {};
+            Assert::AreEqual(S_OK, results->GetSubMatch(2, &sub));
+            Assert::AreEqual(VARIANT_TRUE, sub.matched);
+            Assert::AreEqual(LONGLONG(0), sub.input_offset);
+            Assert::AreEqual(LONGLONG(1), sub.size);
+        }
+
+        TEST_METHOD(NextMatch_OnSearchResults_ReturnsNotImpl)
+        {
+            // Single-match IRegExMatchResults from Search() should refuse NextMatch
+            // (only IRegExMatchEnumerator iterates).
+            auto regex = MakeRegEx(L"x");
+
+            RegExBytes inputBytes = MakeString(u8"x"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+            Assert::IsNotNull(results.get());
+
+            // QI to IRegExMatchEnumerator should fail.
+            wil::com_ptr<IRegExMatchEnumerator> enumerator;
+            HRESULT hr = results->QueryInterface(IID_PPV_ARGS(enumerator.put()));
+            Assert::AreEqual(E_NOINTERFACE, hr);
         }
     };
 }

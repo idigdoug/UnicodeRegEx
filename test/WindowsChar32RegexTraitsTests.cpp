@@ -106,6 +106,27 @@ namespace WindowsChar32RegexTraitsTests
             Assert::AreEqual(char32_t('A'), traits.toupper('A'));
         }
 
+        TEST_METHOD(ToUpper_NonBmp)
+        {
+            // Deseret alphabet (U+10400..U+1044F) has case pairs in the supplementary
+            // plane. U+10428 (DESERET SMALL LETTER LONG I) -> U+10400 (capital).
+            WindowsChar32RegexTraits traits;
+            Assert::AreEqual(char32_t(0x10400), traits.toupper(char32_t(0x10428)));
+        }
+
+        TEST_METHOD(ToLower_NonBmp)
+        {
+            WindowsChar32RegexTraits traits;
+            Assert::AreEqual(char32_t(0x10428), traits.tolower(char32_t(0x10400)));
+        }
+
+        TEST_METHOD(ToUpper_NonBmp_NonCaseable)
+        {
+            // Math symbol that has no case mapping; should pass through unchanged.
+            WindowsChar32RegexTraits traits;
+            Assert::AreEqual(char32_t(0x1F600), traits.toupper(char32_t(0x1F600))); // 😀
+        }
+
         TEST_METHOD(ErrorString)
         {
             WindowsChar32RegexTraits traits;

@@ -27,6 +27,18 @@ MakeView(BSTR pStr) noexcept
     return std::wstring_view(reinterpret_cast<wchar_t const*>(pStr), SysStringLen(pStr));
 }
 
+// Byte-swap a UTF-16 buffer in place (e.g. to produce UTF-16BE bytes from a u"..."
+// literal that is naturally UTF-16LE on Windows). Returns a view of the swapped data.
+inline std::u16string_view
+ByteSwap16(std::span<char16_t> chars) noexcept
+{
+    for (auto& ch : chars)
+    {
+        ch = _byteswap_ushort(ch);
+    }
+    return std::u16string_view(chars.data(), chars.size());
+}
+
 // Minimal in-memory ISequentialStream implementation for tests.
 // Write appends to an internal buffer; Read is not supported.
 class TestMemoryStream final : public ISequentialStream

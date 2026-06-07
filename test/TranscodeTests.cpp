@@ -214,5 +214,68 @@ namespace RegExTests
                 Assert::IsTrue(u'X' == c);
             }
         }
+
+        TEST_METHOD(Transcode_LargeOutput_ExceedsBufferCapacity)
+        {
+            // Same as TranscodeTo_LargeOutput but to a BSTR (vector destination),
+            // forcing OutputSink::Flush() to append to its internal vector multiple times.
+            std::string large;
+            large.resize(1000, 'X');
+            RegExBytes inputBytes = MakeString(std::string_view(large));
+
+            wil::unique_bstr output;
+            Assert::AreEqual(
+                S_OK,
+                GetLibrary()->Transcode(&inputBytes, RegExEncoding_utf8, output.put()));
+
+            auto view = MakeView(output.get());
+            Assert::AreEqual(size_t(1000), view.size());
+            for (auto c : view)
+            {
+                Assert::AreEqual(L'X', c);
+            }
+        }
+
+        TEST_METHOD(TranscodeTo_LargeOutput_Latin1)
+        {
+            // Exercises the latin1 case in TranscodeBufferInPlace and the Flush path
+            // for vector destination at large size.
+            std::string large;
+            large.resize(1000, 'A');
+            RegExBytes inputBytes = MakeString(std::string_view(large));
+
+            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            Assert::AreEqual(
+                S_OK,
+                GetLibrary()->TranscodeTo(&inputBytes, RegExEncoding_utf8, RegExEncoding_latin1, stream.get()));
+
+            // Latin-1 stays 1 byte per char.
+            auto bytes = stream->Bytes();
+            Assert::AreEqual(size_t(1000), bytes.size());
+            Assert::AreEqual(BYTE('A'), bytes[0]);
+            Assert::AreEqual(BYTE('A'), bytes[999]);
+        }
+
+        TEST_METHOD(TranscodeTo_Utf16beInputToLatin1)
+        {
+            // Exercises AppendBytes utf16be input path with a large buffer that forces
+            // multiple flushes, while also using latin1 as the output (covers latin1
+            // ConvertInPlace in TranscodeBufferInPlace).
+            std::vector<char16_t> buf(1000, u'A');
+            ByteSwap16(std::span(buf));
+            RegExBytes inputBytes = {
+                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf.data())),
+                .size = static_cast<LONGLONG>(buf.size() * sizeof(char16_t)),
+            };
+
+            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            Assert::AreEqual(
+                S_OK,
+                GetLibrary()->TranscodeTo(&inputBytes, RegExEncoding_utf16be, RegExEncoding_latin1, stream.get()));
+
+            auto bytes = stream->Bytes();
+            Assert::AreEqual(size_t(1000), bytes.size());
+            Assert::AreEqual(BYTE('A'), bytes[0]);
+        }
     };
 }

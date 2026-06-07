@@ -315,5 +315,113 @@ namespace RegExTests
                     RegExEncoding_utf8,
                     stream.get()));
         }
+
+        // ----- Replacement transformations: \U, \L, \E -----
+
+        TEST_METHOD(Replace_UppercaseTransform)
+        {
+            // \U starts uppercasing; \E ends a transform region.
+            auto regex = MakeRegEx(L"(\\w+)");
+
+            RegExBytes inputBytes = MakeString(u8"hello world"sv);
+            wil::unique_bstr formatTemplate(SysAllocString(L"\\U$1\\E"));
+
+            wil::unique_bstr output;
+            Assert::AreEqual(
+                S_OK,
+                regex->Replace(
+                    &inputBytes,
+                    RegExEncoding_utf8,
+                    RegExMatchFlag_default,
+                    formatTemplate.get(),
+                    RegExFormatFlag_default,
+                    output.put()));
+            Assert::AreEqual(L"HELLO WORLD"sv, MakeView(output.get()));
+        }
+
+        TEST_METHOD(Replace_LowercaseTransform)
+        {
+            auto regex = MakeRegEx(L"(\\w+)");
+
+            RegExBytes inputBytes = MakeString(u8"HELLO WORLD"sv);
+            wil::unique_bstr formatTemplate(SysAllocString(L"\\L$1\\E"));
+
+            wil::unique_bstr output;
+            Assert::AreEqual(
+                S_OK,
+                regex->Replace(
+                    &inputBytes,
+                    RegExEncoding_utf8,
+                    RegExMatchFlag_default,
+                    formatTemplate.get(),
+                    RegExFormatFlag_default,
+                    output.put()));
+            Assert::AreEqual(L"hello world"sv, MakeView(output.get()));
+        }
+
+        TEST_METHOD(Replace_UppercaseEndsWithE)
+        {
+            // \E in the middle ends the transformation so only the first portion is uppercased.
+            auto regex = MakeRegEx(L"(\\w+) (\\w+)");
+
+            RegExBytes inputBytes = MakeString(u8"hello world"sv);
+            wil::unique_bstr formatTemplate(SysAllocString(L"\\U$1\\E $2"));
+
+            wil::unique_bstr output;
+            Assert::AreEqual(
+                S_OK,
+                regex->Replace(
+                    &inputBytes,
+                    RegExEncoding_utf8,
+                    RegExMatchFlag_default,
+                    formatTemplate.get(),
+                    RegExFormatFlag_default,
+                    output.put()));
+            Assert::AreEqual(L"HELLO world"sv, MakeView(output.get()));
+        }
+
+        // ----- Sed-style replacements -----
+
+        TEST_METHOD(Replace_SedStyle_AmpersandIsWholeMatch)
+        {
+            // Under format_sed, & is the whole match (like Perl $&).
+            auto regex = MakeRegEx(L"\\d+");
+
+            RegExBytes inputBytes = MakeString(u8"x 123 y"sv);
+            wil::unique_bstr formatTemplate(SysAllocString(L"[&]"));
+
+            wil::unique_bstr output;
+            Assert::AreEqual(
+                S_OK,
+                regex->Replace(
+                    &inputBytes,
+                    RegExEncoding_utf8,
+                    RegExMatchFlag_default,
+                    formatTemplate.get(),
+                    RegExFormatFlag_sed,
+                    output.put()));
+            Assert::AreEqual(L"x [123] y"sv, MakeView(output.get()));
+        }
+
+        TEST_METHOD(Replace_SedStyle_BackslashBackref)
+        {
+            // Under format_sed, \1 is backref to group 1.
+            auto regex = MakeRegEx(L"(\\w+) (\\w+)");
+
+            RegExBytes inputBytes = MakeString(u8"hello world"sv);
+            wil::unique_bstr formatTemplate(SysAllocString(L"\\2 \\1"));
+
+            wil::unique_bstr output;
+            Assert::AreEqual(
+                S_OK,
+                regex->Replace(
+                    &inputBytes,
+                    RegExEncoding_utf8,
+                    RegExMatchFlag_default,
+                    formatTemplate.get(),
+                    RegExFormatFlag_sed,
+                    output.put()));
+            Assert::AreEqual(L"world hello"sv, MakeView(output.get()));
+        }
     };
 }
