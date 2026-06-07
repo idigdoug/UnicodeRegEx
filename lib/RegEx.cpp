@@ -2,6 +2,8 @@
 #include "RegEx.h"
 #include "RegExMatchEnumerator.h"
 #include "RegExMatchResults.h"
+#include "InputTranscoder.h"
+#include "OutputSink.h"
 
 #include <utf.h>
 
@@ -138,29 +140,29 @@ HRESULT
 RegEx::Match(
     _In_ RegExBytes const* pInput,
     RegExEncoding inputEncoding,
-    _In_ LONGLONG startByteOffset,
+    LONGLONG startByteOffset,
     RegExMatchFlags flags,
-    _Outptr_opt_result_maybenull_ IRegExMatchResults** ppResults) noexcept
+    _Outptr_result_maybenull_ IRegExMatchResults** ppResults) noexcept
 {
-    return Search(pInput, inputEncoding, startByteOffset, flags, true, ppResults);
+    return SearchImpl(pInput, inputEncoding, startByteOffset, flags, true, ppResults);
 }
 
 HRESULT
 RegEx::Search(
     _In_ RegExBytes const* pInput,
     RegExEncoding inputEncoding,
-    _In_ LONGLONG startByteOffset,
+    LONGLONG startByteOffset,
     RegExMatchFlags flags,
-    _Outptr_opt_result_maybenull_ IRegExMatchResults** ppResults) noexcept
+    _Outptr_result_maybenull_ IRegExMatchResults** ppResults) noexcept
 {
-    return Search(pInput, inputEncoding, startByteOffset, flags, false, ppResults);
+    return SearchImpl(pInput, inputEncoding, startByteOffset, flags, false, ppResults);
 }
 
 HRESULT
 RegEx::EnumerateMatches(
     _In_ RegExBytes const* pInput,
     RegExEncoding inputEncoding,
-    _In_ LONGLONG startByteOffset,
+    LONGLONG startByteOffset,
     RegExMatchFlags flags,
     _Outptr_ IRegExMatchEnumerator** ppEnumerator) noexcept
 {
@@ -168,7 +170,11 @@ RegEx::EnumerateMatches(
     std::unique_ptr<RegExMatchEnumerator> pEnumerator;
     UINT_PTR startOffsetU = static_cast<UINT_PTR>(startByteOffset);
 
-    if (flags & static_cast<RegExMatchFlags>(boost::match_prev_avail))
+    if (!RegExEncodingIsValid(inputEncoding))
+    {
+        hr = E_INVALIDARG;
+    }
+    else if (flags & static_cast<RegExMatchFlags>(boost::match_prev_avail))
     {
         hr = E_INVALIDARG;
     }
@@ -191,23 +197,151 @@ RegEx::EnumerateMatches(
 }
 
 HRESULT
-RegEx::Search(
+RegEx::Replace(
     _In_ RegExBytes const* pInput,
     RegExEncoding inputEncoding,
-    _In_ LONGLONG startByteOffset,
+    RegExMatchFlags matchFlags,
+    _In_ BSTR formatTemplate,
+    RegExFormatFlags formatFlags,
+    _Out_ BSTR* pOutputString) noexcept
+{
+    *pOutputString = nullptr;
+
+    auto const flags = static_cast<boost::regex_constants::match_flag_type>(
+        static_cast<int>(matchFlags) | static_cast<int>(formatFlags));
+    if (!InputTranscoder::OffsetAndSizeAreAlignedForEncoding(pInput->data_ptr, pInput->size, inputEncoding) ||
+        (flags & boost::match_prev_avail))
+    {
+        return E_INVALIDARG;
+    }
+
+    HRESULT hr;
+    try
+    {
+        OutputSink outputSink;
+        outputSink.ResetToVector(RegExEncoding_utf16le);
+        ReplaceImpl(pInput, inputEncoding, formatTemplate, flags, outputSink);
+        auto output = outputSink.FinishVector();
+        *pOutputString = SysAllocStringLen(
+            reinterpret_cast<OLECHAR const*>(output.data()),
+            static_cast<UINT>(output.size() / sizeof(OLECHAR)));
+        hr = *pOutputString ? S_OK : E_OUTOFMEMORY;
+    }
+    catch (...)
+    {
+        hr = wil::ResultFromCaughtException();
+    }
+
+    return hr;
+}
+
+HRESULT
+RegEx::ReplaceTo(
+    _In_ RegExBytes const* pInput,
+    RegExEncoding inputEncoding,
+    RegExMatchFlags matchFlags,
+    _In_ BSTR formatTemplate,
+    RegExFormatFlags formatFlags,
+    RegExEncoding outputEncoding,
+    _In_ ISequentialStream* outputStream) noexcept
+{
+    if (outputStream == nullptr)
+    {
+        return E_POINTER;
+    }
+
+    auto const flags = static_cast<boost::regex_constants::match_flag_type>(
+        static_cast<int>(matchFlags) | static_cast<int>(formatFlags));
+    if (!RegExEncodingIsValid(outputEncoding) ||
+        !InputTranscoder::OffsetAndSizeAreAlignedForEncoding(pInput->data_ptr, pInput->size, inputEncoding) ||
+        (flags & boost::match_prev_avail))
+    {
+        return E_INVALIDARG;
+    }
+
+    HRESULT hr;
+    try
+    {
+        OutputSink outputSink;
+        outputSink.ResetToStream(outputEncoding, outputStream);
+        ReplaceImpl(pInput, inputEncoding, formatTemplate, flags, outputSink);
+        outputSink.FinishStream();
+        hr = S_OK;
+    }
+    catch (...)
+    {
+        hr = wil::ResultFromCaughtException();
+    }
+
+    return hr;
+}
+
+void
+RegEx::ReplaceImpl(
+    _In_ RegExBytes const* pInput,
+    RegExEncoding inputEncoding,
+    _In_ BSTR formatTemplate,
+    boost::regex_constants::match_flag_type flags,
+    OutputSink& outputSink) const
+{
+    auto formatSpan = std::span(reinterpret_cast<char16_t const*>(formatTemplate), SysStringLen(formatTemplate));
+    auto formatIterators = utf16le::CodePointIterator::FromSpan(formatSpan);
+    std::u32string const format(formatIterators.begin, formatIterators.end);
+    auto inputData = reinterpret_cast<void const*>(static_cast<UINT_PTR>(pInput->data_ptr));
+    auto inputSize = static_cast<size_t>(pInput->size);
+
+    switch (inputEncoding)
+    {
+    case RegExEncoding_latin1:
+    {
+        auto input = latin1::CodePointIterator::FromSpan(
+            std::span(static_cast<char const*>(inputData), inputSize / sizeof(char)));
+        boost::regex_replace(std::back_inserter(outputSink), input.begin, input.end, m_regex, format, flags);
+        break;
+    }
+    case RegExEncoding_utf8:
+    {
+        auto input = utf8::CodePointIterator::FromSpan(
+            std::span(static_cast<char8_t const*>(inputData), inputSize / sizeof(char8_t)));
+        boost::regex_replace(std::back_inserter(outputSink), input.begin, input.end, m_regex, format, flags);
+        break;
+    }
+    case RegExEncoding_utf16le:
+    {
+        auto input = utf16le::CodePointIterator::FromSpan(
+            std::span(static_cast<char16_t const*>(inputData), inputSize / sizeof(char16_t)));
+        boost::regex_replace(std::back_inserter(outputSink), input.begin, input.end, m_regex, format, flags);
+        break;
+    }
+    case RegExEncoding_utf16be:
+    {
+        auto input = utf16be::CodePointIterator::FromSpan(
+            std::span(static_cast<char16_t const*>(inputData), inputSize / sizeof(char16_t)));
+        boost::regex_replace(std::back_inserter(outputSink), input.begin, input.end, m_regex, format, flags);
+        break;
+    }
+    default:
+        assert(false); // Checked by caller.
+        break;
+    }
+}
+
+HRESULT
+RegEx::SearchImpl(
+    _In_ RegExBytes const* pInput,
+    RegExEncoding inputEncoding,
+    LONGLONG startByteOffset,
     RegExMatchFlags flags,
     bool wholeStringMatch,
-    _Outptr_opt_result_maybenull_ IRegExMatchResults** ppResults) noexcept
+    _Outptr_result_maybenull_ IRegExMatchResults** ppResults) noexcept
 {
     HRESULT hr;
     IRegExMatchResults* pResults = nullptr;
     UINT_PTR startOffsetU = static_cast<UINT_PTR>(startByteOffset);
 
-    if (flags & static_cast<RegExMatchFlags>(boost::match_prev_avail))
-    {
-        hr = E_INVALIDARG;
-    }
-    else if (startOffsetU > static_cast<UINT_PTR>(pInput->size))
+    if (!RegExEncodingIsValid(inputEncoding) ||
+        (flags & static_cast<RegExMatchFlags>(boost::match_prev_avail)) ||
+        startOffsetU > static_cast<UINT_PTR>(pInput->size))
     {
         hr = E_INVALIDARG;
     }

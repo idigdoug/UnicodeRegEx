@@ -19,7 +19,7 @@
                     "Input patterns and paerns",
                     formatTemplate: "<$0-$0>"))
                 {
-                    Console.WriteLine(match.FormatString());
+                    Console.WriteLine(match.Format());
                 }
             }
             catch (Exception ex)

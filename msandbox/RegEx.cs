@@ -47,16 +47,6 @@ namespace msandbox
         private static Encoding? encodingLatin1; // ISO-8859-1 = GetEncoding(28591)
 
         /// <summary>
-        /// Formats this match based on the formatTemplate specified in the call to Matches() or in the most recent
-        /// call to SetFormatTemplate. If the template has not been set, this method returns an empty string.
-        /// </summary>
-        public static string FormatString(this IRegExMatchEnumerator enumerator)
-        {
-            var output = enumerator.Format(RegExEncoding.RegExEncoding_utf16le);
-            return Marshal.PtrToStringUni((IntPtr)output.data_ptr, (int)(output.size / sizeof(char)));
-        }
-
-        /// <summary>
         /// Returns a string for the bytes contained in the RegExBytes buffer.
         /// The buffer is valid until the next call into the match enumerator.
         /// </summary>

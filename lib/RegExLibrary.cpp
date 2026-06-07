@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "RegExLibrary.h"
 #include "RegEx.h"
+#include "OutputSink.h"
+#include "InputTranscoder.h"
 
 #include <utf.h>
 
@@ -311,4 +313,96 @@ RegExLibrary::EscapeFormatLiteral(
     }
 
     return EscapeAsciiSpecials(formatLiteral, charsToEscape, pEscapedFormatLiteral);
+}
+
+HRESULT
+RegExLibrary::Transcode(
+    _In_ RegExBytes const* pInput,
+    RegExEncoding inputEncoding,
+    _Out_ BSTR* pOutput) noexcept
+{
+    *pOutput = nullptr;
+
+    if (!InputTranscoder::OffsetAndSizeAreAlignedForEncoding(pInput->data_ptr, pInput->size, inputEncoding))
+    {
+        return E_INVALIDARG;
+    }
+
+    HRESULT hr;
+    try
+    {
+        std::span<BYTE const> input(
+            reinterpret_cast<BYTE const*>(static_cast<UINT_PTR>(pInput->data_ptr)),
+            static_cast<size_t>(pInput->size));
+
+        std::span<BYTE const> output;
+        OutputSink sink;
+        if (inputEncoding == RegExEncoding_utf16le)
+        {
+            output = input;
+        }
+        else
+        {
+            sink.ResetToVector(RegExEncoding_utf16le);
+            sink.AppendBytes(input, inputEncoding);
+            output = sink.FinishVector();
+        }
+
+        *pOutput = SysAllocStringLen(
+            reinterpret_cast<OLECHAR const*>(output.data()),
+            static_cast<UINT>(output.size() / sizeof(OLECHAR)));
+        hr = *pOutput ? S_OK : E_OUTOFMEMORY;
+    }
+    catch (...)
+    {
+        hr = wil::ResultFromCaughtException();
+    }
+
+    return hr;
+}
+
+HRESULT
+RegExLibrary::TranscodeTo(
+    _In_ RegExBytes const* pInput,
+    RegExEncoding inputEncoding,
+    RegExEncoding outputEncoding,
+    _In_ ISequentialStream* outputStream) noexcept
+{
+    if (outputStream == nullptr)
+    {
+        return E_POINTER;
+    }
+    else if (
+        !RegExEncodingIsValid(outputEncoding) ||
+        !InputTranscoder::OffsetAndSizeAreAlignedForEncoding(pInput->data_ptr, pInput->size, inputEncoding))
+    {
+        return E_INVALIDARG;
+    }
+
+    HRESULT hr;
+    try
+    {
+        std::span<BYTE const> input(
+            reinterpret_cast<BYTE const*>(static_cast<UINT_PTR>(pInput->data_ptr)),
+            static_cast<size_t>(pInput->size));
+
+        if (inputEncoding == outputEncoding)
+        {
+            hr = WriteAllBytesToStream(outputStream, input);
+        }
+        else
+        {
+            OutputSink sink;
+            sink.ResetToStream(outputEncoding, outputStream);
+            sink.AppendBytes(input, inputEncoding);
+            sink.FinishStream();
+            hr = S_OK;
+        }
+    }
+    catch (...)
+    {
+        hr = wil::ResultFromCaughtException();
+    }
+
+    return hr;
 }

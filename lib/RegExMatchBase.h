@@ -2,6 +2,7 @@
 #include <RepStrRegEx.h>
 #include <utf.h>
 #include <WindowsChar32RegexTraits.h>
+#include "OutputSink.h"
 
 class RegEx;
 
@@ -44,9 +45,9 @@ class RegExMatchBase : public IRegExMatchEnumerator
     RegExEncoding const m_inputEncoding;
     RegExEnumerationState m_state;
     VariantSearchState m_variantSearchState;
+    OutputSink m_outputSink;
     std::u32string m_formatTemplate;
     boost::regex_constants::match_flag_type m_formatFlags;
-    std::u32string m_outputBuffer; // Sometimes contains char32_t, sometimes contains transcoded bytes.
 
 protected:
 
@@ -55,8 +56,8 @@ protected:
     RegExMatchBase(
         _In_ RegEx* regex,
         _In_ RegExBytes const* pInput,
-        _In_ RegExEncoding inputEncoding,
-        _In_ UINT_PTR startByteOffset,
+        RegExEncoding inputEncoding,
+        UINT_PTR startByteOffset,
         RegExMatchFlags matchFlags);
 
     // Runs regex_search (or regex_match if wholeStringMatch is true) from the initial
@@ -93,7 +94,25 @@ public:
     SetFormatTemplate(BSTR formatTemplate, RegExFormatFlags formatFlags) noexcept override;
 
     HRESULT STDMETHODCALLTYPE
-    Format(RegExEncoding outputEncoding, _Out_ RegExBytes* pOutputString) noexcept override;
+    Format(_Out_ BSTR* pOutputString) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    FormatTo(
+        RegExEncoding outputEncoding,
+        _In_ ISequentialStream* outputStream) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    CopyInput(
+        LONGLONG inputOffset,
+        LONGLONG size,
+        _Out_ BSTR* pOutputString) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    CopyInputTo(
+        LONGLONG inputOffset,
+        LONGLONG size,
+        RegExEncoding outputEncoding,
+        _In_ ISequentialStream* outputStream) noexcept override;
 
     // IRegExMatchEnumerator
 
@@ -154,18 +173,6 @@ private:
 
     // Returns E_UNEXPECTED.
     HRESULT
-    VisitGetSubMatchString(std::monostate, UINT32 subMatchIndex) noexcept;
-
-    // Expects enumerating. Appends the specified submatch to m_outputBuffer.
-    // Returns S_OK (appended), S_FALSE (not matched), or E_INVALIDARG.
-    template<class IteratorT>
-    HRESULT
-    VisitGetSubMatchString(
-        SearchState<IteratorT>& state,
-        UINT32 subMatchIndex) noexcept;
-
-    // Returns E_UNEXPECTED.
-    HRESULT
     VisitFormat(std::monostate) noexcept;
 
     // Expects enumerating. Reads from m_formatTemplate and m_formatFlags, appends to m_outputBuffer.
@@ -173,10 +180,4 @@ private:
     HRESULT
     VisitFormat(
         SearchState<IteratorT>& state) noexcept(false);
-
-    // Converts m_outputBuffer to the specified encoding and returns it via pOutput.
-    HRESULT
-    TranscodeOutput(
-        RegExEncoding outputEncoding,
-        _Out_ RegExBytes* pOutput) noexcept(false);
 };

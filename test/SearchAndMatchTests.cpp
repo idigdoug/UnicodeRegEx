@@ -103,11 +103,11 @@ namespace RegExTests
                 S_OK,
                 results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default));
 
-            RegExBytes output = {};
+            wil::unique_bstr output;
             Assert::AreEqual(
                 S_OK,
-                results->Format(RegExEncoding_utf8, &output));
-            Assert::AreEqual(std::string_view("world hello"), MakeView<char>(output));
+                results->Format(output.put()));
+            Assert::AreEqual(L"world hello"sv, MakeView(output.get()));
         }
 
         TEST_METHOD(Search_DoesNotExposeIRegExMatchEnumerator)

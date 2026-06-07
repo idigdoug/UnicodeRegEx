@@ -108,7 +108,6 @@ namespace RegExTests
             Assert::AreEqual(UINT32(3), count); // group 0, 1, 2
 
             RegExSubMatch sub = {};
-            RegExBytes str;
 
             // Group 0: "user@host" at offset 1, length 9
 
@@ -255,12 +254,10 @@ namespace RegExTests
             HRESULT hr = enumerator->SetFormatTemplate(replacement.get(), RegExFormatFlag_default);
             Assert::AreEqual(S_OK, hr);
 
-            RegExBytes output = {};
-            hr = enumerator->Format(RegExEncoding_utf8, &output);
+            wil::unique_bstr output;
+            hr = enumerator->Format(output.put());
             Assert::AreEqual(S_OK, hr);
-            Assert::AreEqual(LONGLONG(9), output.size); // "host@user" = 9 bytes
-
-            Assert::AreEqual("host@user"sv, MakeView<char>(output));
+            Assert::AreEqual(L"host@user"sv, MakeView(output.get()));
         }
 
         TEST_METHOD(EmptyMatches_NoInfiniteLoop)

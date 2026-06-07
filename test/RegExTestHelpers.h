@@ -20,6 +20,13 @@ MakeView(RegExBytes const& str) noexcept
         static_cast<UINT_PTR>(str.size / sizeof(CharT)));
 }
 
+inline std::wstring_view
+MakeView(BSTR pStr) noexcept
+{
+    static_assert(sizeof(pStr[0]) == sizeof(wchar_t), "BSTR must be UTF-16");
+    return std::wstring_view(reinterpret_cast<wchar_t const*>(pStr), SysStringLen(pStr));
+}
+
 // Returns a process-wide IRegExLibrary instance, lazily creating it on first use.
 inline IRegExLibrary*
 GetLibrary()

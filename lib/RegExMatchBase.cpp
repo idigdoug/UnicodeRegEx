@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "RegExMatchBase.h"
 #include "RegEx.h"
+#include "InputTranscoder.h"
 
 #include <utf.h>
 
@@ -43,7 +44,7 @@ RegExMatchBase::RegExMatchBase(
     _In_ RegEx* regex,
     _In_ RegExBytes const* pInput,
     RegExEncoding inputEncoding,
-    _In_ UINT_PTR startByteOffset,
+    UINT_PTR startByteOffset,
     RegExMatchFlags flags)
     : m_refCount(1)
     , m_matchFlags(static_cast<boost::regex_constants::match_flag_type>(flags))
@@ -53,9 +54,9 @@ RegExMatchBase::RegExMatchBase(
     , m_inputEncoding(inputEncoding)
     , m_state(RegExEnumerationState_not_started)
     , m_variantSearchState()
+    , m_outputSink()
     , m_formatTemplate()
     , m_formatFlags(boost::regex_constants::format_default)
-    , m_outputBuffer()
 {
     // Validate the encoding parameter and initialize the search state with iterators.
     switch (m_inputEncoding)
@@ -77,8 +78,26 @@ RegExMatchBase::RegExMatchBase(
         break;
 
     default:
+        assert(false); // Should have been validated by caller.
         THROW_HR(E_INVALIDARG);
     }
+}
+
+bool
+RegExMatchBase::DoInitialSearch(bool wholeStringMatch)
+{
+    assert(m_state == RegExEnumerationState_not_started);
+
+    bool found = std::visit([this, wholeStringMatch](auto& state)
+        { return VisitInitialSearch(state, wholeStringMatch); },
+        m_variantSearchState);
+
+    if (found)
+    {
+        m_state = RegExEnumerationState_enumerating;
+    }
+
+    return found;
 }
 
 ULONG __stdcall
@@ -97,23 +116,6 @@ RegExMatchBase::Release() noexcept
     }
 
     return ref;
-}
-
-bool
-RegExMatchBase::DoInitialSearch(bool wholeStringMatch)
-{
-    assert(m_state == RegExEnumerationState_not_started);
-
-    bool found = std::visit([this, wholeStringMatch](auto& state)
-        { return VisitInitialSearch(state, wholeStringMatch); },
-        m_variantSearchState);
-
-    if (found)
-    {
-        m_state = RegExEnumerationState_enumerating;
-    }
-
-    return found;
 }
 
 HRESULT
@@ -192,12 +194,10 @@ RegExMatchBase::SetFormatTemplate(BSTR formatTemplate, RegExFormatFlags formatFl
 }
 
 HRESULT
-RegExMatchBase::Format(
-    RegExEncoding outputEncoding,
-    _Out_ RegExBytes* pOutput) noexcept
+RegExMatchBase::Format(_Out_ BSTR* pOutputString) noexcept
 {
     HRESULT hr;
-    *pOutput = {};
+    *pOutputString = {};
 
     if (m_state != RegExEnumerationState_enumerating)
     {
@@ -207,19 +207,160 @@ RegExMatchBase::Format(
     {
         try
         {
-            m_outputBuffer.clear();
+            m_outputSink.ResetToVector(RegExEncoding_utf16le);
+
             hr = std::visit([this](auto& state)
                 { return VisitFormat(state); },
                 m_variantSearchState);
+
             if (SUCCEEDED(hr))
             {
-                hr = TranscodeOutput(outputEncoding, pOutput);
+                auto bytes = m_outputSink.FinishVector();
+                *pOutputString = SysAllocStringLen(
+                    reinterpret_cast<OLECHAR const*>(bytes.data()),
+                    static_cast<UINT>(bytes.size() / sizeof(OLECHAR)));
+                hr = *pOutputString ? S_OK : E_OUTOFMEMORY;
             }
         }
         catch (...)
         {
             hr = wil::ResultFromCaughtException();
         }
+    }
+
+    return hr;
+}
+
+HRESULT
+RegExMatchBase::FormatTo(
+    RegExEncoding outputEncoding,
+    _In_ ISequentialStream* outputStream) noexcept
+{
+    HRESULT hr;
+
+    if (outputStream == nullptr)
+    {
+        hr = E_POINTER;
+    }
+    else if (!RegExEncodingIsValid(outputEncoding))
+    {
+        hr = E_INVALIDARG;
+    }
+    else if (m_state != RegExEnumerationState_enumerating)
+    {
+        hr = E_NOT_VALID_STATE;
+    }
+    else
+    {
+        try
+        {
+            m_outputSink.ResetToStream(outputEncoding, outputStream);
+
+            hr = std::visit([this](auto& state)
+                { return VisitFormat(state); },
+                m_variantSearchState);
+
+            if (SUCCEEDED(hr))
+            {
+                m_outputSink.FinishStream();
+            }
+        }
+        catch (...)
+        {
+            hr = wil::ResultFromCaughtException();
+        }
+    }
+
+    return hr;
+}
+
+HRESULT
+RegExMatchBase::CopyInput(
+    LONGLONG inputOffset,
+    LONGLONG size,
+    _Out_ BSTR* pOutputString) noexcept
+{
+    *pOutputString = nullptr;
+
+    if (!InputTranscoder::RangeIsInBounds(inputOffset, size, m_inputSize) ||
+        !InputTranscoder::OffsetAndSizeAreAlignedForEncoding(inputOffset, size, m_inputEncoding))
+    {
+        return E_INVALIDARG;
+    }
+
+    HRESULT hr;
+    try
+    {
+        std::span<BYTE const> input(
+            static_cast<BYTE const*>(m_inputData) + static_cast<size_t>(inputOffset),
+            static_cast<size_t>(size));
+
+        std::span<BYTE const> output;
+        if (m_inputEncoding == RegExEncoding_utf16le)
+        {
+            output = input;
+        }
+        else
+        {
+            m_outputSink.ResetToVector(RegExEncoding_utf16le);
+            m_outputSink.AppendBytes(input, m_inputEncoding);
+            output = m_outputSink.FinishVector();
+        }
+
+        *pOutputString = SysAllocStringLen(
+            reinterpret_cast<OLECHAR const*>(output.data()),
+            static_cast<UINT>(output.size() / sizeof(OLECHAR)));
+        hr = *pOutputString ? S_OK : E_OUTOFMEMORY;
+    }
+    catch (...)
+    {
+        hr = wil::ResultFromCaughtException();
+    }
+
+    return hr;
+}
+
+HRESULT
+RegExMatchBase::CopyInputTo(
+    LONGLONG inputOffset,
+    LONGLONG size,
+    RegExEncoding outputEncoding,
+    _In_ ISequentialStream* outputStream) noexcept
+{
+    if (outputStream == nullptr)
+    {
+        return E_POINTER;
+    }
+    else if (
+        !RegExEncodingIsValid(outputEncoding) ||
+        !InputTranscoder::RangeIsInBounds(inputOffset, size, m_inputSize) ||
+        !InputTranscoder::OffsetAndSizeAreAlignedForEncoding(inputOffset, size, m_inputEncoding))
+    {
+        return E_INVALIDARG;
+    }
+
+    HRESULT hr;
+    try
+    {
+        std::span<BYTE const> input(
+            static_cast<BYTE const*>(m_inputData) + static_cast<size_t>(inputOffset),
+            static_cast<size_t>(size));
+
+        if (m_inputEncoding == outputEncoding)
+        {
+            hr = WriteAllBytesToStream(outputStream, input);
+        }
+        else
+        {
+            m_outputSink.ResetToStream(outputEncoding, outputStream);
+            m_outputSink.AppendBytes(input, m_inputEncoding);
+            m_outputSink.FinishStream();
+            hr = S_OK;
+        }
+    }
+    catch (...)
+    {
+        hr = wil::ResultFromCaughtException();
     }
 
     return hr;
@@ -410,7 +551,6 @@ RegExMatchBase::VisitGetSubMatch(
 
     if (subMatchIndex >= matchResults.size())
     {
-        *pSubMatch = {};
         return E_INVALIDARG;
     }
 
@@ -434,38 +574,6 @@ RegExMatchBase::VisitGetSubMatch(
 }
 
 HRESULT
-RegExMatchBase::VisitGetSubMatchString(std::monostate, UINT32) noexcept
-{
-    assert(false);
-    return E_UNEXPECTED;
-}
-
-template<class IteratorT>
-HRESULT
-RegExMatchBase::VisitGetSubMatchString(
-    SearchState<IteratorT>& state,
-    UINT32 subMatchIndex) noexcept
-{
-    auto const& matchResults = state.matchResults;
-
-    if (subMatchIndex >= matchResults.size())
-    {
-        return E_INVALIDARG;
-    }
-
-    auto const& submatch = matchResults[subMatchIndex];
-    if (!submatch.matched)
-    {
-        return S_FALSE;
-    }
-    else
-    {
-        std::copy(submatch.first, submatch.second, std::back_inserter(m_outputBuffer));
-        return S_OK;
-    }
-}
-
-HRESULT
 RegExMatchBase::VisitFormat(std::monostate) noexcept
 {
     assert(false);
@@ -478,55 +586,8 @@ RegExMatchBase::VisitFormat(
     SearchState<IteratorT>& state) noexcept(false)
 {
     state.matchResults.format(
-        std::back_inserter(m_outputBuffer),
+        std::back_inserter(m_outputSink),
         m_formatTemplate,
         m_formatFlags);
-    return S_OK;
-}
-
-HRESULT
-RegExMatchBase::TranscodeOutput(
-    RegExEncoding outputEncoding,
-    _Out_ RegExBytes* pOutput) noexcept(false)
-{
-    void const* data;
-    size_t size;
-
-    switch (outputEncoding)
-    {
-    case RegExEncoding_latin1:
-    {
-        auto result = latin1::ConvertInPlace(m_outputBuffer);
-        data = result.data();
-        size = result.size_bytes();
-        break;
-    }
-    case RegExEncoding_utf8:
-    {
-        auto result = utf8::ConvertInPlace(m_outputBuffer);
-        data = result.data();
-        size = result.size_bytes();
-        break;
-    }
-    case RegExEncoding_utf16le:
-    {
-        auto result = utf16le::ConvertInPlace(m_outputBuffer);
-        data = result.data();
-        size = result.size_bytes();
-        break;
-    }
-    case RegExEncoding_utf16be:
-    {
-        auto result = utf16be::ConvertInPlace(m_outputBuffer);
-        data = result.data();
-        size = result.size_bytes();
-        break;
-    }
-    default:
-        *pOutput = {};
-        return E_INVALIDARG;
-    }
-
-    *pOutput = MakeString(data, size);
     return S_OK;
 }

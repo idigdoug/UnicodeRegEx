@@ -266,24 +266,46 @@ interface IRegExMatchResults : IUnknown
     // Returns E_INVALIDARG if index >= SubMatchCount.
     HRESULT
     GetSubMatch(
-        [in] UINT32 subMatchIndex,
+        UINT32 subMatchIndex,
         [out, retval] RegExSubMatch* pSubMatch);
 
     // Sets the template and flags to be used by subsequent Format() calls.
     HRESULT
     SetFormatTemplate(
         [in] BSTR formatTemplate,
-        [in] RegExFormatFlags formatFlags);
+        RegExFormatFlags formatFlags);
 
     // Formats a string based on this match using the formatTemplate and formatFlags from
     // the most recent call to SetFormatTemplate.
-    // Returned buffer is valid until a subsequent call to NextMatch(), Format(),
-    // GetSubMatchString(), or the enumerator is released.
     // Returns E_NOT_VALID_STATE if called before first match or after enumeration finished.
     HRESULT
-    Format(
-        [in] RegExEncoding outputEncoding,
-        [out, retval] RegExBytes* pOutputString);
+    Format([out, retval] BSTR* pOutputString);
+
+    // Formats a string based on this match using the formatTemplate and formatFlags from
+    // the most recent call to SetFormatTemplate.
+    // Returns E_NOT_VALID_STATE if called before first match or after enumeration finished.
+    HRESULT
+    FormatTo(
+        RegExEncoding outputEncoding,
+        [in] ISequentialStream* outputStream);
+
+    // Converts the specified portion of the input to a BSTR and returns it.
+    // Typically used with offsets returned by GetSubMatch.
+    HRESULT
+    CopyInput(
+        LONGLONG inputOffset,
+        LONGLONG size,
+        [out, retval] BSTR* pOutputString);
+
+    // Converts the specified portion of the input to the specified text encoding and
+    // writes it to the output stream.
+    // Typically used with offsets returned by GetSubMatch.
+    HRESULT
+    CopyInputTo(
+        LONGLONG inputOffset,
+        LONGLONG size,
+        RegExEncoding outputEncoding,
+        [in] ISequentialStream* outputStream);
 };
 
 [
@@ -325,9 +347,9 @@ interface IRegEx : IUnknown
     HRESULT
     Match(
         [in] RegExBytes const* pInput,
-        [in] RegExEncoding inputEncoding,
-        [in] LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string.
-        [in] RegExMatchFlags matchFlags,
+        RegExEncoding inputEncoding,
+        LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string.
+        RegExMatchFlags matchFlags,
         [out, retval] IRegExMatchResults** ppMatchResults);
 
     // Returns NULL if no match.
@@ -335,9 +357,9 @@ interface IRegEx : IUnknown
     HRESULT
     Search(
         [in] RegExBytes const* pInput,
-        [in] RegExEncoding inputEncoding,
-        [in] LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string.
-        [in] RegExMatchFlags matchFlags,
+        RegExEncoding inputEncoding,
+        LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string.
+        RegExMatchFlags matchFlags,
         [out, retval] IRegExMatchResults** ppMatchResults);
 
     // Create an enumerator over matches in the given input buffer.
@@ -345,10 +367,29 @@ interface IRegEx : IUnknown
     HRESULT
     EnumerateMatches(
         [in] RegExBytes const* pInput,
-        [in] RegExEncoding inputEncoding,
-        [in] LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string.
-        [in] RegExMatchFlags matchFlags,
+        RegExEncoding inputEncoding,
+        LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string.
+        RegExMatchFlags matchFlags,
         [out, retval] IRegExMatchEnumerator** ppEnumerator);
+
+    HRESULT
+    Replace(
+        [in] RegExBytes const* pInput,
+        RegExEncoding inputEncoding,
+        RegExMatchFlags matchFlags,
+        [in] BSTR formatTemplate,
+        RegExFormatFlags formatFlags,
+        [out, retval] BSTR* pOutputString);
+
+    HRESULT
+    ReplaceTo(
+        [in] RegExBytes const* pInput,
+        RegExEncoding inputEncoding,
+        RegExMatchFlags matchFlags,
+        [in] BSTR formatTemplate,
+        RegExFormatFlags formatFlags,
+        RegExEncoding outputEncoding,
+        [in] ISequentialStream* outputStream);
 }
 
 [
@@ -364,22 +405,35 @@ interface IRegExLibrary : IUnknown
     HRESULT
     CreateRegEx(
         [in] BSTR pattern,
-        [in] RegExSyntaxFlags syntaxFlags,
-        [in] UINT32 lcid,
+        RegExSyntaxFlags syntaxFlags,
+        UINT32 lcid,
         [out] RegExErrorCode* pErrorCode,
         [out, retval] IRegEx** ppRegEx);
 
     HRESULT
     EscapePatternLiteral(
         [in] BSTR patternLiteral,
-        [in] RegExSyntaxFlags syntaxFlags,
+        RegExSyntaxFlags syntaxFlags,
         [out, retval] BSTR* pEscapedPatternLiteral);
 
     HRESULT
     EscapeFormatLiteral(
         [in] BSTR formatLiteral,
-        [in] RegExFormatFlags formatFlags,
+        RegExFormatFlags formatFlags,
         [out, retval] BSTR* pEscapedFormatLiteral);
+
+    HRESULT
+    Transcode(
+        [in] RegExBytes const* pInput,
+        RegExEncoding inputEncoding,
+        [out, retval] BSTR* pOutput);
+
+    HRESULT
+    TranscodeTo(
+        [in] RegExBytes const* pInput,
+        RegExEncoding inputEncoding,
+        RegExEncoding outputEncoding,
+        [in] ISequentialStream* outputStream);
 }
 
 cpp_quote("// Constructor for IRegExLibrary factory class. Returned object is free-threaded.")

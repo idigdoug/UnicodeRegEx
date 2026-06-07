@@ -902,13 +902,18 @@
   <ItemGroup>
     <ClInclude Include="..\inc\utf.h" />
     <ClInclude Include="..\inc\WindowsChar32RegexTraits.h" />
+    <ClInclude Include="InputTranscoder.h" />
+    <ClInclude Include="OutputSink.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="RegEx.h" />
-    <ClInclude Include="RegExLibrary.h" /><ClInclude Include="RegExMatchBase.h" />
+    <ClInclude Include="RegExLibrary.h" />
+    <ClInclude Include="RegExMatchBase.h" />
     <ClInclude Include="RegExMatchEnumerator.h" />
     <ClInclude Include="RegExMatchResults.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="InputTranscoder.cpp" />
+    <ClCompile Include="OutputSink.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
@@ -918,7 +923,8 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="RegEx.cpp" />
-    <ClCompile Include="RegExLibrary.cpp" /><ClCompile Include="RegExMatchBase.cpp" />
+    <ClCompile Include="RegExLibrary.cpp" />
+    <ClCompile Include="RegExMatchBase.cpp" />
     <ClCompile Include="RegExMatchEnumerator.cpp" />
     <ClCompile Include="RegExMatchResults.cpp" />
     <ClCompile Include="RepStrRegExCheck.cpp" />

@@ -44,4 +44,17 @@ public:
         _In_ BSTR formatLiteral,
         RegExFormatFlags formatFlags,
         _Out_ BSTR* pEscapedFormatLiteral) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    Transcode(
+        _In_ RegExBytes const* pInput,
+        RegExEncoding inputEncoding,
+        _Out_ BSTR* pOutput) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    TranscodeTo(
+        _In_ RegExBytes const* pInput,
+        RegExEncoding inputEncoding,
+        RegExEncoding outputEncoding,
+        _In_ ISequentialStream* outputStream) noexcept override;
 };
