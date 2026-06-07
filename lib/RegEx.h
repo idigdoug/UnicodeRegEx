@@ -89,6 +89,7 @@ public:
     Replace(
         _In_ RegExBytes const* pInput,
         RegExEncoding inputEncoding,
+        LONGLONG startByteOffset,
         RegExMatchFlags matchFlags,
         _In_ BSTR formatTemplate,
         RegExFormatFlags formatFlags,
@@ -98,6 +99,7 @@ public:
     ReplaceTo(
         _In_ RegExBytes const* pInput,
         RegExEncoding inputEncoding,
+        LONGLONG startByteOffset,
         RegExMatchFlags matchFlags,
         _In_ BSTR formatTemplate,
         RegExFormatFlags formatFlags,
@@ -110,6 +112,7 @@ private:
     ReplaceImpl(
         _In_ RegExBytes const* pInput,
         RegExEncoding inputEncoding,
+        UINT_PTR startByteOffset,
         _In_ BSTR formatTemplate,
         boost::regex_constants::match_flag_type flags,
         OutputSink& outputSink) const;

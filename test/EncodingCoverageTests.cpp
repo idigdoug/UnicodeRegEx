@@ -182,6 +182,7 @@ namespace RegExTests
                 regex->Replace(
                     &inputBytes,
                     RegExEncoding_latin1,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -202,6 +203,7 @@ namespace RegExTests
                 regex->ReplaceTo(
                     &inputBytes,
                     RegExEncoding_latin1,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -457,6 +459,7 @@ namespace RegExTests
                 regex->Replace(
                     &inputBytes,
                     RegExEncoding_utf16be,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -483,6 +486,7 @@ namespace RegExTests
                 regex->ReplaceTo(
                     &inputBytes,
                     RegExEncoding_utf16be,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_default,

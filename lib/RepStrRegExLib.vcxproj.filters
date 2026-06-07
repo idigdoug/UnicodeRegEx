@@ -20,6 +20,7 @@
     <ClInclude Include="RegExMatchResults.h" />
     <ClInclude Include="OutputSink.h" />
     <ClInclude Include="InputTranscoder.h" />
+    <ClInclude Include="MatchEnumerator.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp" />
@@ -32,6 +33,7 @@
     <ClCompile Include="WindowsChar32RegexTraits.cpp" />
     <ClCompile Include="OutputSink.cpp" />
     <ClCompile Include="InputTranscoder.cpp" />
+    <ClCompile Include="MatchEnumerator.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Midl Include="..\inc\RepStrRegEx.idl">

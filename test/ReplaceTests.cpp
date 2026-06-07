@@ -23,6 +23,7 @@ namespace RegExTests
                 regex->Replace(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -44,6 +45,7 @@ namespace RegExTests
                 regex->Replace(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -64,6 +66,7 @@ namespace RegExTests
                 regex->Replace(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_first_only,
@@ -85,6 +88,7 @@ namespace RegExTests
                 regex->Replace(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_no_copy,
@@ -106,6 +110,7 @@ namespace RegExTests
                 regex->Replace(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -126,6 +131,7 @@ namespace RegExTests
                 regex->Replace(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -146,6 +152,7 @@ namespace RegExTests
                 regex->Replace(
                     &inputBytes,
                     RegExEncoding_utf16le,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -168,6 +175,7 @@ namespace RegExTests
                 regex->Replace(
                     &bytes,
                     RegExEncoding_utf16le,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -187,6 +195,7 @@ namespace RegExTests
                 regex->Replace(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     static_cast<RegExMatchFlags>(boost::regex_constants::match_prev_avail),
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -206,6 +215,7 @@ namespace RegExTests
                 regex->ReplaceTo(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -228,6 +238,7 @@ namespace RegExTests
                 regex->ReplaceTo(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -249,6 +260,7 @@ namespace RegExTests
                 regex->ReplaceTo(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_first_only,
@@ -269,6 +281,7 @@ namespace RegExTests
                 regex->ReplaceTo(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -289,6 +302,7 @@ namespace RegExTests
                 regex->ReplaceTo(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -309,6 +323,7 @@ namespace RegExTests
                 regex->ReplaceTo(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     static_cast<RegExMatchFlags>(boost::regex_constants::match_prev_avail),
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -332,6 +347,7 @@ namespace RegExTests
                 regex->Replace(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -352,6 +368,7 @@ namespace RegExTests
                 regex->Replace(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -373,6 +390,7 @@ namespace RegExTests
                 regex->Replace(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_default,
@@ -396,6 +414,7 @@ namespace RegExTests
                 regex->Replace(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_sed,
@@ -417,11 +436,194 @@ namespace RegExTests
                 regex->Replace(
                     &inputBytes,
                     RegExEncoding_utf8,
+                    0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_sed,
                     output.put()));
             Assert::AreEqual(L"world hello"sv, MakeView(output.get()));
+        }
+
+        // ----- startByteOffset -----
+
+        TEST_METHOD(Replace_StartByteOffset_PrefixCopiedUnchanged)
+        {
+            // Bytes before startByteOffset are copied verbatim; only the suffix is searched.
+            // Input "123 abc 456 abc". Starting at byte 4 means the leading "123 " is
+            // outside the search region but should still appear in the output unchanged.
+            auto regex = MakeRegEx(L"abc");
+
+            RegExBytes inputBytes = MakeString(u8"123 abc 456 abc"sv);
+            wil::unique_bstr formatTemplate(SysAllocString(L"X"));
+
+            wil::unique_bstr output;
+            Assert::AreEqual(
+                S_OK,
+                regex->Replace(
+                    &inputBytes,
+                    RegExEncoding_utf8,
+                    4,
+                    RegExMatchFlag_default,
+                    formatTemplate.get(),
+                    RegExFormatFlag_default,
+                    output.put()));
+            Assert::AreEqual(L"123 X 456 X"sv, MakeView(output.get()));
+        }
+
+        TEST_METHOD(Replace_StartByteOffset_SkipsEarlierMatch)
+        {
+            // The first "abc" at offset 0 is not searched (startByteOffset=4 is past it).
+            auto regex = MakeRegEx(L"abc");
+
+            RegExBytes inputBytes = MakeString(u8"abc xyz abc"sv);
+            wil::unique_bstr formatTemplate(SysAllocString(L"X"));
+
+            wil::unique_bstr output;
+            Assert::AreEqual(
+                S_OK,
+                regex->Replace(
+                    &inputBytes,
+                    RegExEncoding_utf8,
+                    4,
+                    RegExMatchFlag_default,
+                    formatTemplate.get(),
+                    RegExFormatFlag_default,
+                    output.put()));
+            // Leading "abc " is copied unchanged because it's before the offset.
+            Assert::AreEqual(L"abc xyz X"sv, MakeView(output.get()));
+        }
+
+        TEST_METHOD(Replace_StartByteOffset_AtEnd)
+        {
+            // Starting at end-of-input should produce a copy of the input with no replacements.
+            auto regex = MakeRegEx(L"abc");
+
+            RegExBytes inputBytes = MakeString(u8"abc abc"sv);
+            wil::unique_bstr formatTemplate(SysAllocString(L"X"));
+
+            wil::unique_bstr output;
+            Assert::AreEqual(
+                S_OK,
+                regex->Replace(
+                    &inputBytes,
+                    RegExEncoding_utf8,
+                    7,
+                    RegExMatchFlag_default,
+                    formatTemplate.get(),
+                    RegExFormatFlag_default,
+                    output.put()));
+            Assert::AreEqual(L"abc abc"sv, MakeView(output.get()));
+        }
+
+        TEST_METHOD(Replace_StartByteOffset_PastEnd_Fails)
+        {
+            auto regex = MakeRegEx(L"abc");
+
+            RegExBytes inputBytes = MakeString(u8"abc"sv);
+            wil::unique_bstr formatTemplate(SysAllocString(L"X"));
+
+            wil::unique_bstr output;
+            Assert::AreEqual(
+                E_INVALIDARG,
+                regex->Replace(
+                    &inputBytes,
+                    RegExEncoding_utf8,
+                    4,
+                    RegExMatchFlag_default,
+                    formatTemplate.get(),
+                    RegExFormatFlag_default,
+                    output.put()));
+        }
+
+        TEST_METHOD(Replace_StartByteOffset_LookBehindUsesPrefix)
+        {
+            // (?<=hello )world should match "world" only when preceded by "hello ".
+            // With startByteOffset=6 (the 'w'), the lookbehind sees "hello " in the
+            // pre-offset region, so the match still succeeds.
+            auto regex = MakeRegEx(L"(?<=hello )world");
+
+            RegExBytes inputBytes = MakeString(u8"hello world"sv);
+            wil::unique_bstr formatTemplate(SysAllocString(L"earth"));
+
+            wil::unique_bstr output;
+            Assert::AreEqual(
+                S_OK,
+                regex->Replace(
+                    &inputBytes,
+                    RegExEncoding_utf8,
+                    6,
+                    RegExMatchFlag_default,
+                    formatTemplate.get(),
+                    RegExFormatFlag_default,
+                    output.put()));
+            Assert::AreEqual(L"hello earth"sv, MakeView(output.get()));
+        }
+
+        TEST_METHOD(Replace_StartByteOffset_NoCopy_DropsPrefix)
+        {
+            // With format_no_copy, bytes before the offset are not copied (consistent
+            // with the "no_copy" semantics: only matched-and-formatted text is emitted).
+            auto regex = MakeRegEx(L"abc");
+
+            RegExBytes inputBytes = MakeString(u8"123 abc 456 abc"sv);
+            wil::unique_bstr formatTemplate(SysAllocString(L"X"));
+
+            wil::unique_bstr output;
+            Assert::AreEqual(
+                S_OK,
+                regex->Replace(
+                    &inputBytes,
+                    RegExEncoding_utf8,
+                    4,
+                    RegExMatchFlag_default,
+                    formatTemplate.get(),
+                    RegExFormatFlag_no_copy,
+                    output.put()));
+            Assert::AreEqual(L"XX"sv, MakeView(output.get()));
+        }
+
+        TEST_METHOD(Replace_StartByteOffset_Utf16)
+        {
+            // Verify that byte offset is interpreted in input encoding units.
+            // Input "abc abc" in UTF-16LE = 14 bytes; offset 8 lands on the second "abc".
+            auto regex = MakeRegEx(L"abc");
+
+            RegExBytes inputBytes = MakeString(u"abc abc"sv);
+            wil::unique_bstr formatTemplate(SysAllocString(L"X"));
+
+            wil::unique_bstr output;
+            Assert::AreEqual(
+                S_OK,
+                regex->Replace(
+                    &inputBytes,
+                    RegExEncoding_utf16le,
+                    8,
+                    RegExMatchFlag_default,
+                    formatTemplate.get(),
+                    RegExFormatFlag_default,
+                    output.put()));
+            Assert::AreEqual(L"abc X"sv, MakeView(output.get()));
+        }
+
+        TEST_METHOD(Replace_StartByteOffset_InvalidMidSequence_Utf8)
+        {
+            // Multi-byte UTF-8 character; offset that lands inside a sequence should fail.
+            auto regex = MakeRegEx(L"x");
+
+            RegExBytes inputBytes = MakeString(u8"\u00e9"sv); // 0xC3 0xA9
+            wil::unique_bstr formatTemplate(SysAllocString(L"y"));
+
+            wil::unique_bstr output;
+            Assert::AreEqual(
+                E_INVALIDARG,
+                regex->Replace(
+                    &inputBytes,
+                    RegExEncoding_utf8,
+                    1,
+                    RegExMatchFlag_default,
+                    formatTemplate.get(),
+                    RegExFormatFlag_default,
+                    output.put()));
         }
     };
 }

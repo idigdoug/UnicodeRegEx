@@ -376,6 +376,7 @@ interface IRegEx : IUnknown
     Replace(
         [in] RegExBytes const* pInput,
         RegExEncoding inputEncoding,
+        LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string. Bytes before the offset are copied to output unchanged.
         RegExMatchFlags matchFlags,
         [in] BSTR formatTemplate,
         RegExFormatFlags formatFlags,
@@ -385,6 +386,7 @@ interface IRegEx : IUnknown
     ReplaceTo(
         [in] RegExBytes const* pInput,
         RegExEncoding inputEncoding,
+        LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string. Bytes before the offset are copied to output unchanged.
         RegExMatchFlags matchFlags,
         [in] BSTR formatTemplate,
         RegExFormatFlags formatFlags,

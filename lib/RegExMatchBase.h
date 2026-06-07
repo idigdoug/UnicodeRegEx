@@ -2,6 +2,7 @@
 #include <RepStrRegEx.h>
 #include <utf.h>
 #include <WindowsChar32RegexTraits.h>
+#include "MatchEnumerator.h"
 #include "OutputSink.h"
 
 class RegEx;
@@ -14,37 +15,25 @@ class RegEx;
 // QueryInterface intentionally does not hand out IRegExMatchEnumerator.
 class RegExMatchBase : public IRegExMatchEnumerator
 {
-    template<class IteratorT>
-    struct SearchState
-    {
-        IteratorT begin;
-        IteratorT pos; // Search starts here (allows lookbehind in begin..pos range).
-        IteratorT end;
-        boost::match_results<IteratorT> matchResults;
+    using EnumeratorLatin1 = MatchEnumerator<latin1::CodePointIterator>;
+    using EnumeratorUtf8 = MatchEnumerator<utf8::CodePointIterator>;
+    using EnumeratorUtf16LE = MatchEnumerator<utf16le::CodePointIterator>;
+    using EnumeratorUtf16BE = MatchEnumerator<utf16be::CodePointIterator>;
 
-        SearchState(_In_reads_bytes_(size) void const* data, size_t size, size_t startByteOffset);
-    };
-
-    using SearchStateLatin1 = SearchState<latin1::CodePointIterator>;
-    using SearchStateUtf8 = SearchState<utf8::CodePointIterator>;
-    using SearchStateUtf16LE = SearchState<utf16le::CodePointIterator>;
-    using SearchStateUtf16BE = SearchState<utf16be::CodePointIterator>;
-
-    using VariantSearchState = std::variant<
+    using VariantEnumerator = std::variant<
         std::monostate,
-        SearchStateLatin1,
-        SearchStateUtf8,
-        SearchStateUtf16LE,
-        SearchStateUtf16BE>;
+        EnumeratorLatin1,
+        EnumeratorUtf8,
+        EnumeratorUtf16LE,
+        EnumeratorUtf16BE>;
 
     __volatile long m_refCount = 1;
-    boost::regex_constants::match_flag_type const m_matchFlags;
     wil::com_ptr<RegEx> const m_regex;
     void const* const m_inputData;
     size_t const m_inputSize;
     RegExEncoding const m_inputEncoding;
     RegExEnumerationState m_state;
-    VariantSearchState m_variantSearchState;
+    VariantEnumerator m_variantEnumerator;
     OutputSink m_outputSink;
     std::u32string m_formatTemplate;
     boost::regex_constants::match_flag_type m_formatFlags;
@@ -135,7 +124,7 @@ private:
     template<class IteratorT>
     HRESULT
     VisitNextMatch(
-        SearchState<IteratorT>& state) noexcept(false);
+        MatchEnumerator<IteratorT>& enumerator) noexcept(false);
 
     // Returns false.
     bool
@@ -145,7 +134,7 @@ private:
     template<class IteratorT>
     bool
     VisitInitialSearch(
-        SearchState<IteratorT>& state,
+        MatchEnumerator<IteratorT>& enumerator,
         bool wholeStringMatch) noexcept(false);
 
     // Returns 0.
@@ -156,7 +145,7 @@ private:
     template<class IteratorT>
     UINT32
     VisitGetSubMatchCount(
-        SearchState<IteratorT>& state) noexcept;
+        MatchEnumerator<IteratorT>& enumerator) noexcept;
 
     // Returns E_UNEXPECTED.
     HRESULT
@@ -167,7 +156,7 @@ private:
     template<class IteratorT>
     HRESULT
     VisitGetSubMatch(
-        SearchState<IteratorT>& state,
+        MatchEnumerator<IteratorT>& enumerator,
         UINT32 subMatchIndex,
         _Inout_ RegExSubMatch* pSubMatch) noexcept;
 
@@ -179,5 +168,5 @@ private:
     template<class IteratorT>
     HRESULT
     VisitFormat(
-        SearchState<IteratorT>& state) noexcept(false);
+        MatchEnumerator<IteratorT>& enumerator) noexcept(false);
 };

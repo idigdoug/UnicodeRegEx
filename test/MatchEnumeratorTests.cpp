@@ -260,6 +260,34 @@ namespace RegExTests
             Assert::AreEqual(L"host@user"sv, MakeView(output.get()));
         }
 
+        TEST_METHOD(FormatReplacement_UppercaseTransform)
+        {
+            // Regression: RegExMatchBase::VisitFormat must call the 4-argument
+            // match_results::format(out, fmt, flags, regex) overload so the regex
+            // engine's traits drive the case-conversion escapes (\U, \L, \E).
+            // The 3-argument overload uses default traits and silently drops the
+            // case transform.
+            auto regex = MakeRegEx(L"(\\w+) (\\w+)");
+
+            RegExBytes inputBytes = MakeString(u8"hello world"sv);
+
+            wil::com_ptr<IRegExMatchEnumerator> enumerator;
+            regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
+
+            VARIANT_BOOL found = VARIANT_FALSE;
+            Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
+            Assert::IsTrue(found != 0);
+
+            wil::unique_bstr replacement(SysAllocString(L"\\U$1\\E $2"));
+            Assert::AreEqual(
+                S_OK,
+                enumerator->SetFormatTemplate(replacement.get(), RegExFormatFlag_default));
+
+            wil::unique_bstr output;
+            Assert::AreEqual(S_OK, enumerator->Format(output.put()));
+            Assert::AreEqual(L"HELLO world"sv, MakeView(output.get()));
+        }
+
         TEST_METHOD(EmptyMatches_NoInfiniteLoop)
         {
             // Test that empty matches don't cause infinite loops

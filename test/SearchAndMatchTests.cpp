@@ -262,6 +262,82 @@ namespace RegExTests
             Assert::AreEqual(LONGLONG(3), sub.size);
         }
 
+        TEST_METHOD(Match_StartByteOffset_LookBehind)
+        {
+            // Regression: regex_match has no "base" parameter, so a naive
+            // implementation cannot expose [m_begin, m_pos) to lookbehind assertions.
+            // We simulate regex_match via regex_search + match_continuous, which DOES
+            // accept a base parameter. Pattern "(?<=hello )world" must match when
+            // startByteOffset points at the 'w' because the lookbehind needs to see
+            // the preceding "hello ".
+            auto regex = MakeRegEx(L"(?<=hello )world");
+
+            RegExBytes inputBytes = MakeString(u8"hello world"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            Assert::AreEqual(
+                S_OK,
+                regex->Match(&inputBytes, RegExEncoding_utf8, 6, RegExMatchFlag_default, results.put()));
+            Assert::IsNotNull(results.get());
+
+            RegExSubMatch sub = {};
+            results->GetSubMatch(0, &sub);
+            Assert::AreEqual(LONGLONG(6), sub.input_offset);
+            Assert::AreEqual(LONGLONG(5), sub.size);
+        }
+
+        TEST_METHOD(Match_StartByteOffset_LookBehindFailsWithoutContext)
+        {
+            // Negative coverage for the lookbehind case above: when the preceding
+            // "hello " is NOT in the input, the lookbehind should fail.
+            auto regex = MakeRegEx(L"(?<=hello )world");
+
+            RegExBytes inputBytes = MakeString(u8"world"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            Assert::AreEqual(
+                S_OK,
+                regex->Match(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
+            Assert::IsNull(results.get());
+        }
+
+        TEST_METHOD(Match_StartByteOffset_WordBoundary)
+        {
+            // \b at startByteOffset > 0 must see the character immediately before
+            // m_pos to decide whether this is a word boundary. With base = m_begin,
+            // the engine has full access to that character.
+            auto regex = MakeRegEx(L"\\bworld");
+
+            RegExBytes inputBytes = MakeString(u8"hello world"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            Assert::AreEqual(
+                S_OK,
+                regex->Match(&inputBytes, RegExEncoding_utf8, 6, RegExMatchFlag_default, results.put()));
+            Assert::IsNotNull(results.get());
+
+            RegExSubMatch sub = {};
+            results->GetSubMatch(0, &sub);
+            Assert::AreEqual(LONGLONG(6), sub.input_offset);
+            Assert::AreEqual(LONGLONG(5), sub.size);
+        }
+
+        TEST_METHOD(Match_StartByteOffset_RequiresFullRemainder)
+        {
+            // regex_match requires the match to consume the entire remainder.
+            // Pattern "\\w+" at startByteOffset = 4 with input "abc def ghi" should
+            // fail because "def" alone matches but doesn't extend to end-of-input.
+            auto regex = MakeRegEx(L"\\w+");
+
+            RegExBytes inputBytes = MakeString(u8"abc def ghi"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            Assert::AreEqual(
+                S_OK,
+                regex->Match(&inputBytes, RegExEncoding_utf8, 4, RegExMatchFlag_default, results.put()));
+            Assert::IsNull(results.get());
+        }
+
         TEST_METHOD(InputEncoding_Property)
         {
             auto regex = MakeRegEx(L"x");
@@ -316,6 +392,30 @@ namespace RegExTests
             wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
             Assert::AreEqual(S_OK, results->FormatTo(RegExEncoding_utf8, stream.get()));
             Assert::AreEqual("world hello"sv, stream->View<char>());
+        }
+
+        TEST_METHOD(FormatTo_UppercaseTransform)
+        {
+            // Regression: RegExMatchBase::VisitFormat must use the 4-argument
+            // match_results::format overload so case-conversion escapes (\U, \L, \E)
+            // pick up the correct traits from the regex engine.
+            auto regex = MakeRegEx(L"(\\w+) (\\w+)");
+
+            RegExBytes inputBytes = MakeString(u8"hello world"sv);
+
+            wil::com_ptr<IRegExMatchResults> results;
+            Assert::AreEqual(
+                S_OK,
+                regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
+
+            wil::unique_bstr formatTemplate(SysAllocString(L"\\U$1 $2\\E"));
+            Assert::AreEqual(
+                S_OK,
+                results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default));
+
+            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            Assert::AreEqual(S_OK, results->FormatTo(RegExEncoding_utf8, stream.get()));
+            Assert::AreEqual("HELLO WORLD"sv, stream->View<char>());
         }
 
         TEST_METHOD(FormatTo_DifferentEncoding)
