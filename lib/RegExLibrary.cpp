@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "RegExLibrary.h"
 #include "RegEx.h"
+#include "RegExFileStream.h"
+#include "RegExMemoryStream.h"
 #include "OutputSink.h"
 #include "InputTranscoder.h"
 
@@ -404,5 +406,142 @@ RegExLibrary::TranscodeTo(
         hr = wil::ResultFromCaughtException();
     }
 
+    return hr;
+}
+
+HRESULT STDMETHODCALLTYPE
+RegExLibrary::CreateMemoryStream(
+    LONGLONG initialCapacity,
+    _Outptr_ IRegExMemoryStream** ppStream) noexcept
+{
+    if (ppStream == nullptr)
+    {
+        return E_POINTER;
+    }
+
+    *ppStream = nullptr;
+
+    if (initialCapacity < 0)
+    {
+        return E_INVALIDARG;
+    }
+
+    try
+    {
+        *ppStream = new RegExMemoryStream(initialCapacity);
+        return S_OK;
+    }
+    catch (...)
+    {
+        return wil::ResultFromCaughtException();
+    }
+}
+
+HRESULT STDMETHODCALLTYPE
+RegExLibrary::CreateFileStream(
+    _In_ BSTR path,
+    RegExFileStreamFlags flags,
+    _Outptr_ IRegExFileStream** ppStream) noexcept
+{
+    if (ppStream == nullptr)
+    {
+        return E_POINTER;
+    }
+
+    *ppStream = nullptr;
+
+    // Use wcsnlen, not SysStringLen, to avoid trouble with embedded NULs.
+    size_t const length = wcsnlen(path, SysStringLen(path));
+    if (length == 0)
+    {
+        return E_INVALIDARG;
+    }
+
+    try
+    {
+        *ppStream = new RegExFileStream(std::wstring(path, length), flags);
+        return S_OK;
+    }
+    catch (...)
+    {
+        return wil::ResultFromCaughtException();
+    }
+}
+
+HRESULT STDMETHODCALLTYPE
+RegExLibrary::CreateReplacementFileStream(
+    _In_ BSTR finalPath,
+    _Outptr_ IRegExFileStream** ppStream) noexcept
+{
+    if (ppStream == nullptr)
+    {
+        return E_POINTER;
+    }
+
+    *ppStream = nullptr;
+
+    // Use wcsnlen, not SysStringLen, to avoid trouble with embedded NULs.
+    size_t const finalLen = wcsnlen(finalPath, SysStringLen(finalPath));
+    if (finalLen == 0)
+    {
+        return E_INVALIDARG;
+    }
+
+    HRESULT hr = E_FAIL;
+    wil::com_ptr<RegExFileStream> stream;
+    try
+    {
+        // Build a sibling temp filename: "<finalPath>.<8-hex>.tmp".
+        std::wstring tempPath;
+        tempPath.reserve(finalLen + 16);
+
+        constexpr unsigned MaxAttempts = 8;
+        for (unsigned attempt = 0; attempt < MaxAttempts; attempt += 1)
+        {
+            // Combine a few low-precision sources for a random-enough suffix.
+            UINT32 const random =
+                static_cast<UINT32>(GetTickCount64() & 0xFFFFFFFFu) ^
+                (GetCurrentThreadId() * 0x9E3779B9u) ^
+                (attempt << 16);
+
+            wchar_t suffix[24];
+            swprintf_s(suffix, L".%08X.tmp", random);
+
+            tempPath.assign(finalPath, finalLen);
+            tempPath.append(suffix);
+
+            auto const flags = static_cast<RegExFileStreamFlags>(
+                RegExFileStreamFlag_create_new |
+                RegExFileStreamFlag_delete_on_close |
+                RegExFileStreamFlag_sequential);
+
+            try
+            {
+                stream.attach(new RegExFileStream(std::move(tempPath), flags));
+                hr = S_OK;
+                break;
+            }
+            catch (wil::ResultException const& ex)
+            {
+                hr = ex.GetErrorCode();
+                if (hr != HRESULT_FROM_WIN32(ERROR_FILE_EXISTS) &&
+                    hr != HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS))
+                {
+                    break;
+                }
+
+                // Have a consistent error code if we run out of retries.
+                hr = HRESULT_FROM_WIN32(ERROR_FILE_EXISTS);
+            }
+
+            // collision: retry with a new random suffix
+        }
+    }
+    catch (...)
+    {
+        hr = wil::ResultFromCaughtException();
+    }
+
+    *ppStream = stream.detach();
     return hr;
 }

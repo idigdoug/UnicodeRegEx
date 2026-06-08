@@ -224,6 +224,33 @@ typedef [v1_enum] enum RegExEnumerationState
     RegExEnumerationState_finished,
 } RegExEnumerationState;
 
+typedef [v1_enum] enum RegExStreamCancelStatus
+{
+    RegExStreamCancelStatus_running     = 0, // No cancel has been requested.
+    RegExStreamCancelStatus_cancelling  = 1, // Cancel requested; an I/O operation may still be in progress.
+    RegExStreamCancelStatus_cancelled   = 2, // Cancel completed; no I/O is in progress and all future I/O will fail with E_ABORT.
+} RegExStreamCancelStatus;
+
+typedef [v1_enum] enum RegExFileStreamFlags
+{
+    // Creation disposition, pick one (mutually exclusive; low 2 bits).
+    RegExFileStreamFlag_open_existing    = 0x0,   // Open existing file for read/write.
+    RegExFileStreamFlag_create_new       = 0x1,   // Fail if the file already exists (CREATE_NEW).
+    RegExFileStreamFlag_create_always    = 0x2,   // Truncate if exists, otherwise create (CREATE_ALWAYS).
+    RegExFileStreamFlag_open_or_create   = 0x3,   // Open if exists, otherwise create (OPEN_ALWAYS).
+
+    // Modifiers.
+    RegExFileStreamFlag_delete_on_close  = 0x100, // Delete the file when the last handle is closed (FILE_FLAG_DELETE_ON_CLOSE). MoveTo clears this disposition before renaming.
+    RegExFileStreamFlag_sequential       = 0x200, // Hint that access will be sequential (FILE_FLAG_SEQUENTIAL_SCAN).
+    RegExFileStreamFlag_write_through    = 0x400, // Bypass write caching (FILE_FLAG_WRITE_THROUGH).
+} RegExFileStreamFlags;
+
+typedef [v1_enum] enum RegExFileMoveFlags
+{
+    RegExFileMoveFlag_default          = 0,
+    RegExFileMoveFlag_replace_existing = 0x1, // Allow the move to replace an existing file at the destination.
+} RegExFileMoveFlags;
+
 cpp_quote("// data_ptr is treated as a BYTE*. size is measured in bytes.")
 cpp_quote("// For utf16 encodings, data_ptr and size must be multiples of 2.")
 typedef struct RegExBytes
@@ -396,6 +423,93 @@ interface IRegEx : IUnknown
 
 [
     object,
+    uuid(8ADBE6A8-C292-46EA-8728-D24740E8490F),
+    oleautomation,
+    pointer_default(unique)
+]
+interface IRegExMemoryStream : IStream
+{
+    // Discard the buffered contents and reset the stream position to 0.
+    // The underlying buffer capacity is retained for reuse.
+    HRESULT
+    Reset();
+
+    // Pre-grow the backing buffer so that subsequent writes up to the given
+    // total size do not need to reallocate. Has no effect on the stream
+    // position or the logical size. On error, leaves the stream unchanged and
+    // returns E_OUTOFMEMORY.
+    HRESULT
+    Reserve(
+        [in] LONGLONG capacity);
+
+    // Returns a pointer to the backing buffer and its current logical size.
+    // The pointer is valid until the next call that may grow or reallocate
+    // the buffer (e.g. Write, Reserve, Reset, or Release).
+    HRESULT
+    GetBuffer(
+        [out] LONGLONG* pData,
+        [out] LONGLONG* pSize);
+}
+
+[
+    object,
+    uuid(2981E1FC-3628-4D5E-B0FC-9DF49D1716C4),
+    oleautomation,
+    pointer_default(unique)
+]
+interface IRegExFileStream : IStream
+{
+    // The full path of the underlying file.
+    [propget] HRESULT
+    Path([out, retval] BSTR* pPath);
+
+    // Indicates whether I/O has been cancelled and whether the cancellation
+    // has completed.
+    [propget] HRESULT
+    CancelStatus([out, retval] RegExStreamCancelStatus* pStatus);
+
+    // Flush buffered writes to disk (FlushFileBuffers). Returns E_ABORT if
+    // the stream has been cancelled.
+    HRESULT
+    Flush();
+
+    // Non-blocking. Marks the stream as cancelling and attempts to abort any
+    // in-progress I/O via CancelIoEx. Once any in-progress I/O completes (or
+    // is aborted) and buffered writes are discarded, the stream transitions
+    // to cancelled. After Cancel, all I/O operations on this stream fail
+    // with E_ABORT.
+    HRESULT
+    Cancel();
+
+    // Wait for CancelStatus to reach cancelled. The caller must have already
+    // called Cancel (or another thread must have); calling WaitForCancelled
+    // while CancelStatus is "running" returns E_NOT_VALID_STATE.
+    // Returns S_OK with pCancelled = VARIANT_TRUE when the stream reaches
+    // cancelled within timeoutMs, or VARIANT_FALSE if the timeout elapses
+    // first. Use INFINITE (0xFFFFFFFF) to wait indefinitely.
+    HRESULT
+    WaitForCancelled(
+        [in] UINT32 timeoutMs,
+        [out, retval] VARIANT_BOOL* pCancelled);
+
+    // Rename the file to destinationPath via FileRenameInfo on the underlying
+    // handle. If the stream was created with delete_on_close, that disposition
+    // is cleared before the rename. Returns E_ABORT if the stream has been
+    // cancelled. Returns an HRESULT-wrapped Win32 error on rename failure
+    // (e.g. ERROR_ALREADY_EXISTS if the destination exists and
+    // replace_existing was not specified).
+    // Note: rename-onto-existing is atomic on local NTFS but may not be on
+    // other filesystems (e.g. ReFS, network filesystems). On a system crash
+    // between clearing delete_on_close and the rename succeeding, the temp
+    // file may be left behind.
+    HRESULT
+    MoveTo(
+        [in] BSTR destinationPath,
+        RegExFileMoveFlags flags);
+}
+
+[
+    object,
     uuid(A5EC5E02-B78E-4728-B0D5-17E005C2EC2B),
     oleautomation,
     pointer_default(unique)
@@ -436,6 +550,35 @@ interface IRegExLibrary : IUnknown
         RegExEncoding inputEncoding,
         RegExEncoding outputEncoding,
         [in] ISequentialStream* outputStream);
+
+    // Create an in-memory stream. The returned object is apartment-threaded.
+    // initialCapacity is a hint for the initial buffer size; pass 0 for the
+    // implementation default.
+    HRESULT
+    CreateMemoryStream(
+        [in] LONGLONG initialCapacity,
+        [out, retval] IRegExMemoryStream** ppStream);
+
+    // Create a file stream for a file at the specified path. The returned
+    // object marshals as free-threaded but generally should be treated as
+    // single-threaded: only the Cancel, CancelStatus, and WaitForCancelled
+    // methods may be safely called concurrently with other operations.
+    HRESULT
+    CreateFileStream(
+        [in] BSTR path,
+        RegExFileStreamFlags flags,
+        [out, retval] IRegExFileStream** ppStream);
+
+    // Create a file stream for a new temporary file adjacent to the specified
+    // path, opened with the delete-on-close flag set (commit the update using
+    // the MoveTo method). The returned object marshals as free-threaded but
+    // generally should be treated as single-threaded: only the Cancel,
+    // CancelStatus, and WaitForCancelled methods may be safely called
+    // concurrently with other operations.
+    HRESULT
+    CreateReplacementFileStream(
+        [in] BSTR finalPath,
+        [out, retval] IRegExFileStream** ppStream);
 }
 
 cpp_quote("// Constructor for IRegExLibrary factory class. Returned object is free-threaded.")
@@ -457,6 +600,9 @@ library RepStrRegEx
     enum RegExErrorCode;
     enum RegExEncoding;
     enum RegExEnumerationState;
+    enum RegExStreamCancelStatus;
+    enum RegExFileStreamFlags;
+    enum RegExFileMoveFlags;
 
     struct RegExBytes;
     struct RegExSubMatch;
@@ -465,4 +611,6 @@ library RepStrRegEx
     interface IRegEx;
     interface IRegExMatchEnumerator;
     interface IRegExMatchResults;
+    interface IRegExMemoryStream;
+    interface IRegExFileStream;
 }

@@ -57,4 +57,20 @@ public:
         RegExEncoding inputEncoding,
         RegExEncoding outputEncoding,
         _In_ ISequentialStream* outputStream) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    CreateMemoryStream(
+        LONGLONG initialCapacity,
+        _Outptr_ IRegExMemoryStream** ppStream) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    CreateFileStream(
+        _In_ BSTR path,
+        RegExFileStreamFlags flags,
+        _Outptr_ IRegExFileStream** ppStream) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    CreateReplacementFileStream(
+        _In_ BSTR finalPath,
+        _Outptr_ IRegExFileStream** ppStream) noexcept override;
 };

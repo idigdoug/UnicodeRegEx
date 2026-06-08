@@ -14,7 +14,9 @@
     </ClInclude>
     <ClInclude Include="pch.h" />
     <ClInclude Include="RegEx.h" />
+    <ClInclude Include="RegExFileStream.h" />
     <ClInclude Include="RegExLibrary.h" />
+    <ClInclude Include="RegExMemoryStream.h" />
     <ClInclude Include="RegExMatchBase.h" />
     <ClInclude Include="RegExMatchEnumerator.h" />
     <ClInclude Include="RegExMatchResults.h" />
@@ -25,7 +27,9 @@
   <ItemGroup>
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="RegEx.cpp" />
+    <ClCompile Include="RegExFileStream.cpp" />
     <ClCompile Include="RegExLibrary.cpp" />
+    <ClCompile Include="RegExMemoryStream.cpp" />
     <ClCompile Include="RegExMatchBase.cpp" />
     <ClCompile Include="RegExMatchEnumerator.cpp" />
     <ClCompile Include="RegExMatchResults.cpp" />

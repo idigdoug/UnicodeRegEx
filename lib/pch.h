@@ -7,7 +7,9 @@
 #include <boost/regex.hpp>
 
 #include <wil/com.h>
+#include <wil/resource.h>
 
+#include <atomic>
 #include <span>
 #include <memory>
 #include <variant>

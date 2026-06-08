@@ -27,7 +27,7 @@ class RegExMatchBase : public IRegExMatchEnumerator
         EnumeratorUtf16LE,
         EnumeratorUtf16BE>;
 
-    __volatile long m_refCount = 1;
+    volatile long m_refCount = 1;
     wil::com_ptr<RegEx> const m_regex;
     void const* const m_inputData;
     size_t const m_inputSize;
