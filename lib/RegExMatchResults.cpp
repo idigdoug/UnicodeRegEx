@@ -67,6 +67,7 @@ RegExMatchResults::QueryInterface(REFIID riid, _Outptr_ void** ppvObject) noexce
 HRESULT
 RegExMatchResults::NextMatch(_Out_ VARIANT_BOOL* pFound) noexcept
 {
+    // Unreachable.
     *pFound = VARIANT_FALSE;
     return E_NOTIMPL;
 }

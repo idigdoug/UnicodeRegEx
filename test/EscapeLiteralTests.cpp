@@ -145,7 +145,7 @@ namespace RegExTests
 
         TEST_METHOD(EscapeFormat_Perl_NoMetacharacters)
         {
-            Assert::AreEqual(std::wstring(L"hello"), EscapeFormat(L"hello", RegExFormatFlag_default));
+            Assert::AreEqual(std::wstring(L"hello"), EscapeFormat(L"hello", RegExFormatFlag_perl));
         }
 
         TEST_METHOD(EscapeFormat_Perl_DollarAndBackslash)
@@ -153,13 +153,13 @@ namespace RegExTests
             // Perl format set without format_all: dollar and backslash.
             Assert::AreEqual(
                 std::wstring(LR"(\$1 plus \\n)"),
-                EscapeFormat(LR"($1 plus \n)", RegExFormatFlag_default));
+                EscapeFormat(LR"($1 plus \n)", RegExFormatFlag_perl));
         }
 
         TEST_METHOD(EscapeFormat_Perl_DoesNotEscapeAmp)
         {
             // & is not special in Perl-format mode.
-            Assert::AreEqual(std::wstring(L"a&b"), EscapeFormat(L"a&b", RegExFormatFlag_default));
+            Assert::AreEqual(std::wstring(L"a&b"), EscapeFormat(L"a&b", RegExFormatFlag_perl));
         }
 
         TEST_METHOD(EscapeFormat_PerlAll_ExtendedSet)
@@ -168,7 +168,7 @@ namespace RegExTests
             Assert::AreEqual(
                 std::wstring(LR"(\$\(a\?b\:c\))"),
                 EscapeFormat(LR"($(a?b:c))",
-                    static_cast<RegExFormatFlags>(RegExFormatFlag_default | (int)boost::regex_constants::format_all)));
+                    static_cast<RegExFormatFlags>(RegExFormatFlag_perl | (int)boost::regex_constants::format_all)));
         }
 
         TEST_METHOD(EscapeFormat_Sed_AmpAndBackslash)
@@ -200,7 +200,7 @@ namespace RegExTests
         TEST_METHOD(EscapeFormat_Empty)
         {
             HRESULT hr = S_OK;
-            std::wstring result = EscapeFormat(L"", RegExFormatFlag_default, &hr);
+            std::wstring result = EscapeFormat(L"", RegExFormatFlag_perl, &hr);
             Assert::AreEqual(S_OK, hr);
             Assert::AreEqual(std::wstring(), result);
         }
@@ -208,7 +208,7 @@ namespace RegExTests
         TEST_METHOD(EscapeFormat_NullOutPointer)
         {
             wil::unique_bstr in(SysAllocString(L"$1"));
-            HRESULT hr = GetLibrary()->EscapeFormatLiteral(in.get(), RegExFormatFlag_default, nullptr);
+            HRESULT hr = GetLibrary()->EscapeFormatLiteral(in.get(), RegExFormatFlag_perl, nullptr);
             Assert::AreEqual(E_POINTER, hr);
         }
 
@@ -216,7 +216,159 @@ namespace RegExTests
         {
             Assert::AreEqual(
                 std::wstring(L"caf\u00e9 \\$1"),
-                EscapeFormat(L"caf\u00e9 $1", RegExFormatFlag_default));
+                EscapeFormat(L"caf\u00e9 $1", RegExFormatFlag_perl));
+        }
+
+        // ---- GetEscapePatternLiteralChars ----
+
+        // Helper: invoke GetEscapePatternLiteralChars and return the result as a wstring.
+        static std::wstring GetEscapePatternChars(RegExSyntaxFlags flags, HRESULT* pHr = nullptr)
+        {
+            wil::unique_bstr out;
+            HRESULT hr = GetLibrary()->GetEscapePatternLiteralChars(flags, out.put());
+            if (pHr) *pHr = hr;
+            if (FAILED(hr) || !out) return std::wstring();
+            return std::wstring(out.get(), SysStringLen(out.get()));
+        }
+
+        TEST_METHOD(GetEscapePatternChars_Perl)
+        {
+            Assert::AreEqual(
+                std::wstring(LR"(.[{}()\*+?|^$)"),
+                GetEscapePatternChars(RegExSyntaxFlags_ECMAScript));
+        }
+
+        TEST_METHOD(GetEscapePatternChars_Basic)
+        {
+            Assert::AreEqual(
+                std::wstring(LR"(.[\*^$)"),
+                GetEscapePatternChars(RegExSyntaxFlags_basic));
+        }
+
+        TEST_METHOD(GetEscapePatternChars_Literal_ReturnsEmpty)
+        {
+            // RegExSyntaxFlags_literal isn't exposed in the IDL enum; boost::regbase::literal == 2.
+            auto literal = static_cast<RegExSyntaxFlags>(2);
+            HRESULT hr = S_OK;
+            std::wstring result = GetEscapePatternChars(literal, &hr);
+            Assert::AreEqual(S_OK, hr);
+            Assert::AreEqual(std::wstring(), result);
+        }
+
+        TEST_METHOD(GetEscapePatternChars_InvalidSyntaxGroup)
+        {
+            // basic_syntax_group (1) | literal (2) is not a valid combination.
+            auto bogus = static_cast<RegExSyntaxFlags>(1 | 2);
+            wil::unique_bstr out;
+            HRESULT hr = GetLibrary()->GetEscapePatternLiteralChars(bogus, out.put());
+            Assert::AreEqual(E_INVALIDARG, hr);
+            Assert::IsNull(out.get());
+        }
+
+        TEST_METHOD(GetEscapePatternChars_NullOutPointer)
+        {
+            HRESULT hr = GetLibrary()->GetEscapePatternLiteralChars(RegExSyntaxFlags_ECMAScript, nullptr);
+            Assert::AreEqual(E_POINTER, hr);
+        }
+
+        TEST_METHOD(GetEscapePatternChars_MatchesEscapeBehavior_Perl)
+        {
+            // Every character returned by GetEscapePatternLiteralChars must be escaped
+            // by EscapePatternLiteral, and only those characters.
+            auto chars = GetEscapePatternChars(RegExSyntaxFlags_ECMAScript);
+            for (wchar_t c : chars)
+            {
+                wchar_t input[2] = { c, L'\0' };
+                std::wstring escaped = EscapePattern(input, RegExSyntaxFlags_ECMAScript);
+                std::wstring expected = std::wstring(L"\\") + c;
+                Assert::AreEqual(expected, escaped,
+                    L"Character returned by GetEscapePatternLiteralChars should be escaped");
+            }
+        }
+
+        // ---- GetEscapeFormatLiteralChars ----
+
+        // Helper: invoke GetEscapeFormatLiteralChars and return the result as a wstring.
+        static std::wstring GetEscapeFormatChars(RegExFormatFlags flags, HRESULT* pHr = nullptr)
+        {
+            wil::unique_bstr out;
+            HRESULT hr = GetLibrary()->GetEscapeFormatLiteralChars(flags, out.put());
+            if (pHr) *pHr = hr;
+            if (FAILED(hr) || !out) return std::wstring();
+            return std::wstring(out.get(), SysStringLen(out.get()));
+        }
+
+        TEST_METHOD(GetEscapeFormatChars_Perl)
+        {
+            Assert::AreEqual(
+                std::wstring(LR"($\)"),
+                GetEscapeFormatChars(RegExFormatFlag_perl));
+        }
+
+        TEST_METHOD(GetEscapeFormatChars_PerlAll)
+        {
+            Assert::AreEqual(
+                std::wstring(LR"($\()?:)"),
+                GetEscapeFormatChars(
+                    static_cast<RegExFormatFlags>(RegExFormatFlag_perl | (int)boost::regex_constants::format_all)));
+        }
+
+        TEST_METHOD(GetEscapeFormatChars_Sed)
+        {
+            Assert::AreEqual(
+                std::wstring(LR"(&\)"),
+                GetEscapeFormatChars(RegExFormatFlag_sed));
+        }
+
+        TEST_METHOD(GetEscapeFormatChars_SedAll)
+        {
+            Assert::AreEqual(
+                std::wstring(LR"(&\()?:)"),
+                GetEscapeFormatChars(
+                    static_cast<RegExFormatFlags>(RegExFormatFlag_sed | (int)boost::regex_constants::format_all)));
+        }
+
+        TEST_METHOD(GetEscapeFormatChars_LiteralFlag_ReturnsEmpty)
+        {
+            auto literalFlag = static_cast<RegExFormatFlags>((int)boost::regex_constants::format_literal);
+            HRESULT hr = S_OK;
+            std::wstring result = GetEscapeFormatChars(literalFlag, &hr);
+            Assert::AreEqual(S_OK, hr);
+            Assert::AreEqual(std::wstring(), result);
+        }
+
+        TEST_METHOD(GetEscapeFormatChars_NullOutPointer)
+        {
+            HRESULT hr = GetLibrary()->GetEscapeFormatLiteralChars(RegExFormatFlag_perl, nullptr);
+            Assert::AreEqual(E_POINTER, hr);
+        }
+
+        TEST_METHOD(GetEscapeFormatChars_MatchesEscapeBehavior_Perl)
+        {
+            // Every character returned by GetEscapeFormatLiteralChars must be escaped
+            // by EscapeFormatLiteral with the same flags.
+            auto chars = GetEscapeFormatChars(RegExFormatFlag_perl);
+            for (wchar_t c : chars)
+            {
+                wchar_t input[2] = { c, L'\0' };
+                std::wstring escaped = EscapeFormat(input, RegExFormatFlag_perl);
+                std::wstring expected = std::wstring(L"\\") + c;
+                Assert::AreEqual(expected, escaped,
+                    L"Character returned by GetEscapeFormatLiteralChars should be escaped");
+            }
+        }
+
+        TEST_METHOD(GetEscapeFormatChars_MatchesEscapeBehavior_Sed)
+        {
+            auto chars = GetEscapeFormatChars(RegExFormatFlag_sed);
+            for (wchar_t c : chars)
+            {
+                wchar_t input[2] = { c, L'\0' };
+                std::wstring escaped = EscapeFormat(input, RegExFormatFlag_sed);
+                std::wstring expected = std::wstring(L"\\") + c;
+                Assert::AreEqual(expected, escaped,
+                    L"Character returned by GetEscapeFormatLiteralChars should be escaped");
+            }
         }
     };
 }

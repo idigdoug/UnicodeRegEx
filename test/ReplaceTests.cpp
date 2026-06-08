@@ -26,7 +26,7 @@ namespace RegExTests
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
             Assert::AreEqual(L"abc # def # ghi"sv, MakeView(output.get()));
         }
@@ -48,7 +48,7 @@ namespace RegExTests
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
             Assert::AreEqual(L"world hello"sv, MakeView(output.get()));
         }
@@ -113,7 +113,7 @@ namespace RegExTests
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
             Assert::AreEqual(L"hello world"sv, MakeView(output.get()));
         }
@@ -134,7 +134,7 @@ namespace RegExTests
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
             Assert::AreEqual(L""sv, MakeView(output.get()));
         }
@@ -155,7 +155,7 @@ namespace RegExTests
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
             Assert::AreEqual(L"a # b #"sv, MakeView(output.get()));
         }
@@ -178,7 +178,7 @@ namespace RegExTests
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
         }
 
@@ -198,7 +198,7 @@ namespace RegExTests
                     0,
                     static_cast<RegExMatchFlags>(boost::regex_constants::match_prev_avail),
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
         }
 
@@ -218,7 +218,7 @@ namespace RegExTests
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     RegExEncoding_utf8,
                     stream.get()));
             Assert::AreEqual("a # b # c #"sv, StreamView(stream.get()));
@@ -241,7 +241,7 @@ namespace RegExTests
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     RegExEncoding_utf16le,
                     stream.get()));
             Assert::IsTrue(u"a # b #"sv == StreamView<char16_t>(stream.get()));
@@ -284,7 +284,7 @@ namespace RegExTests
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     RegExEncoding_utf8,
                     nullptr));
         }
@@ -305,7 +305,7 @@ namespace RegExTests
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     static_cast<RegExEncoding>(9999),
                     stream.get()));
         }
@@ -326,7 +326,7 @@ namespace RegExTests
                     0,
                     static_cast<RegExMatchFlags>(boost::regex_constants::match_prev_avail),
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     RegExEncoding_utf8,
                     stream.get()));
         }
@@ -350,7 +350,7 @@ namespace RegExTests
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
             Assert::AreEqual(L"HELLO WORLD"sv, MakeView(output.get()));
         }
@@ -371,7 +371,7 @@ namespace RegExTests
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
             Assert::AreEqual(L"hello world"sv, MakeView(output.get()));
         }
@@ -393,7 +393,7 @@ namespace RegExTests
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
             Assert::AreEqual(L"HELLO world"sv, MakeView(output.get()));
         }
@@ -465,7 +465,7 @@ namespace RegExTests
                     4,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
             Assert::AreEqual(L"123 X 456 X"sv, MakeView(output.get()));
         }
@@ -487,7 +487,7 @@ namespace RegExTests
                     4,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
             // Leading "abc " is copied unchanged because it's before the offset.
             Assert::AreEqual(L"abc xyz X"sv, MakeView(output.get()));
@@ -510,7 +510,7 @@ namespace RegExTests
                     7,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
             Assert::AreEqual(L"abc abc"sv, MakeView(output.get()));
         }
@@ -531,7 +531,7 @@ namespace RegExTests
                     4,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
         }
 
@@ -554,7 +554,7 @@ namespace RegExTests
                     6,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
             Assert::AreEqual(L"hello earth"sv, MakeView(output.get()));
         }
@@ -600,7 +600,7 @@ namespace RegExTests
                     8,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
             Assert::AreEqual(L"abc X"sv, MakeView(output.get()));
         }
@@ -622,7 +622,7 @@ namespace RegExTests
                     1,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
         }
     };

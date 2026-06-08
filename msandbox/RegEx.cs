@@ -89,7 +89,7 @@ namespace msandbox
             string data,
             RegExMatchFlags matchFlags = RegExMatchFlags.RegExMatchFlag_default,
             string? formatTemplate = null,
-            RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_default)
+            RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
             => new RegExMatchEnumerator(regex, data, matchFlags, formatTemplate, formatFlags);
 
         /// <summary>
@@ -101,7 +101,7 @@ namespace msandbox
             RegExEncoding encoding,
             RegExMatchFlags matchFlags = RegExMatchFlags.RegExMatchFlag_default,
             string? formatTemplate = null,
-            RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_default)
+            RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
             => new RegExMatchEnumerator(regex, data, encoding, matchFlags, formatTemplate, formatFlags);
 
         /// <summary>
@@ -115,7 +115,7 @@ namespace msandbox
             RegExEncoding encoding,
             RegExMatchFlags matchFlags = RegExMatchFlags.RegExMatchFlag_default,
             string? formatTemplate = null,
-            RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_default)
+            RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
             => new RegExMatchEnumerator(regex, data, size, encoding, matchFlags, formatTemplate, formatFlags);
     }
 
@@ -151,7 +151,7 @@ namespace msandbox
         /// <summary>
         /// Creates an enumerator that pins a string for the duration of iteration.
         /// </summary>
-        public RegExMatchEnumerator(IRegEx regex, string data, RegExMatchFlags matchFlags, string? formatTemplate = null, RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_default)
+        public RegExMatchEnumerator(IRegEx regex, string data, RegExMatchFlags matchFlags, string? formatTemplate = null, RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
             : this(regex, GCHandle.Alloc(data, GCHandleType.Pinned), (IntPtr)0, (IntPtr)(data.Length * sizeof(char)), RegExEncoding.RegExEncoding_utf16le, matchFlags, formatTemplate, formatFlags)
         {
         }
@@ -159,7 +159,7 @@ namespace msandbox
         /// <summary>
         /// Creates an enumerator that pins a byte array for the duration of iteration.
         /// </summary>
-        public RegExMatchEnumerator(IRegEx regex, byte[] data, RegExEncoding encoding, RegExMatchFlags matchFlags, string? formatTemplate = null, RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_default)
+        public RegExMatchEnumerator(IRegEx regex, byte[] data, RegExEncoding encoding, RegExMatchFlags matchFlags, string? formatTemplate = null, RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
             : this(regex, GCHandle.Alloc(data, GCHandleType.Pinned), (IntPtr)0, (IntPtr)data.Length, encoding, matchFlags, formatTemplate, formatFlags)
         {
         }
@@ -167,7 +167,7 @@ namespace msandbox
         /// <summary>
         /// Creates an enumerator over already-stable data.
         /// </summary>
-        public unsafe RegExMatchEnumerator(IRegEx regex, void* data, IntPtr size, RegExEncoding encoding, RegExMatchFlags matchFlags, string? formatTemplate = null, RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_default)
+        public unsafe RegExMatchEnumerator(IRegEx regex, void* data, IntPtr size, RegExEncoding encoding, RegExMatchFlags matchFlags, string? formatTemplate = null, RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
             : this(regex, default, (IntPtr)data, size, encoding, matchFlags, formatTemplate, formatFlags)
         {
         }

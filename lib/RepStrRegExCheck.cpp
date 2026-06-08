@@ -1,11 +1,17 @@
 #include "pch.h"
 #include <RepStrRegEx.h>
 
-// RegExCreateFlags
+// RegExSyntaxFlags
+static_assert(RegExSyntaxFlags_perl_syntax_group == (int)boost::regbase::perl_syntax_group);
+static_assert(RegExSyntaxFlags_basic_syntax_group == (int)boost::regbase::basic_syntax_group);
+static_assert(RegExSyntaxFlags_literal == (int)boost::regbase::literal);
+static_assert(RegExSyntaxFlags_syntax_group_mask == (int)boost::regbase::main_option_type);
 static_assert(RegExSyntaxFlags_icase == (int)boost::regex_constants::icase);
 static_assert(RegExSyntaxFlags_nosubs == (int)boost::regex_constants::nosubs);
 static_assert(RegExSyntaxFlags_optimize == (int)boost::regex_constants::optimize);
 static_assert(RegExSyntaxFlags_collate == (int)boost::regex_constants::collate);
+static_assert(RegExSyntaxFlags_normal == (int)boost::regex_constants::normal);
+static_assert(RegExSyntaxFlags_perl == (int)boost::regex_constants::perl);
 static_assert(RegExSyntaxFlags_ECMAScript == (int)boost::regex_constants::ECMAScript);
 static_assert(RegExSyntaxFlags_basic == (int)boost::regex_constants::basic);
 static_assert(RegExSyntaxFlags_extended == (int)boost::regex_constants::extended);
@@ -24,8 +30,9 @@ static_assert(RegExMatchFlag_not_null == (int)boost::regex_constants::match_not_
 static_assert(RegExMatchFlag_continuous == (int)boost::regex_constants::match_continuous);
 
 // RegExFormatFlags
-static_assert(RegExFormatFlag_default == (int)boost::regex_constants::format_default);
+static_assert(RegExFormatFlag_perl == (int)boost::regex_constants::format_perl);
 static_assert(RegExFormatFlag_sed == (int)boost::regex_constants::format_sed);
+static_assert(RegExFormatFlag_boost_extensions == (int)boost::regex_constants::format_all);
 static_assert(RegExFormatFlag_no_copy == (int)boost::regex_constants::format_no_copy);
 static_assert(RegExFormatFlag_first_only == (int)boost::regex_constants::format_first_only);
 

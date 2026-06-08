@@ -251,7 +251,7 @@ namespace RegExTests
             Assert::IsTrue(found != 0);
 
             wil::unique_bstr replacement(SysAllocString(L"$2@$1"));
-            HRESULT hr = enumerator->SetFormatTemplate(replacement.get(), RegExFormatFlag_default);
+            HRESULT hr = enumerator->SetFormatTemplate(replacement.get(), RegExFormatFlag_perl);
             Assert::AreEqual(S_OK, hr);
 
             wil::unique_bstr output;
@@ -281,7 +281,7 @@ namespace RegExTests
             wil::unique_bstr replacement(SysAllocString(L"\\U$1\\E $2"));
             Assert::AreEqual(
                 S_OK,
-                enumerator->SetFormatTemplate(replacement.get(), RegExFormatFlag_default));
+                enumerator->SetFormatTemplate(replacement.get(), RegExFormatFlag_perl));
 
             wil::unique_bstr output;
             Assert::AreEqual(S_OK, enumerator->Format(output.put()));

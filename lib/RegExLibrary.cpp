@@ -10,6 +10,87 @@
 
 using namespace std::string_view_literals;
 
+static bool
+EscapePatternLiteralChars(RegExSyntaxFlags syntaxFlags, _Out_ std::string_view& charsToEscape) noexcept
+{
+    auto const flags = static_cast<boost::regex_constants::syntax_option_type>(syntaxFlags);
+    switch (flags & boost::regbase::main_option_type)
+    {
+    case boost::regbase::perl_syntax_group:
+        // Perl engine: extended, normal, awk, egrep, perl, ECMAScript, JavaScript, JScript.
+        charsToEscape = R"(.[{}()\*+?|^$)"sv;
+        return true;
+    case boost::regbase::basic_syntax_group:
+        // Basic engine: basic, emacs, grep, sed.
+        charsToEscape = R"(.[\*^$)"sv;
+        return true;
+    case boost::regbase::literal:
+        charsToEscape = {};
+        return true;
+    default:
+        // Both BASIC and LITERAL set at the same time.
+        charsToEscape = {};
+        return false;
+    }
+}
+
+static wil::unique_bstr
+MakeBstrFromAscii(std::string_view ascii) noexcept
+{
+    auto const bstr = SysAllocStringLen(nullptr, static_cast<UINT>(ascii.size()));
+    if (bstr)
+    {
+        for (size_t i = 0; i < ascii.size(); i += 1)
+        {
+            bstr[i] = static_cast<unsigned char>(ascii[i]);
+        }
+    }
+
+    return wil::unique_bstr(bstr);
+}
+
+static bool
+EscapeFormatLiteralChars(RegExFormatFlags formatFlags, _Out_ std::string_view& charsToEscape) noexcept
+{
+    constexpr int FormatPerl = boost::regex_constants::format_perl;
+    static_assert(FormatPerl == 0, "FormatPerl is expected to be the lack of FormatSed");
+    constexpr int FormatSed = boost::regex_constants::format_sed;
+    static_assert(0 == (FormatSed & (FormatSed - 1)), "FormatSed is expected to be a single bit flag");
+    constexpr int FormatAll = boost::regex_constants::format_all;
+    static_assert(0 == (FormatAll & (FormatAll - 1)), "FormatAll is expected to be a single bit flag");
+    constexpr int FormatMask = FormatSed | FormatAll;
+
+    auto const flags = static_cast<boost::regex_constants::match_flag_type>(formatFlags);
+    if (flags & boost::regex_constants::format_literal)
+    {
+        charsToEscape = {};
+        return true;
+    }
+    else
+    {
+        switch (flags & FormatMask)
+        {
+        case FormatPerl:
+            charsToEscape = R"($\)"sv;
+            return true;
+        case FormatPerl | FormatAll:
+            charsToEscape = R"($\()?:)"sv;
+            return true;
+        case FormatSed:
+            charsToEscape = R"(&\)"sv;
+            return true;
+        case FormatSed | FormatAll:
+            charsToEscape = R"(&\()?:)"sv;
+            return true;
+        default:
+            // FormatMask allows 2 bits through. Above set of cases is exhaustive.
+            assert(false);
+            charsToEscape = {};
+            return false;
+        }
+    }
+}
+
 STDAPI
 RepStrRegExLibraryCreate(
     _Outptr_ IRegExLibrary** ppLibrary)
@@ -147,14 +228,9 @@ RegExLibrary::CreateRegEx(
     {
         // Convert ASCII error message to BSTR.
         unsigned cch = static_cast<unsigned>(strnlen(errorMessage, 512));
-        wil::unique_bstr errorMessageBstr(SysAllocStringLen(nullptr, cch));
+        wil::unique_bstr errorMessageBstr = MakeBstrFromAscii(std::string_view(errorMessage, cch));
         if (errorMessageBstr)
         {
-            for (unsigned i = 0; i != cch; i += 1)
-            {
-                errorMessageBstr.get()[i] = errorMessage[i];
-            }
-
             wil::com_ptr<ICreateErrorInfo> createErrorInfo;
             if (SUCCEEDED(CreateErrorInfo(createErrorInfo.put())) &&
                 SUCCEEDED(createErrorInfo->SetDescription(errorMessageBstr.get())))
@@ -247,22 +323,8 @@ RegExLibrary::EscapePatternLiteral(
     }
 
     std::string_view charsToEscape{};
-    auto const flags = static_cast<boost::regex_constants::syntax_option_type>(syntaxFlags);
-    switch (flags & boost::regbase::main_option_type)
+    if (!EscapePatternLiteralChars(syntaxFlags, charsToEscape))
     {
-    case boost::regbase::perl_syntax_group:
-        // Perl engine: extended, normal, awk, egrep, perl, ECMAScript, JavaScript, JScript.
-        charsToEscape = R"(.[{}()\*+?|^$)"sv;
-        break;
-    case boost::regbase::basic_syntax_group:
-        // Basic engine: basic, emacs, grep, sed.
-        charsToEscape = R"(.[\*^$)"sv;
-        break;
-    case boost::regbase::literal:
-        // No escaping necessary.
-        break;
-    default:
-        // Both PERL and BASIC set at the same time.
         *pEscapedPatternLiteral = nullptr;
         return E_INVALIDARG;
     }
@@ -276,45 +338,63 @@ RegExLibrary::EscapeFormatLiteral(
     RegExFormatFlags formatFlags,
     _Out_ BSTR* pEscapedFormatLiteral) noexcept
 {
-    constexpr int FormatPerl = boost::regex_constants::format_perl;
-    static_assert(FormatPerl == 0, "FormatPerl is expected to be the lack of FormatSed");
-    constexpr int FormatSed = boost::regex_constants::format_sed;
-    static_assert(0 == (FormatSed & (FormatSed - 1)), "FormatSed is expected to be a single bit flag");
-    constexpr int FormatAll = boost::regex_constants::format_all;
-    static_assert(0 == (FormatAll & (FormatAll - 1)), "FormatAll is expected to be a single bit flag");
-    constexpr int FormatMask = FormatSed | FormatAll;
-
     if (!pEscapedFormatLiteral)
     {
         return E_POINTER;
     }
 
-    std::string_view charsToEscape{};
-    auto const flags = static_cast<boost::regex_constants::match_flag_type>(formatFlags);
-    if (!(flags & boost::regex_constants::format_literal))
+    std::string_view charsToEscape;
+    if (!EscapeFormatLiteralChars(formatFlags, charsToEscape))
     {
-        switch (flags & FormatMask)
-        {
-        case FormatPerl:
-            charsToEscape = R"($\)"sv;
-            break;
-        case FormatPerl | FormatAll:
-            charsToEscape = R"($\()?:)"sv;
-            break;
-        case FormatSed:
-            charsToEscape = R"(&\)"sv;
-            break;
-        case FormatSed | FormatAll:
-            charsToEscape = R"(&\()?:)"sv;
-            break;
-        default:
-            // FormatMask allows 2 bits through. Above set of cases is exhaustive.
-            assert(false);
-            __assume(false);
-        }
+        *pEscapedFormatLiteral = nullptr;
+        return E_INVALIDARG;
     }
 
     return EscapeAsciiSpecials(formatLiteral, charsToEscape, pEscapedFormatLiteral);
+}
+
+HRESULT
+RegExLibrary::GetEscapePatternLiteralChars(
+    RegExSyntaxFlags syntaxFlags,
+    _Out_ BSTR* pChars) noexcept
+{
+    if (!pChars)
+    {
+        return E_POINTER;
+    }
+
+    std::string_view charsToEscape;
+    if (!EscapePatternLiteralChars(syntaxFlags, charsToEscape))
+    {
+        *pChars = nullptr;
+        return E_INVALIDARG;
+    }
+
+    auto chars = MakeBstrFromAscii(charsToEscape);
+    *pChars = chars.release();
+    return *pChars ? S_OK : E_OUTOFMEMORY;
+}
+
+HRESULT
+RegExLibrary::GetEscapeFormatLiteralChars(
+    RegExFormatFlags formatFlags,
+    _Out_ BSTR* pChars) noexcept
+{
+    if (!pChars)
+    {
+        return E_POINTER;
+    }
+
+    std::string_view charsToEscape;
+    if (!EscapeFormatLiteralChars(formatFlags, charsToEscape))
+    {
+        *pChars = nullptr;
+        return E_INVALIDARG;
+    }
+
+    auto chars = MakeBstrFromAscii(charsToEscape);
+    *pChars = chars.release();
+    return *pChars ? S_OK : E_OUTOFMEMORY;
 }
 
 HRESULT

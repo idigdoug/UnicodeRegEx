@@ -631,12 +631,9 @@ RegExFileStream::MoveTo(_In_ BSTR destinationPath, RegExFileMoveFlags flags) noe
     }
 
     auto* renameInfo = reinterpret_cast<FILE_RENAME_INFO*>(fileRenameInfoBuffer.get());
-    // The first union member is shared with the legacy ReplaceIfExists BOOLEAN
-    // (low bit of Flags). Setting Flags is forward-compatible with both
-    // FileRenameInfoEx and the legacy FileRenameInfo.
-    renameInfo->Flags =
-        ((flags & RegExFileMoveFlag_replace_existing) ? FILE_RENAME_FLAG_REPLACE_IF_EXISTS : 0u) |
-        FILE_RENAME_FLAG_POSIX_SEMANTICS;
+    auto const renameInfoBaseFlags = (flags & RegExFileMoveFlag_replace_existing)
+        ? FILE_RENAME_FLAG_REPLACE_IF_EXISTS
+        : 0;
     renameInfo->RootDirectory = nullptr;
     renameInfo->FileNameLength = static_cast<unsigned>(destination.size() * sizeof(WCHAR));
     memcpy(renameInfo->FileName, destination.c_str(), renameInfo->FileNameLength);
@@ -694,9 +691,15 @@ RegExFileStream::MoveTo(_In_ BSTR destinationPath, RegExFileMoveFlags flags) noe
     // refer to the renamed-away inode). Fall back to legacy FileRenameInfo
     // on filesystems that don't support the Ex variant (older NTFS, FAT,
     // many network filesystems).
-    bool renamed =
-        SetFileInformationByHandle(renameHandle, FileRenameInfoEx, renameInfo, fileRenameInfoSize) ||
-        SetFileInformationByHandle(renameHandle, FileRenameInfo, renameInfo, fileRenameInfoSize);
+    bool renamed;
+    renameInfo->Flags = renameInfoBaseFlags | FILE_RENAME_FLAG_POSIX_SEMANTICS;
+    renamed = !!SetFileInformationByHandle(renameHandle, FileRenameInfoEx, renameInfo, fileRenameInfoSize);
+    if (!renamed)
+    {
+        renameInfo->Flags = renameInfoBaseFlags;
+        renamed = !!SetFileInformationByHandle(renameHandle, FileRenameInfo, renameInfo, fileRenameInfoSize);
+    }
+
     if (!renamed)
     {
         DWORD const err = GetLastError();

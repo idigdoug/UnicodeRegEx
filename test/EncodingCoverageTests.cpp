@@ -106,7 +106,7 @@ namespace RegExTests
             Assert::IsTrue(found != 0);
 
             wil::unique_bstr formatTemplate(SysAllocString(L"$2 $1"));
-            enumerator->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default);
+            enumerator->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_perl);
 
             wil::unique_bstr output;
             Assert::AreEqual(S_OK, enumerator->Format(output.put()));
@@ -185,7 +185,7 @@ namespace RegExTests
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
             Assert::AreEqual(L"a # b #"sv, MakeView(output.get()));
         }
@@ -206,7 +206,7 @@ namespace RegExTests
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     RegExEncoding_latin1,
                     stream.get()));
             Assert::AreEqual("a # b #"sv, StreamView(stream.get()));
@@ -345,7 +345,7 @@ namespace RegExTests
             enumerator->NextMatch(&found);
 
             wil::unique_bstr formatTemplate(SysAllocString(L"$2 $1"));
-            enumerator->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default);
+            enumerator->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_perl);
 
             wil::unique_bstr output;
             Assert::AreEqual(S_OK, enumerator->Format(output.put()));
@@ -462,7 +462,7 @@ namespace RegExTests
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     output.put()));
             Assert::AreEqual(L"a # b #"sv, MakeView(output.get()));
         }
@@ -489,7 +489,7 @@ namespace RegExTests
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
-                    RegExFormatFlag_default,
+                    RegExFormatFlag_perl,
                     RegExEncoding_utf8,
                     stream.get()));
             Assert::AreEqual("a # b #"sv, StreamView(stream.get()));

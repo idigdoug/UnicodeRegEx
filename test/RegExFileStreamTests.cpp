@@ -3,6 +3,8 @@
 
 #include <filesystem>
 #include <random>
+#include <thread>
+#include <atomic>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 using namespace std::string_view_literals;
@@ -895,6 +897,127 @@ namespace RegExTests
                 static_cast<RegExFileStreamFlags>(
                     RegExFileStreamFlag_create_new | RegExFileStreamFlag_delete_on_close));
             Assert::AreEqual(E_POINTER, stream->WaitForCancelled(0, nullptr));
+        }
+
+        TEST_METHOD(WaitForCancelled_DuringConcurrentIo_BlocksUntilCancelled)
+        {
+            // Race scenario: a worker thread does a tight loop of Write calls while
+            // the main thread calls Cancel. When Cancel fires while the worker is
+            // inside an IoScope, the stream is left in the 'cancelling' state and
+            // WaitForCancelled must block on the cancelled event until the worker's
+            // IoScope destructor finishes the transition to 'cancelled'.
+            ScopedTempPath tmp;
+            auto stream = MakeFileStream(
+                tmp.Path(),
+                static_cast<RegExFileStreamFlags>(
+                    RegExFileStreamFlag_create_new | RegExFileStreamFlag_delete_on_close));
+
+            std::atomic<bool> stopWorker{ false };
+            std::thread worker([&]
+            {
+                BYTE payload[64] = { 'x' };
+                ULONG written = 0;
+                while (!stopWorker.load(std::memory_order_relaxed))
+                {
+                    HRESULT hr = stream->Write(payload, sizeof(payload), &written);
+                    if (hr == E_ABORT)
+                    {
+                        break; // Stream has been cancelled.
+                    }
+                }
+            });
+
+            // Give the worker a moment to start hammering on Write.
+            Sleep(10);
+
+            Assert::AreEqual(S_OK, stream->Cancel());
+
+            VARIANT_BOOL cancelled = VARIANT_FALSE;
+            HRESULT hr = stream->WaitForCancelled(5000, &cancelled);
+            Assert::AreEqual(S_OK, hr);
+            Assert::AreEqual(VARIANT_TRUE, cancelled);
+
+            stopWorker.store(true, std::memory_order_relaxed);
+            worker.join();
+
+            // After WaitForCancelled returns TRUE, the stream is in the terminal
+            // cancelled state and further reads should still see it.
+            RegExStreamCancelStatus status = RegExStreamCancelStatus_running;
+            Assert::AreEqual(S_OK, stream->get_CancelStatus(&status));
+            Assert::AreEqual((int)RegExStreamCancelStatus_cancelled, (int)status);
+        }
+
+        TEST_METHOD(WaitForCancelled_MultipleWaiters_AllReleased)
+        {
+            // Multiple threads calling WaitForCancelled concurrently should all
+            // observe the cancelled state once cancellation completes (the event
+            // is a manual-reset event so it stays signalled).
+            ScopedTempPath tmp;
+            auto stream = MakeFileStream(
+                tmp.Path(),
+                static_cast<RegExFileStreamFlags>(
+                    RegExFileStreamFlag_create_new | RegExFileStreamFlag_delete_on_close));
+
+            std::atomic<bool> stopWorker{ false };
+            std::thread worker([&]
+            {
+                BYTE payload[64] = { 'x' };
+                ULONG written = 0;
+                while (!stopWorker.load(std::memory_order_relaxed))
+                {
+                    HRESULT hr = stream->Write(payload, sizeof(payload), &written);
+                    if (hr == E_ABORT)
+                    {
+                        break;
+                    }
+                }
+            });
+
+            Sleep(10);
+
+            Assert::AreEqual(S_OK, stream->Cancel());
+
+            std::atomic<int> successes{ 0 };
+            std::thread waiters[3];
+            for (auto& t : waiters)
+            {
+                t = std::thread([&]
+                {
+                    VARIANT_BOOL cancelled = VARIANT_FALSE;
+                    if (SUCCEEDED(stream->WaitForCancelled(5000, &cancelled)) && cancelled)
+                    {
+                        successes.fetch_add(1, std::memory_order_relaxed);
+                    }
+                });
+            }
+
+            for (auto& t : waiters)
+            {
+                t.join();
+            }
+
+            stopWorker.store(true, std::memory_order_relaxed);
+            worker.join();
+
+            Assert::AreEqual(3, successes.load(std::memory_order_relaxed));
+        }
+
+        TEST_METHOD(WaitForCancelled_AfterCancel_Idempotent)
+        {
+            // Once cancelled, repeated WaitForCancelled calls keep returning TRUE.
+            ScopedTempPath tmp;
+            auto stream = MakeFileStream(
+                tmp.Path(),
+                static_cast<RegExFileStreamFlags>(
+                    RegExFileStreamFlag_create_new | RegExFileStreamFlag_delete_on_close));
+            stream->Cancel();
+
+            for (int i = 0; i < 3; ++i)
+            {
+                VARIANT_BOOL cancelled = VARIANT_FALSE;
+                Assert::AreEqual(S_OK, stream->WaitForCancelled(0, &cancelled));
+                Assert::AreEqual(VARIANT_TRUE, cancelled);
+            }
         }
     };
 

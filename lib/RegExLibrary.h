@@ -46,6 +46,16 @@ public:
         _Out_ BSTR* pEscapedFormatLiteral) noexcept override;
 
     HRESULT STDMETHODCALLTYPE
+    GetEscapePatternLiteralChars(
+        RegExSyntaxFlags syntaxFlags,
+        _Out_ BSTR* pChars) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    GetEscapeFormatLiteralChars(
+        RegExFormatFlags formatFlags,
+        _Out_ BSTR* pChars) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
     Transcode(
         _In_ RegExBytes const* pInput,
         RegExEncoding inputEncoding,

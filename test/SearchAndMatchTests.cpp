@@ -101,7 +101,7 @@ namespace RegExTests
             wil::unique_bstr formatTemplate(SysAllocString(L"$2 $1"));
             Assert::AreEqual(
                 S_OK,
-                results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default));
+                results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_perl));
 
             wil::unique_bstr output;
             Assert::AreEqual(
@@ -387,7 +387,7 @@ namespace RegExTests
             wil::unique_bstr formatTemplate(SysAllocString(L"$2 $1"));
             Assert::AreEqual(
                 S_OK,
-                results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default));
+                results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_perl));
 
             auto stream = MakeMemoryStream();
             Assert::AreEqual(S_OK, results->FormatTo(RegExEncoding_utf8, stream.get()));
@@ -411,7 +411,7 @@ namespace RegExTests
             wil::unique_bstr formatTemplate(SysAllocString(L"\\U$1 $2\\E"));
             Assert::AreEqual(
                 S_OK,
-                results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default));
+                results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_perl));
 
             auto stream = MakeMemoryStream();
             Assert::AreEqual(S_OK, results->FormatTo(RegExEncoding_utf8, stream.get()));
@@ -433,7 +433,7 @@ namespace RegExTests
             wil::unique_bstr formatTemplate(SysAllocString(L"$2 $1"));
             Assert::AreEqual(
                 S_OK,
-                results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default));
+                results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_perl));
 
             auto stream = MakeMemoryStream();
             Assert::AreEqual(S_OK, results->FormatTo(RegExEncoding_utf16le, stream.get()));
@@ -450,7 +450,7 @@ namespace RegExTests
             regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
 
             wil::unique_bstr formatTemplate(SysAllocString(L"y"));
-            results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default);
+            results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_perl);
 
             Assert::AreEqual(E_POINTER, results->FormatTo(RegExEncoding_utf8, nullptr));
         }
@@ -465,7 +465,7 @@ namespace RegExTests
             regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
 
             wil::unique_bstr formatTemplate(SysAllocString(L"y"));
-            results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default);
+            results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_perl);
 
             auto stream = MakeMemoryStream();
             Assert::AreEqual(E_INVALIDARG, results->FormatTo(static_cast<RegExEncoding>(9999), stream.get()));

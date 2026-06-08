@@ -59,30 +59,34 @@ RegExSyntaxFlags based on boost::regex_constants::syntax_option_type:
       JavaScript = normal,
       JScript = normal
 */
-#define basic_syntax_group  1
 #define no_bk_refs          (1 << 8)
 #define no_perl_ex          (1 << 9)
 #define no_escape_in_lists  (1 << 16)
 #define newline_alt         (1 << 17)
 #define collate             (1 << 21)
-#define basic               basic_syntax_group | collate | no_escape_in_lists
+#define basic               RegExSyntaxFlags_basic_syntax_group | collate | no_escape_in_lists
 #define extended            no_bk_refs | collate | no_perl_ex | no_escape_in_lists
 
 typedef [v1_enum] enum RegExSyntaxFlags
 {
-    RegExSyntaxFlags_icase      = 1 << 20,
-    RegExSyntaxFlags_nosubs     = 1 << 22,
-    RegExSyntaxFlags_optimize   = 0,
-    RegExSyntaxFlags_collate    = collate,
-    RegExSyntaxFlags_ECMAScript = 0,
-    RegExSyntaxFlags_basic      = basic,
-    RegExSyntaxFlags_extended   = extended,
-    RegExSyntaxFlags_awk        = no_bk_refs | collate | no_perl_ex,
-    RegExSyntaxFlags_grep       = basic | newline_alt,
-    RegExSyntaxFlags_egrep      = extended | newline_alt,
+    RegExSyntaxFlags_perl_syntax_group  = 0,
+    RegExSyntaxFlags_basic_syntax_group = 1,
+    RegExSyntaxFlags_literal            = 2,
+    RegExSyntaxFlags_syntax_group_mask  = RegExSyntaxFlags_perl_syntax_group | RegExSyntaxFlags_basic_syntax_group | RegExSyntaxFlags_literal,
+    RegExSyntaxFlags_icase              = 1 << 20,
+    RegExSyntaxFlags_nosubs             = 1 << 22,
+    RegExSyntaxFlags_optimize           = 0,
+    RegExSyntaxFlags_collate            = collate,
+    RegExSyntaxFlags_normal             = 0,
+    RegExSyntaxFlags_perl               = 0,
+    RegExSyntaxFlags_ECMAScript         = 0,
+    RegExSyntaxFlags_basic              = basic,
+    RegExSyntaxFlags_extended           = extended,
+    RegExSyntaxFlags_awk                = no_bk_refs | collate | no_perl_ex,
+    RegExSyntaxFlags_grep               = basic | newline_alt,
+    RegExSyntaxFlags_egrep              = extended | newline_alt,
 } RegExSyntaxFlags;
 
-#undef basic_syntax_group
 #undef no_bk_refs
 #undef no_perl_ex
 #undef no_escape_in_lists
@@ -148,8 +152,9 @@ typedef [v1_enum] enum RegExMatchFlags
 
 typedef [v1_enum] enum RegExFormatFlags
 {
-    RegExFormatFlag_default = 0,
+    RegExFormatFlag_perl = 0,
     RegExFormatFlag_sed = 1 << 24,
+    RegExFormatFlag_boost_extensions = 1 << 25,
     RegExFormatFlag_no_copy = 1 << 26,
     RegExFormatFlag_first_only = 1 << 27,
 } RegExFormatFlags;
@@ -532,17 +537,57 @@ interface IRegExLibrary : IUnknown
         [out] RegExErrorCode* pErrorCode,
         [out, retval] IRegEx** ppRegEx);
 
+    // Return a regex pattern string that will match the specified literal input string. The
+    // returned string is created by adding a "\" escape before every regex metacharacter in the
+    // input string. (The relevant syntax flags are perl_syntax_group, basic_syntax_group, and
+    // literal.)
+    //
+    // The set of metacharacters varies by regex syntax, so the syntaxFlags parameter controls
+    // which characters are escaped. For example, given the input string "a?b*c" and syntaxFlags
+    // for default (Perl-compatible) syntax, the output pattern string would be "a\?b\*c".
+    // With syntaxFlags for basic (POSIX) syntax, the output would be "a?b\*c" since "?" is not
+    // a metacharacter in basic syntax.
     HRESULT
     EscapePatternLiteral(
         [in] BSTR patternLiteral,
         RegExSyntaxFlags syntaxFlags,
         [out, retval] BSTR* pEscapedPatternLiteral);
 
+    // Return a replacement format string that will insert the specified literal string. The
+    // returned string is created by adding a "\" escape before every special replacement
+    // character in the input string. (The relevant syntax flags are perl_syntax_group,
+    // basic_syntax_group, and literal.)
+    //
+    // The set of special replacement characters varies by replacement flavor, so the
+    // formatFlags parameter controls which characters are escaped. (The relevant format flags
+    // are perl, sed, and boost_extensions.)
     HRESULT
     EscapeFormatLiteral(
         [in] BSTR formatLiteral,
         RegExFormatFlags formatFlags,
         [out, retval] BSTR* pEscapedFormatLiteral);
+
+    // Return a string containing the metacharacters that need to be escaped in a regex pattern
+    // to match the literal input string. This is similar to EscapePatternLiteral, but returns
+    // just the metacharacters that would be escaped, not the full pattern string. For example,
+    // given the syntaxFlags for default (Perl-compatible) syntax, the output string would be
+    // ".[{}()\*+?|^$", but given syntaxFlags for basic (POSIX) syntax, the output would be
+    // ".[\*^$".
+    HRESULT
+    GetEscapePatternLiteralChars(
+        [in] RegExSyntaxFlags syntaxFlags,
+        [out, retval] BSTR* pChars);
+
+    // Return a string containing the special replacement characters that need to be escaped in a
+    // replacement format string to treat the input as a literal. This is similar to
+    // EscapeFormatLiteral, but returns just the special characters that would be escaped. For
+    // example, given formatFlags for default (Perl-compatible) replacement syntax, the returned
+    // string would be "$\", but given formatFlags for sed replacement syntax, the returned string
+    // would be "&\". (The relevant format flags are perl, sed, and boost_extensions.)
+    HRESULT
+    GetEscapeFormatLiteralChars(
+        [in] RegExFormatFlags formatFlags,
+        [out, retval] BSTR* pChars);
 
     HRESULT
     Transcode(
