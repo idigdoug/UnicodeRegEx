@@ -3,4 +3,5 @@ out/
 obj/
 /packages/
 /TestResults/
+*.aps
 *.user
