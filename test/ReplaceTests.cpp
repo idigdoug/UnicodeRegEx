@@ -209,7 +209,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"a 1 b 2 c 3"sv);
             wil::unique_bstr formatTemplate(SysAllocString(L"#"));
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
                 regex->ReplaceTo(
@@ -221,7 +221,7 @@ namespace RegExTests
                     RegExFormatFlag_default,
                     RegExEncoding_utf8,
                     stream.get()));
-            Assert::AreEqual("a # b # c #"sv, stream->View<char>());
+            Assert::AreEqual("a # b # c #"sv, StreamView(stream.get()));
         }
 
         TEST_METHOD(ReplaceTo_TranscodeOutput)
@@ -232,7 +232,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"a 1 b 2"sv);
             wil::unique_bstr formatTemplate(SysAllocString(L"#"));
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
                 regex->ReplaceTo(
@@ -244,7 +244,7 @@ namespace RegExTests
                     RegExFormatFlag_default,
                     RegExEncoding_utf16le,
                     stream.get()));
-            Assert::IsTrue(u"a # b #"sv == stream->View<char16_t>());
+            Assert::IsTrue(u"a # b #"sv == StreamView<char16_t>(stream.get()));
         }
 
         TEST_METHOD(ReplaceTo_FirstOnly)
@@ -254,7 +254,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"a 1 b 2"sv);
             wil::unique_bstr formatTemplate(SysAllocString(L"#"));
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
                 regex->ReplaceTo(
@@ -266,7 +266,7 @@ namespace RegExTests
                     RegExFormatFlag_first_only,
                     RegExEncoding_utf8,
                     stream.get()));
-            Assert::AreEqual("a # b 2"sv, stream->View<char>());
+            Assert::AreEqual("a # b 2"sv, StreamView(stream.get()));
         }
 
         TEST_METHOD(ReplaceTo_NullStream)
@@ -296,7 +296,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"x"sv);
             wil::unique_bstr formatTemplate(SysAllocString(L"y"));
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 E_INVALIDARG,
                 regex->ReplaceTo(
@@ -317,7 +317,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"x"sv);
             wil::unique_bstr formatTemplate(SysAllocString(L"y"));
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 E_INVALIDARG,
                 regex->ReplaceTo(

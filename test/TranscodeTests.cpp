@@ -97,44 +97,44 @@ namespace RegExTests
         TEST_METHOD(TranscodeTo_Utf8ToUtf16le)
         {
             RegExBytes inputBytes = MakeString(u8"hello"sv);
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
                 GetLibrary()->TranscodeTo(&inputBytes, RegExEncoding_utf8, RegExEncoding_utf16le, stream.get()));
-            Assert::IsTrue(u"hello"sv == stream->View<char16_t>());
+            Assert::IsTrue(u"hello"sv == StreamView<char16_t>(stream.get()));
         }
 
         TEST_METHOD(TranscodeTo_SameEncoding_FastPath)
         {
             // Same encoding takes the fast path (direct byte copy).
             RegExBytes inputBytes = MakeString(u8"hello"sv);
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
                 GetLibrary()->TranscodeTo(&inputBytes, RegExEncoding_utf8, RegExEncoding_utf8, stream.get()));
-            Assert::AreEqual("hello"sv, stream->View<char>());
+            Assert::AreEqual("hello"sv, StreamView(stream.get()));
         }
 
         TEST_METHOD(TranscodeTo_Utf16leToUtf8)
         {
             RegExBytes inputBytes = MakeString(u"hello"sv);
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
                 GetLibrary()->TranscodeTo(&inputBytes, RegExEncoding_utf16le, RegExEncoding_utf8, stream.get()));
-            Assert::AreEqual("hello"sv, stream->View<char>());
+            Assert::AreEqual("hello"sv, StreamView(stream.get()));
         }
 
         TEST_METHOD(TranscodeTo_Utf8ToLatin1)
         {
             // UTF-8 "aéz" -> Latin-1 should produce 'a', 0xE9, 'z'.
             RegExBytes inputBytes = MakeString(u8"a\u00E9z"sv);
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
                 GetLibrary()->TranscodeTo(&inputBytes, RegExEncoding_utf8, RegExEncoding_latin1, stream.get()));
 
-            auto bytes = stream->Bytes();
+            auto bytes = StreamBytes(stream.get());
             Assert::AreEqual(size_t(3), bytes.size());
             Assert::AreEqual(BYTE('a'), bytes[0]);
             Assert::AreEqual(BYTE(0xE9), bytes[1]);
@@ -144,11 +144,11 @@ namespace RegExTests
         TEST_METHOD(TranscodeTo_EmptyInput)
         {
             RegExBytes inputBytes = MakeString(u8""sv);
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
                 GetLibrary()->TranscodeTo(&inputBytes, RegExEncoding_utf8, RegExEncoding_utf16le, stream.get()));
-            Assert::AreEqual(size_t(0), stream->Bytes().size());
+            Assert::AreEqual(size_t(0), StreamBytes(stream.get()).size());
         }
 
         TEST_METHOD(TranscodeTo_NullStream)
@@ -162,7 +162,7 @@ namespace RegExTests
         TEST_METHOD(TranscodeTo_InvalidInputEncoding)
         {
             RegExBytes inputBytes = MakeString(u8"hello"sv);
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 E_INVALIDARG,
                 GetLibrary()->TranscodeTo(
@@ -172,7 +172,7 @@ namespace RegExTests
         TEST_METHOD(TranscodeTo_InvalidOutputEncoding)
         {
             RegExBytes inputBytes = MakeString(u8"hello"sv);
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 E_INVALIDARG,
                 GetLibrary()->TranscodeTo(
@@ -184,7 +184,7 @@ namespace RegExTests
             auto bytes = MakeString(u"AB"sv);
             bytes.size = 3;
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 E_INVALIDARG,
                 GetLibrary()->TranscodeTo(&bytes, RegExEncoding_utf16le, RegExEncoding_utf8, stream.get()));
@@ -198,16 +198,16 @@ namespace RegExTests
             large.resize(1000, 'X');
             RegExBytes inputBytes = MakeString(std::string_view(large));
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
                 GetLibrary()->TranscodeTo(&inputBytes, RegExEncoding_utf8, RegExEncoding_utf16le, stream.get()));
 
             // Expect 1000 UTF-16 code units, each 2 bytes = 2000 bytes.
-            auto bytes = stream->Bytes();
+            auto bytes = StreamBytes(stream.get());
             Assert::AreEqual(size_t(2000), bytes.size());
 
-            auto chars = stream->View<char16_t>();
+            auto chars = StreamView<char16_t>(stream.get());
             Assert::AreEqual(size_t(1000), chars.size());
             for (auto c : chars)
             {
@@ -244,13 +244,13 @@ namespace RegExTests
             large.resize(1000, 'A');
             RegExBytes inputBytes = MakeString(std::string_view(large));
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
                 GetLibrary()->TranscodeTo(&inputBytes, RegExEncoding_utf8, RegExEncoding_latin1, stream.get()));
 
             // Latin-1 stays 1 byte per char.
-            auto bytes = stream->Bytes();
+            auto bytes = StreamBytes(stream.get());
             Assert::AreEqual(size_t(1000), bytes.size());
             Assert::AreEqual(BYTE('A'), bytes[0]);
             Assert::AreEqual(BYTE('A'), bytes[999]);
@@ -268,12 +268,12 @@ namespace RegExTests
                 .size = static_cast<LONGLONG>(buf.size() * sizeof(char16_t)),
             };
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
                 GetLibrary()->TranscodeTo(&inputBytes, RegExEncoding_utf16be, RegExEncoding_latin1, stream.get()));
 
-            auto bytes = stream->Bytes();
+            auto bytes = StreamBytes(stream.get());
             Assert::AreEqual(size_t(1000), bytes.size());
             Assert::AreEqual(BYTE('A'), bytes[0]);
         }

@@ -389,9 +389,9 @@ namespace RegExTests
                 S_OK,
                 results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default));
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(S_OK, results->FormatTo(RegExEncoding_utf8, stream.get()));
-            Assert::AreEqual("world hello"sv, stream->View<char>());
+            Assert::AreEqual("world hello"sv, StreamView(stream.get()));
         }
 
         TEST_METHOD(FormatTo_UppercaseTransform)
@@ -413,9 +413,9 @@ namespace RegExTests
                 S_OK,
                 results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default));
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(S_OK, results->FormatTo(RegExEncoding_utf8, stream.get()));
-            Assert::AreEqual("HELLO WORLD"sv, stream->View<char>());
+            Assert::AreEqual("HELLO WORLD"sv, StreamView(stream.get()));
         }
 
         TEST_METHOD(FormatTo_DifferentEncoding)
@@ -435,9 +435,9 @@ namespace RegExTests
                 S_OK,
                 results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default));
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(S_OK, results->FormatTo(RegExEncoding_utf16le, stream.get()));
-            Assert::IsTrue(u"world hello"sv == stream->View<char16_t>());
+            Assert::IsTrue(u"world hello"sv == StreamView<char16_t>(stream.get()));
         }
 
         TEST_METHOD(FormatTo_NullStream)
@@ -467,7 +467,7 @@ namespace RegExTests
             wil::unique_bstr formatTemplate(SysAllocString(L"y"));
             results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_default);
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(E_INVALIDARG, results->FormatTo(static_cast<RegExEncoding>(9999), stream.get()));
         }
 
@@ -568,9 +568,9 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(S_OK, results->CopyInputTo(6, 5, RegExEncoding_utf8, stream.get()));
-            Assert::AreEqual("world"sv, stream->View<char>());
+            Assert::AreEqual("world"sv, StreamView(stream.get()));
         }
 
         TEST_METHOD(CopyInputTo_DifferentEncoding_Transcodes)
@@ -583,9 +583,9 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(S_OK, results->CopyInputTo(0, 5, RegExEncoding_utf16le, stream.get()));
-            Assert::IsTrue(u"hello"sv == stream->View<char16_t>());
+            Assert::IsTrue(u"hello"sv == StreamView<char16_t>(stream.get()));
         }
 
         TEST_METHOD(CopyInputTo_NullStream)
@@ -609,7 +609,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 E_INVALIDARG,
                 results->CopyInputTo(0, 5, static_cast<RegExEncoding>(9999), stream.get()));
@@ -624,7 +624,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 E_INVALIDARG,
                 results->CopyInputTo(3, 5, RegExEncoding_utf8, stream.get()));

@@ -492,12 +492,18 @@ interface IRegExFileStream : IStream
         [in] UINT32 timeoutMs,
         [out, retval] VARIANT_BOOL* pCancelled);
 
-    // Rename the file to destinationPath via FileRenameInfo on the underlying
-    // handle. If the stream was created with delete_on_close, that disposition
-    // is cleared before the rename. Returns E_ABORT if the stream has been
-    // cancelled. Returns an HRESULT-wrapped Win32 error on rename failure
-    // (e.g. ERROR_ALREADY_EXISTS if the destination exists and
-    // replace_existing was not specified).
+    // Rename the file to destinationPath. If the stream was created with
+    // delete_on_close, that disposition is cleared before the rename.
+    // 
+    // Returns:
+    // - E_ABORT if the stream has been cancelled.
+    // - HRESULT_FROM_WIN32 on rename failure, e.g. ERROR_ALREADY_EXISTS if
+    //   the destination exists and replace_existing was not specified.
+    // 
+    // Prefers POSIX-semantics rename so the move succeeds even when the
+    // destination has other openers. Falls back to legacy rename on
+    // filesystems that don't support POSIX semantics.
+    //
     // Note: rename-onto-existing is atomic on local NTFS but may not be on
     // other filesystems (e.g. ReFS, network filesystems). On a system crash
     // between clearing delete_on_close and the rename succeeding, the temp

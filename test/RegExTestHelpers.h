@@ -39,96 +39,6 @@ ByteSwap16(std::span<char16_t> chars) noexcept
     return std::u16string_view(chars.data(), chars.size());
 }
 
-// Minimal in-memory ISequentialStream implementation for tests.
-// Write appends to an internal buffer; Read is not supported.
-class TestMemoryStream final : public ISequentialStream
-{
-    std::vector<BYTE> m_buffer;
-    volatile long m_refCount = 1;
-
-public:
-
-    // Returns the bytes written so far as a string_view of the requested character type.
-    template<class CharT = char>
-    std::basic_string_view<CharT>
-    View() const noexcept
-    {
-        return std::basic_string_view<CharT>(
-            reinterpret_cast<CharT const*>(m_buffer.data()),
-            m_buffer.size() / sizeof(CharT));
-    }
-
-    // Returns a pointer + size view of the bytes written so far.
-    std::span<BYTE const>
-    Bytes() const noexcept
-    {
-        return std::span<BYTE const>(m_buffer.data(), m_buffer.size());
-    }
-
-    // IUnknown
-    HRESULT STDMETHODCALLTYPE
-    QueryInterface(REFIID riid, _Outptr_ void** ppvObject) noexcept override
-    {
-        if (ppvObject == nullptr)
-        {
-            return E_POINTER;
-        }
-
-        if (riid == __uuidof(IUnknown) || riid == __uuidof(ISequentialStream))
-        {
-            *ppvObject = static_cast<ISequentialStream*>(this);
-            AddRef();
-            return S_OK;
-        }
-
-        *ppvObject = nullptr;
-        return E_NOINTERFACE;
-    }
-
-    ULONG STDMETHODCALLTYPE
-    AddRef() noexcept override
-    {
-        return InterlockedIncrementNoFence(&m_refCount);
-    }
-
-    ULONG STDMETHODCALLTYPE
-    Release() noexcept override
-    {
-        auto const ref = InterlockedDecrementRelease(&m_refCount);
-        if (ref == 0)
-        {
-            delete this;
-        }
-        return ref;
-    }
-
-    // ISequentialStream
-    HRESULT STDMETHODCALLTYPE
-    Read(void*, ULONG, ULONG*) noexcept override
-    {
-        return E_NOTIMPL;
-    }
-
-    HRESULT STDMETHODCALLTYPE
-    Write(void const* pv, ULONG cb, ULONG* pcbWritten) noexcept override
-    {
-        try
-        {
-            auto const* p = static_cast<BYTE const*>(pv);
-            m_buffer.insert(m_buffer.end(), p, p + cb);
-            if (pcbWritten != nullptr)
-            {
-                *pcbWritten = cb;
-            }
-            return S_OK;
-        }
-        catch (...)
-        {
-            return E_OUTOFMEMORY;
-        }
-    }
-};
-
 // Returns a process-wide IRegExLibrary instance, lazily creating it on first use.
 inline IRegExLibrary*
 GetLibrary()
@@ -143,6 +53,43 @@ GetLibrary()
         }
     }
     return s_library.get();
+}
+
+// Minimal in-memory stream factory and accessors for tests, backed by
+// IRegExMemoryStream from the library under test.
+inline wil::com_ptr<IRegExMemoryStream>
+MakeMemoryStream()
+{
+    wil::com_ptr<IRegExMemoryStream> stream;
+    HRESULT hr = GetLibrary()->CreateMemoryStream(0, stream.put());
+    Microsoft::VisualStudio::CppUnitTestFramework::Assert::AreEqual(S_OK, hr, L"MakeMemoryStream: CreateMemoryStream failed");
+    Microsoft::VisualStudio::CppUnitTestFramework::Assert::IsNotNull(stream.get(), L"MakeMemoryStream: stream is null");
+    return stream;
+}
+
+// Returns the bytes written so far as a string_view of the requested character type.
+template<class CharT = char>
+inline std::basic_string_view<CharT>
+StreamView(IRegExMemoryStream* stream) noexcept
+{
+    LONGLONG data = 0;
+    LONGLONG size = 0;
+    (void)stream->GetBuffer(&data, &size);
+    return std::basic_string_view<CharT>(
+        reinterpret_cast<CharT const*>(static_cast<UINT_PTR>(data)),
+        static_cast<size_t>(size) / sizeof(CharT));
+}
+
+// Returns a pointer + size view of the bytes written so far.
+inline std::span<BYTE const>
+StreamBytes(IRegExMemoryStream* stream) noexcept
+{
+    LONGLONG data = 0;
+    LONGLONG size = 0;
+    (void)stream->GetBuffer(&data, &size);
+    return std::span<BYTE const>(
+        reinterpret_cast<BYTE const*>(static_cast<UINT_PTR>(data)),
+        static_cast<size_t>(size));
 }
 
 // Compiles a regex and returns the HRESULT and error code. Use for tests that

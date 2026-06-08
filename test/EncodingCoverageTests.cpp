@@ -136,9 +136,9 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             regex->Search(&inputBytes, RegExEncoding_latin1, 0, RegExMatchFlag_default, results.put());
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(S_OK, results->CopyInputTo(6, 5, RegExEncoding_latin1, stream.get()));
-            Assert::AreEqual("world"sv, stream->View<char>());
+            Assert::AreEqual("world"sv, StreamView(stream.get()));
         }
 
         TEST_METHOD(CopyInputTo_Transcode)
@@ -150,9 +150,9 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             regex->Search(&inputBytes, RegExEncoding_latin1, 0, RegExMatchFlag_default, results.put());
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(S_OK, results->CopyInputTo(0, 5, RegExEncoding_utf16le, stream.get()));
-            Assert::IsTrue(u"hello"sv == stream->View<char16_t>());
+            Assert::IsTrue(u"hello"sv == StreamView<char16_t>(stream.get()));
         }
 
         TEST_METHOD(InputEncoding_Property)
@@ -197,7 +197,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString("a 1 b 2"sv);
             wil::unique_bstr formatTemplate(SysAllocString(L"#"));
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
                 regex->ReplaceTo(
@@ -209,7 +209,7 @@ namespace RegExTests
                     RegExFormatFlag_default,
                     RegExEncoding_latin1,
                     stream.get()));
-            Assert::AreEqual("a # b #"sv, stream->View<char>());
+            Assert::AreEqual("a # b #"sv, StreamView(stream.get()));
         }
 
         TEST_METHOD(StartByteOffset_LookBehind)
@@ -387,11 +387,11 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             regex->Search(&inputBytes, RegExEncoding_utf16be, 0, RegExMatchFlag_default, results.put());
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             // Copy bytes 12..22 = "world" in BE. Same encoding = byte-for-byte copy.
             Assert::AreEqual(S_OK, results->CopyInputTo(12, 10, RegExEncoding_utf16be, stream.get()));
             // Verify bytes match the BE source.
-            auto written = stream->Bytes();
+            auto written = StreamBytes(stream.get());
             Assert::AreEqual(size_t(10), written.size());
             auto const* pSource = reinterpret_cast<BYTE const*>(buf) + 12;
             for (size_t i = 0; i < 10; ++i)
@@ -415,9 +415,9 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             regex->Search(&inputBytes, RegExEncoding_utf16be, 0, RegExMatchFlag_default, results.put());
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(S_OK, results->CopyInputTo(0, 10, RegExEncoding_utf8, stream.get()));
-            Assert::AreEqual("hello"sv, stream->View<char>());
+            Assert::AreEqual("hello"sv, StreamView(stream.get()));
         }
 
         TEST_METHOD(InputEncoding_Property)
@@ -480,7 +480,7 @@ namespace RegExTests
             };
             wil::unique_bstr formatTemplate(SysAllocString(L"#"));
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
                 regex->ReplaceTo(
@@ -492,7 +492,7 @@ namespace RegExTests
                     RegExFormatFlag_default,
                     RegExEncoding_utf8,
                     stream.get()));
-            Assert::AreEqual("a # b #"sv, stream->View<char>());
+            Assert::AreEqual("a # b #"sv, StreamView(stream.get()));
         }
 
         TEST_METHOD(StartByteOffset_InvalidMidSequence)
@@ -543,12 +543,12 @@ namespace RegExTests
                 .size = static_cast<LONGLONG>(count * sizeof(char16_t)),
             };
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
                 GetLibrary()->TranscodeTo(&inputBytes, RegExEncoding_utf16be, RegExEncoding_utf16be, stream.get()));
             // Fast-path: bytes are copied verbatim.
-            auto written = stream->Bytes();
+            auto written = StreamBytes(stream.get());
             Assert::AreEqual(size_t(4), written.size());
         }
 
@@ -557,13 +557,13 @@ namespace RegExTests
             // Exercises OutputSink's utf16be ConvertInPlace path.
             RegExBytes inputBytes = MakeString(u8"hi"sv);
 
-            wil::com_ptr<TestMemoryStream> stream(new TestMemoryStream());
+            auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
                 GetLibrary()->TranscodeTo(&inputBytes, RegExEncoding_utf8, RegExEncoding_utf16be, stream.get()));
 
             // Expect BE bytes: 0x00 0x68 0x00 0x69 for "hi".
-            auto bytes = stream->Bytes();
+            auto bytes = StreamBytes(stream.get());
             Assert::AreEqual(size_t(4), bytes.size());
             Assert::AreEqual(BYTE(0x00), bytes[0]);
             Assert::AreEqual(BYTE('h'), bytes[1]);

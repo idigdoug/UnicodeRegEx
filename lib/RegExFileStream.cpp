@@ -87,11 +87,6 @@ RegExFileStream::RegExFileStream(std::wstring path, RegExFileStreamFlags flags)
     }
 
     DWORD flagsAndAttributes = FILE_ATTRIBUTE_NORMAL;
-    if (m_flags & RegExFileStreamFlag_delete_on_close)
-    {
-        flagsAndAttributes |= FILE_FLAG_DELETE_ON_CLOSE;
-    }
-
     if (m_flags & RegExFileStreamFlag_sequential)
     {
         flagsAndAttributes |= FILE_FLAG_SEQUENTIAL_SCAN;
@@ -104,9 +99,22 @@ RegExFileStream::RegExFileStream(std::wstring path, RegExFileStreamFlags flags)
 
     DWORD const shareMode = FILE_SHARE_READ | FILE_SHARE_DELETE;
 
+    // Request DELETE only when the caller asked for delete_on_close (applied
+    // below via FileDispositionInfo). MoveTo opens a side handle with DELETE
+    // access when needed, so streams without delete_on_close don't force
+    // readers to specify FILE_SHARE_DELETE to coexist with the stream.
+    // delete_on_close is intentionally NOT passed as FILE_FLAG_DELETE_ON_CLOSE
+    // so MoveTo can later cancel the disposition (the CreateFile-time flag is
+    // sticky and cannot be cleared).
+    DWORD desiredAccess = GENERIC_READ | GENERIC_WRITE;
+    if (m_flags & RegExFileStreamFlag_delete_on_close)
+    {
+        desiredAccess |= DELETE;
+    }
+
     m_file.reset(CreateFileW(
         m_path.c_str(),
-        GENERIC_READ | GENERIC_WRITE,
+        desiredAccess,
         shareMode,
         nullptr,
         creationDisposition,
@@ -116,6 +124,21 @@ RegExFileStream::RegExFileStream(std::wstring path, RegExFileStreamFlags flags)
     if (!m_file)
     {
         THROW_LAST_ERROR();
+    }
+
+    if (m_flags & RegExFileStreamFlag_delete_on_close)
+    {
+        FILE_DISPOSITION_INFO dispInfo{};
+        dispInfo.DeleteFile = TRUE;
+        if (!SetFileInformationByHandle(m_file.get(), FileDispositionInfo, &dispInfo, sizeof(dispInfo)))
+        {
+            // Best-effort cleanup: caller asked for delete_on_close, so close
+            // the handle and try DeleteFileW. Preserve the original error.
+            DWORD const err = GetLastError();
+            m_file.reset();
+            (void)DeleteFileW(m_path.c_str());
+            THROW_WIN32(err);
+        }
     }
 }
 
@@ -608,7 +631,12 @@ RegExFileStream::MoveTo(_In_ BSTR destinationPath, RegExFileMoveFlags flags) noe
     }
 
     auto* renameInfo = reinterpret_cast<FILE_RENAME_INFO*>(fileRenameInfoBuffer.get());
-    renameInfo->ReplaceIfExists = (flags & RegExFileMoveFlag_replace_existing) ? TRUE : FALSE;
+    // The first union member is shared with the legacy ReplaceIfExists BOOLEAN
+    // (low bit of Flags). Setting Flags is forward-compatible with both
+    // FileRenameInfoEx and the legacy FileRenameInfo.
+    renameInfo->Flags =
+        ((flags & RegExFileMoveFlag_replace_existing) ? FILE_RENAME_FLAG_REPLACE_IF_EXISTS : 0u) |
+        FILE_RENAME_FLAG_POSIX_SEMANTICS;
     renameInfo->RootDirectory = nullptr;
     renameInfo->FileNameLength = static_cast<unsigned>(destination.size() * sizeof(WCHAR));
     memcpy(renameInfo->FileName, destination.c_str(), renameInfo->FileNameLength);
@@ -622,19 +650,54 @@ RegExFileStream::MoveTo(_In_ BSTR destinationPath, RegExFileMoveFlags flags) noe
     // Flush any buffered writes before renaming.
     RETURN_IF_FAILED(FlushBufferLocked());
 
-    // If delete_on_close is set, clear that disposition first so the file
-    // survives the move.
+    // Decide which handle to issue the rename on. The main handle was opened
+    // with DELETE access only when delete_on_close was requested; if not,
+    // open a side handle now. This keeps non-delete-on-close streams from
+    // forcing readers to specify FILE_SHARE_DELETE just to coexist.
+    wil::unique_hfile sideHandle;
+    HANDLE renameHandle;
     if (m_flags & RegExFileStreamFlag_delete_on_close)
     {
+        // Clear the delete-on-close flag so the file lives on after the move.
         FILE_DISPOSITION_INFO dispInfo{};
         dispInfo.DeleteFile = FALSE;
         if (!SetFileInformationByHandle(m_file.get(), FileDispositionInfo, &dispInfo, sizeof(dispInfo)))
         {
             return HRESULT_FROM_WIN32(GetLastError());
         }
+        renameHandle = m_file.get();
+    }
+    else
+    {
+        // Open a side handle just for the rename. The main handle was opened
+        // without DELETE so other openers don't have to specify
+        // FILE_SHARE_DELETE just to coexist with the stream. DuplicateHandle
+        // can't be used here because it can only copy or reduce access bits,
+        // not add new ones.
+        sideHandle.reset(CreateFileW(
+            m_path.c_str(),
+            DELETE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            nullptr,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            nullptr));
+        if (!sideHandle)
+        {
+            return HRESULT_FROM_WIN32(GetLastError());
+        }
+        renameHandle = sideHandle.get();
     }
 
-    if (!SetFileInformationByHandle(m_file.get(), FileRenameInfo, renameInfo, fileRenameInfoSize))
+    // Prefer FileRenameInfoEx for POSIX semantics: lets the rename succeed
+    // even if the destination has other openers (their handles continue to
+    // refer to the renamed-away inode). Fall back to legacy FileRenameInfo
+    // on filesystems that don't support the Ex variant (older NTFS, FAT,
+    // many network filesystems).
+    bool renamed =
+        SetFileInformationByHandle(renameHandle, FileRenameInfoEx, renameInfo, fileRenameInfoSize) ||
+        SetFileInformationByHandle(renameHandle, FileRenameInfo, renameInfo, fileRenameInfoSize);
+    if (!renamed)
     {
         DWORD const err = GetLastError();
 
