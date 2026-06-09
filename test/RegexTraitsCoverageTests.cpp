@@ -38,7 +38,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             results->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(0), sub.input_offset);
+            Assert::AreEqual(LONGLONG(0), sub.offset);
             Assert::AreEqual(LONGLONG(5), sub.size);
         }
 
@@ -95,7 +95,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             results->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(0), sub.input_offset);
+            Assert::AreEqual(LONGLONG(0), sub.offset);
             Assert::AreEqual(LONGLONG(3), sub.size);
         }
 
@@ -113,7 +113,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             results->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(4), sub.input_offset);
+            Assert::AreEqual(LONGLONG(4), sub.offset);
             Assert::AreEqual(LONGLONG(5), sub.size);
         }
 
@@ -131,7 +131,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             results->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(1), sub.input_offset);
+            Assert::AreEqual(LONGLONG(1), sub.offset);
             Assert::AreEqual(LONGLONG(3), sub.size);
         }
 
@@ -149,7 +149,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             results->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(6), sub.input_offset);
+            Assert::AreEqual(LONGLONG(6), sub.offset);
             Assert::AreEqual(LONGLONG(5), sub.size);
         }
 
@@ -167,7 +167,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             results->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(6), sub.input_offset);
+            Assert::AreEqual(LONGLONG(6), sub.offset);
             Assert::AreEqual(LONGLONG(5), sub.size);
         }
 
@@ -185,7 +185,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             results->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(3), sub.input_offset);
+            Assert::AreEqual(LONGLONG(3), sub.offset);
             Assert::AreEqual(LONGLONG(3), sub.size);
         }
 
@@ -206,7 +206,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             results->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(1), sub.input_offset);
+            Assert::AreEqual(LONGLONG(1), sub.offset);
             Assert::AreEqual(LONGLONG(1), sub.size);
         }
 
@@ -219,7 +219,7 @@ namespace RegExTests
 
             char input[] = { 'a', '\0', 'b' };
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(input)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(input)),
                 .size = sizeof(input),
             };
 
@@ -229,7 +229,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             results->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(1), sub.input_offset);
+            Assert::AreEqual(LONGLONG(1), sub.offset);
             Assert::AreEqual(LONGLONG(1), sub.size);
         }
 
@@ -248,7 +248,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             results->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(3), sub.input_offset);
+            Assert::AreEqual(LONGLONG(3), sub.offset);
             Assert::AreEqual(LONGLONG(1), sub.size);
         }
 
@@ -268,7 +268,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             results->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(1), sub.input_offset);
+            Assert::AreEqual(LONGLONG(1), sub.offset);
             Assert::AreEqual(LONGLONG(2), sub.size);
         }
 
@@ -290,7 +290,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             results->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(3), sub.input_offset);
+            Assert::AreEqual(LONGLONG(3), sub.offset);
             Assert::AreEqual(LONGLONG(1), sub.size);
         }
     };

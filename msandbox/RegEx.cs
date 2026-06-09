@@ -44,79 +44,104 @@ namespace msandbox
 
     internal static class RegExExtensions
     {
-        private static Encoding? encodingLatin1; // ISO-8859-1 = GetEncoding(28591)
+        public static IntPtr Data(in this RegExBytes self) => unchecked((IntPtr)self.data);
+        public static unsafe byte* DataPtr(in this RegExBytes self) => (byte*)unchecked((IntPtr)self.data);
+        public static IntPtr Size(in this RegExBytes self) => unchecked((IntPtr)self.size);
+        public static int SizeInt(in this RegExBytes self) => checked((int)self.size);
 
         /// <summary>
         /// Returns a string for the bytes contained in the RegExBytes buffer.
         /// The buffer is valid until the next call into the match enumerator.
         /// </summary>
-        public static string GetString(this RegExBytes regexString, RegExEncoding encoding)
+        public static string GetString(this RegExBytes self, RegExEncoding encoding)
         {
-            switch (encoding)
+            unsafe
             {
-                case RegExEncoding.RegExEncoding_latin1:
-                    unsafe
-                    {
-                        if (encodingLatin1 == null)
-                        {
-                            encodingLatin1 = Encoding.GetEncoding(28591);
-                        }
-                        return encodingLatin1.GetString((byte*)(IntPtr)regexString.data_ptr, (int)regexString.size);
-                    }
-                case RegExEncoding.RegExEncoding_utf8:
-                    unsafe
-                    {
-                        return Encoding.UTF8.GetString((byte*)(IntPtr)regexString.data_ptr, (int)regexString.size);
-                    }
-                case RegExEncoding.RegExEncoding_utf16le:
-                    return Marshal.PtrToStringUni((IntPtr)regexString.data_ptr, (int)(regexString.size / sizeof(char)));
-                case RegExEncoding.RegExEncoding_utf16be:
-                    unsafe
-                    {
-                        return Encoding.BigEndianUnicode.GetString((byte*)(IntPtr)regexString.data_ptr, (int)regexString.size);
-                    }
-                case RegExEncoding.RegExEncoding_none:
-                default:
-                    throw new NotSupportedException($"Unsupported regex encoding: {encoding}");
+                switch (encoding)
+                {
+                    case RegExEncoding.RegExEncoding_latin1:
+                        return RegEx.EncodingLatin1.GetString(self.DataPtr(), self.SizeInt());
+                    case RegExEncoding.RegExEncoding_utf8:
+                        return Encoding.UTF8.GetString(self.DataPtr(), self.SizeInt());
+                    case RegExEncoding.RegExEncoding_utf16le:
+                        return Marshal.PtrToStringUni(self.Data(), self.SizeInt() / sizeof(char));
+                    case RegExEncoding.RegExEncoding_utf16be:
+                        return Encoding.BigEndianUnicode.GetString(self.DataPtr(), self.SizeInt());
+                    case RegExEncoding.RegExEncoding_none:
+                    default:
+                        throw new NotSupportedException($"Unsupported regex encoding: {encoding}");
+                }
             }
+        }
+
+        public static IntPtr Offset(in this RegExSubMatch self) => unchecked((IntPtr)self.offset);
+        public static int OffsetInt(in this RegExSubMatch self) => checked((int)self.offset);
+        public static IntPtr Size(in this RegExSubMatch self) => unchecked((IntPtr)self.size);
+        public static int SizeInt(in this RegExSubMatch self) => checked((int)self.size);
+        public static bool Matched(in this RegExSubMatch self) => self.matched != 0;
+        public static RegExBytes ToBytes(in this RegExSubMatch self, in RegExBytes input)
+        {
+            if (self.offset > input.size || self.size > input.size - self.offset)
+            {
+                throw new ArgumentOutOfRangeException(nameof(self), "Submatch is out of bounds of the input.");
+            }
+            return new RegExBytes
+            {
+                data = input.data + self.offset,
+                size = self.size
+            };
         }
 
         /// <summary>
         /// Iterate matches over a string (will be pinned for the duration of iteration).
         /// </summary>
-        public static RegExMatchEnumerator Matches(
-            this IRegEx regex,
+        public static RegExMatchEnumerator MatchEnumerator(
+            this IRegEx self,
             string data,
             RegExMatchFlags matchFlags = RegExMatchFlags.RegExMatchFlag_default,
             string? formatTemplate = null,
             RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
-            => new RegExMatchEnumerator(regex, data, matchFlags, formatTemplate, formatFlags);
+            => new RegExMatchEnumerator(self, data, matchFlags, formatTemplate, formatFlags);
 
         /// <summary>
         /// Iterate matches over a byte array + encoding (will be pinned for the duration of iteration).
         /// </summary>
-        public static RegExMatchEnumerator Matches(
-            this IRegEx regex,
+        public static RegExMatchEnumerator MatchEnumerator(
+            this IRegEx self,
             byte[] data,
             RegExEncoding encoding,
             RegExMatchFlags matchFlags = RegExMatchFlags.RegExMatchFlag_default,
             string? formatTemplate = null,
             RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
-            => new RegExMatchEnumerator(regex, data, encoding, matchFlags, formatTemplate, formatFlags);
+            => new RegExMatchEnumerator(self, data, encoding, matchFlags, formatTemplate, formatFlags);
 
         /// <summary>
         /// Iterate matches over pinned bytes + encoding.
         /// The caller must ensure the data remains valid for the lifetime of enumeration.
         /// </summary>
-        public static unsafe RegExMatchEnumerator Matches(
-            this IRegEx regex,
+        public static unsafe RegExMatchEnumerator MatchEnumerator(
+            this IRegEx self,
+            IntPtr data,
+            IntPtr size,
+            RegExEncoding encoding,
+            RegExMatchFlags matchFlags = RegExMatchFlags.RegExMatchFlag_default,
+            string? formatTemplate = null,
+            RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
+            => new RegExMatchEnumerator(self, data, size, encoding, matchFlags, formatTemplate, formatFlags);
+
+        /// <summary>
+        /// Iterate matches over pinned bytes + encoding.
+        /// The caller must ensure the data remains valid for the lifetime of enumeration.
+        /// </summary>
+        public static unsafe RegExMatchEnumerator MatchEnumerator(
+            this IRegEx self,
             void* data,
             IntPtr size,
             RegExEncoding encoding,
             RegExMatchFlags matchFlags = RegExMatchFlags.RegExMatchFlag_default,
             string? formatTemplate = null,
             RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
-            => new RegExMatchEnumerator(regex, data, size, encoding, matchFlags, formatTemplate, formatFlags);
+            => new RegExMatchEnumerator(self, data, size, encoding, matchFlags, formatTemplate, formatFlags);
     }
 
     internal ref struct RegExMatchEnumerator
@@ -135,12 +160,9 @@ namespace msandbox
             RegExFormatFlags formatFlags)
         {
             this.pin = pin;
-            var inputString = new RegExBytes
-            {
-                data_ptr = (long)(pin.IsAllocated ? pin.AddrOfPinnedObject() : data),
-                size = (long)size,
-            };
-
+            var inputString = RegEx.Bytes(
+                pin.IsAllocated ? pin.AddrOfPinnedObject() : data,
+                size);
             this.enumerator = regex.EnumerateMatches(ref inputString, encoding, 0, matchFlags);
             if (formatTemplate != null)
             {
@@ -161,6 +183,14 @@ namespace msandbox
         /// </summary>
         public RegExMatchEnumerator(IRegEx regex, byte[] data, RegExEncoding encoding, RegExMatchFlags matchFlags, string? formatTemplate = null, RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
             : this(regex, GCHandle.Alloc(data, GCHandleType.Pinned), (IntPtr)0, (IntPtr)data.Length, encoding, matchFlags, formatTemplate, formatFlags)
+        {
+        }
+
+        /// <summary>
+        /// Creates an enumerator over already-stable data.
+        /// </summary>
+        public RegExMatchEnumerator(IRegEx regex, IntPtr data, IntPtr size, RegExEncoding encoding, RegExMatchFlags matchFlags, string? formatTemplate = null, RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
+            : this(regex, default, data, size, encoding, matchFlags, formatTemplate, formatFlags)
         {
         }
 
@@ -194,6 +224,24 @@ namespace msandbox
 
     internal static class RegEx
     {
+        private static Encoding? encodingLatin1; // ISO-8859-1 = GetEncoding(28591)
+
+        public static Encoding EncodingLatin1
+        {
+            get
+            {
+                if (encodingLatin1 == null)
+                {
+                    encodingLatin1 = Encoding.GetEncoding(28591);
+                }
+
+                return encodingLatin1;
+            }
+        }
+
+        public static RegExBytes Bytes(IntPtr data, IntPtr size)
+            => new RegExBytes { data = (long)data, size = (long)size };
+
         public static IRegEx Create(
             string pattern,
             RegExSyntaxFlags syntaxFlags = RegExSyntaxFlags.RegExSyntaxFlags_ECMAScript,

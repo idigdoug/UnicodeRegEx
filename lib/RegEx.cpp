@@ -295,7 +295,7 @@ RegEx::ReplaceImpl(
     auto formatSpan = std::span(reinterpret_cast<char16_t const*>(formatTemplate), SysStringLen(formatTemplate));
     auto formatIterators = utf16le::CodePointIterator::FromSpan(formatSpan);
     std::u32string const format(formatIterators.begin, formatIterators.end);
-    auto inputData = reinterpret_cast<void const*>(static_cast<UINT_PTR>(pInput->data_ptr));
+    auto inputData = reinterpret_cast<void const*>(static_cast<UINT_PTR>(pInput->data));
     auto inputSize = static_cast<size_t>(pInput->size);
 
     // Driver shared by all encodings: mirrors boost::regex_replace's structure but

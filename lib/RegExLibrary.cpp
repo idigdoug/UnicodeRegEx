@@ -405,7 +405,7 @@ RegExLibrary::Transcode(
 {
     *pOutput = nullptr;
 
-    if (!InputTranscoder::OffsetAndSizeAreAlignedForEncoding(pInput->data_ptr, pInput->size, inputEncoding))
+    if (!InputTranscoder::OffsetAndSizeAreAlignedForEncoding(pInput->data, pInput->size, inputEncoding))
     {
         return E_INVALIDARG;
     }
@@ -414,7 +414,7 @@ RegExLibrary::Transcode(
     try
     {
         std::span<BYTE const> input(
-            reinterpret_cast<BYTE const*>(static_cast<UINT_PTR>(pInput->data_ptr)),
+            reinterpret_cast<BYTE const*>(static_cast<UINT_PTR>(pInput->data)),
             static_cast<size_t>(pInput->size));
 
         std::span<BYTE const> output;
@@ -456,7 +456,7 @@ RegExLibrary::TranscodeTo(
     }
     else if (
         !RegExEncodingIsValid(outputEncoding) ||
-        !InputTranscoder::OffsetAndSizeAreAlignedForEncoding(pInput->data_ptr, pInput->size, inputEncoding))
+        !InputTranscoder::OffsetAndSizeAreAlignedForEncoding(pInput->data, pInput->size, inputEncoding))
     {
         return E_INVALIDARG;
     }
@@ -465,7 +465,7 @@ RegExLibrary::TranscodeTo(
     try
     {
         std::span<BYTE const> input(
-            reinterpret_cast<BYTE const*>(static_cast<UINT_PTR>(pInput->data_ptr)),
+            reinterpret_cast<BYTE const*>(static_cast<UINT_PTR>(pInput->data)),
             static_cast<size_t>(pInput->size));
 
         if (inputEncoding == outputEncoding)

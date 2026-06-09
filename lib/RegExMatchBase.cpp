@@ -9,7 +9,7 @@ static constexpr RegExBytes
 MakeString(_In_reads_bytes_(size) void const* data, UINT_PTR size) noexcept
 {
     return {
-        .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(data)),
+        .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(data)),
         .size = static_cast<LONGLONG>(size),
     };
 }
@@ -24,7 +24,7 @@ RegExMatchBase::RegExMatchBase(
     RegExMatchFlags flags)
     : m_refCount(1)
     , m_regex(regex)
-    , m_inputData(reinterpret_cast<void const*>(static_cast<UINT_PTR>(pInput->data_ptr)))
+    , m_inputData(reinterpret_cast<void const*>(static_cast<UINT_PTR>(pInput->data)))
     , m_inputSize(static_cast<UINT_PTR>(pInput->size))
     , m_inputEncoding(inputEncoding)
     , m_state(RegExEnumerationState_not_started)
@@ -467,7 +467,7 @@ RegExMatchBase::VisitGetSubMatch(
     auto const& submatch = matchResults[subMatchIndex];
     if (!submatch.matched)
     {
-        pSubMatch->input_offset = 0;
+        pSubMatch->offset = 0;
         pSubMatch->size = 0;
         pSubMatch->matched = VARIANT_FALSE;
     }
@@ -475,7 +475,7 @@ RegExMatchBase::VisitGetSubMatch(
     {
         auto const firstOffset = submatch.first.ByteOffset(m_inputData);
         auto const secondOffset = submatch.second.ByteOffset(m_inputData);
-        pSubMatch->input_offset = static_cast<LONGLONG>(firstOffset);
+        pSubMatch->offset = static_cast<LONGLONG>(firstOffset);
         pSubMatch->size = static_cast<LONGLONG>(secondOffset - firstOffset);
         pSubMatch->matched = VARIANT_TRUE;
     }

@@ -30,7 +30,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             Assert::AreEqual(S_OK, results->GetSubMatch(0, &sub));
-            Assert::AreEqual(LONGLONG(6), sub.input_offset);
+            Assert::AreEqual(LONGLONG(6), sub.offset);
             Assert::AreEqual(LONGLONG(5), sub.size);
         }
 
@@ -41,7 +41,7 @@ namespace RegExTests
 
             char input[] = { 'a', '\xE9', 'b' };
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(input)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(input)),
                 .size = sizeof(input),
             };
 
@@ -53,7 +53,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             results->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(1), sub.input_offset);
+            Assert::AreEqual(LONGLONG(1), sub.offset);
             Assert::AreEqual(LONGLONG(1), sub.size);
         }
 
@@ -238,7 +238,7 @@ namespace RegExTests
             char16_t buf[] = u"hello world";
             ByteSwap16(std::span(buf, std::size(buf) - 1));
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
                 .size = static_cast<LONGLONG>((std::size(buf) - 1) * sizeof(char16_t)),
             };
 
@@ -250,7 +250,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             results->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(12), sub.input_offset); // 6 chars * 2 bytes
+            Assert::AreEqual(LONGLONG(12), sub.offset); // 6 chars * 2 bytes
             Assert::AreEqual(LONGLONG(10), sub.size);          // 5 chars * 2 bytes
         }
 
@@ -263,7 +263,7 @@ namespace RegExTests
             auto const count = std::size(buf) - 1; // exclude null
             ByteSwap16(std::span(buf, count));
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
                 .size = static_cast<LONGLONG>(count * sizeof(char16_t)),
             };
 
@@ -275,7 +275,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             results->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(2), sub.input_offset); // skip 'A' (2 bytes)
+            Assert::AreEqual(LONGLONG(2), sub.offset); // skip 'A' (2 bytes)
             Assert::AreEqual(LONGLONG(4), sub.size);         // surrogate pair (4 bytes)
         }
 
@@ -287,7 +287,7 @@ namespace RegExTests
             auto const count = std::size(buf) - 1;
             ByteSwap16(std::span(buf, count));
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
                 .size = static_cast<LONGLONG>(count * sizeof(char16_t)),
             };
 
@@ -306,7 +306,7 @@ namespace RegExTests
             auto const count = std::size(buf) - 1;
             ByteSwap16(std::span(buf, count));
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
                 .size = static_cast<LONGLONG>(count * sizeof(char16_t)),
             };
 
@@ -334,7 +334,7 @@ namespace RegExTests
             auto const count = std::size(buf) - 1;
             ByteSwap16(std::span(buf, count));
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
                 .size = static_cast<LONGLONG>(count * sizeof(char16_t)),
             };
 
@@ -360,7 +360,7 @@ namespace RegExTests
             auto const count = std::size(buf) - 1;
             ByteSwap16(std::span(buf, count));
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
                 .size = static_cast<LONGLONG>(count * sizeof(char16_t)),
             };
 
@@ -380,7 +380,7 @@ namespace RegExTests
             auto const count = std::size(buf) - 1;
             ByteSwap16(std::span(buf, count));
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
                 .size = static_cast<LONGLONG>(count * sizeof(char16_t)),
             };
 
@@ -408,7 +408,7 @@ namespace RegExTests
             auto const count = std::size(buf) - 1;
             ByteSwap16(std::span(buf, count));
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
                 .size = static_cast<LONGLONG>(count * sizeof(char16_t)),
             };
 
@@ -428,7 +428,7 @@ namespace RegExTests
             auto const count = std::size(buf) - 1;
             ByteSwap16(std::span(buf, count));
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
                 .size = static_cast<LONGLONG>(count * sizeof(char16_t)),
             };
 
@@ -448,7 +448,7 @@ namespace RegExTests
             auto const count = std::size(buf) - 1;
             ByteSwap16(std::span(buf, count));
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
                 .size = static_cast<LONGLONG>(count * sizeof(char16_t)),
             };
             wil::unique_bstr formatTemplate(SysAllocString(L"#"));
@@ -475,7 +475,7 @@ namespace RegExTests
             auto const count = std::size(buf) - 1;
             ByteSwap16(std::span(buf, count));
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
                 .size = static_cast<LONGLONG>(count * sizeof(char16_t)),
             };
             wil::unique_bstr formatTemplate(SysAllocString(L"#"));
@@ -504,7 +504,7 @@ namespace RegExTests
             auto const count = std::size(buf) - 1; // 2 char16_t for surrogate pair
             ByteSwap16(std::span(buf, count));
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
                 .size = static_cast<LONGLONG>(count * sizeof(char16_t)),
             };
 
@@ -520,7 +520,7 @@ namespace RegExTests
             auto const count = std::size(buf) - 1;
             ByteSwap16(std::span(buf, count));
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
                 .size = static_cast<LONGLONG>(count * sizeof(char16_t)),
             };
 
@@ -539,7 +539,7 @@ namespace RegExTests
             auto const count = std::size(buf) - 1;
             ByteSwap16(std::span(buf, count));
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf)),
                 .size = static_cast<LONGLONG>(count * sizeof(char16_t)),
             };
 

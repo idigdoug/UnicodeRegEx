@@ -256,20 +256,20 @@ typedef [v1_enum] enum RegExFileMoveFlags
     RegExFileMoveFlag_replace_existing = 0x1, // Allow the move to replace an existing file at the destination.
 } RegExFileMoveFlags;
 
-cpp_quote("// data_ptr is treated as a BYTE*. size is measured in bytes.")
-cpp_quote("// For utf16 encodings, data_ptr and size must be multiples of 2.")
+cpp_quote("// data is treated as a BYTE*. size is measured in bytes.")
+cpp_quote("// For utf16 encodings, data and size must be multiples of 2.")
 typedef struct RegExBytes
 {
-    LONGLONG data_ptr;
+    LONGLONG data;
     LONGLONG size;
 } RegExBytes;
 
 cpp_quote("// Range of bytes within the input buffer:")
-cpp_quote("// - input_offset is a byte offset relative to input.data_ptr.")
+cpp_quote("// - offset is a byte offset relative to input.data.")
 cpp_quote("// - size is measured in bytes.")
 typedef struct RegExSubMatch
 {
-    LONGLONG input_offset;
+    LONGLONG offset;
     LONGLONG size;
     VARIANT_BOOL matched; // whether this submatch was actually matched (e.g. for optional groups)
 } RegExSubMatch;

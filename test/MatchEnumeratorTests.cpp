@@ -35,7 +35,7 @@ namespace RegExTests
             hr = enumerator->GetSubMatch(0, &submatch);
             Assert::AreEqual(S_OK, hr);
             Assert::AreEqual(VARIANT_TRUE, submatch.matched);
-            Assert::AreEqual(LONGLONG(6), submatch.input_offset);
+            Assert::AreEqual(LONGLONG(6), submatch.offset);
             Assert::AreEqual(LONGLONG(5), submatch.size);
 
             // Second NextMatch should indicate no more matches.
@@ -59,14 +59,14 @@ namespace RegExTests
             Assert::IsTrue(found != 0);
             RegExSubMatch sub = {};
             enumerator->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(4), sub.input_offset);
+            Assert::AreEqual(LONGLONG(4), sub.offset);
             Assert::AreEqual(LONGLONG(3), sub.size);
 
             // Second match: "456" at offset 12
             Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
             Assert::IsTrue(found != 0);
             enumerator->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(12), sub.input_offset);
+            Assert::AreEqual(LONGLONG(12), sub.offset);
             Assert::AreEqual(LONGLONG(3), sub.size);
 
             // No more
@@ -115,7 +115,7 @@ namespace RegExTests
                 S_OK,
                 enumerator->GetSubMatch(0, &sub));
             Assert::AreEqual(VARIANT_TRUE, sub.matched);
-            Assert::AreEqual(LONGLONG(1), sub.input_offset);
+            Assert::AreEqual(LONGLONG(1), sub.offset);
             Assert::AreEqual(LONGLONG(9), sub.size);
 
             // Group 1: "user" at offset 1, length 4
@@ -124,7 +124,7 @@ namespace RegExTests
                 S_OK,
                 enumerator->GetSubMatch(1, &sub));
             Assert::AreEqual(VARIANT_TRUE, sub.matched);
-            Assert::AreEqual(LONGLONG(1), sub.input_offset);
+            Assert::AreEqual(LONGLONG(1), sub.offset);
             Assert::AreEqual(LONGLONG(4), sub.size);
 
             // Group 2: "host" at offset 6, length 4
@@ -133,7 +133,7 @@ namespace RegExTests
                 S_OK,
                 enumerator->GetSubMatch(2, &sub));
             Assert::AreEqual(VARIANT_TRUE, sub.matched);
-            Assert::AreEqual(LONGLONG(6), sub.input_offset);
+            Assert::AreEqual(LONGLONG(6), sub.offset);
             Assert::AreEqual(LONGLONG(4), sub.size);
         }
 
@@ -210,7 +210,7 @@ namespace RegExTests
             RegExSubMatch sub = {};
             enumerator->GetSubMatch(0, &sub);
             Assert::AreEqual(VARIANT_TRUE, sub.matched);
-            Assert::AreEqual(LONGLONG(6 * 2), sub.input_offset); // 6 chars * 2 bytes
+            Assert::AreEqual(LONGLONG(6 * 2), sub.offset); // 6 chars * 2 bytes
             Assert::AreEqual(LONGLONG(5 * 2), sub.size);
         }
 
@@ -369,7 +369,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             enumerator->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(0), sub.input_offset);
+            Assert::AreEqual(LONGLONG(0), sub.offset);
             Assert::AreEqual(LONGLONG(0), sub.size);
 
             // Continue iterating; per the standard's operator++ semantics, "a*" against
@@ -382,8 +382,8 @@ namespace RegExTests
                 if (!found) break;
                 enumerator->GetSubMatch(0, &sub);
                 Assert::AreEqual(LONGLONG(0), sub.size);
-                Assert::IsTrue(sub.input_offset > lastOffset); // Must make forward progress.
-                lastOffset = sub.input_offset;
+                Assert::IsTrue(sub.offset > lastOffset); // Must make forward progress.
+                lastOffset = sub.offset;
                 matchCount++;
             }
             Assert::IsFalse(found != 0);
@@ -416,14 +416,14 @@ namespace RegExTests
             Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
             Assert::IsTrue(found != 0);
             enumerator->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(0), sub.input_offset);
+            Assert::AreEqual(LONGLONG(0), sub.offset);
             Assert::AreEqual(LONGLONG(2), sub.size);
 
             // Match 2: \b at 2 (between 'a' and ' '). Requires match_prev_avail to detect.
             Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
             Assert::IsTrue(found != 0);
             enumerator->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(2), sub.input_offset);
+            Assert::AreEqual(LONGLONG(2), sub.offset);
             Assert::AreEqual(LONGLONG(0), sub.size);
 
             // No more matches in " ".
@@ -499,7 +499,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             enumerator->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(6), sub.input_offset);
+            Assert::AreEqual(LONGLONG(6), sub.offset);
             Assert::AreEqual(LONGLONG(5), sub.size);
         }
 
@@ -521,7 +521,7 @@ namespace RegExTests
 
             RegExSubMatch sub = {};
             enumerator->GetSubMatch(0, &sub);
-            Assert::AreEqual(LONGLONG(6), sub.input_offset);
+            Assert::AreEqual(LONGLONG(6), sub.offset);
             Assert::AreEqual(LONGLONG(5), sub.size);
         }
 

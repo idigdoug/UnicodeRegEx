@@ -36,7 +36,7 @@ namespace RegExTests
             // UTF-16BE bytes for "AB" = 0x00 0x41 0x00 0x42
             unsigned char bytes[] = { 0x00, 0x41, 0x00, 0x42 };
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(bytes)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(bytes)),
                 .size = static_cast<LONGLONG>(sizeof(bytes)),
             };
 
@@ -52,7 +52,7 @@ namespace RegExTests
             // Latin-1: byte 0xE9 = U+00E9 (é).
             unsigned char bytes[] = { 'a', 0xE9, 'z' };
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(bytes)),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(bytes)),
                 .size = static_cast<LONGLONG>(sizeof(bytes)),
             };
 
@@ -264,7 +264,7 @@ namespace RegExTests
             std::vector<char16_t> buf(1000, u'A');
             ByteSwap16(std::span(buf));
             RegExBytes inputBytes = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf.data())),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(buf.data())),
                 .size = static_cast<LONGLONG>(buf.size() * sizeof(char16_t)),
             };
 

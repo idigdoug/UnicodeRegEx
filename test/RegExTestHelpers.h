@@ -6,7 +6,7 @@ constexpr RegExBytes
 MakeString(std::basic_string_view<CharT> sv)
 {
     return {
-        .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(sv.data())),
+        .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(sv.data())),
         .size = static_cast<LONGLONG>(sv.size() * sizeof(sv[0])),
     };
 }
@@ -16,7 +16,7 @@ constexpr std::basic_string_view<CharT>
 MakeView(RegExBytes const& str) noexcept
 {
     return std::basic_string_view<CharT>(
-        reinterpret_cast<CharT const*>(str.data_ptr),
+        reinterpret_cast<CharT const*>(str.data),
         static_cast<UINT_PTR>(str.size / sizeof(CharT)));
 }
 

@@ -132,7 +132,7 @@ namespace RegExTests
             auto regex = MakeRegEx(escaped);
 
             RegExBytes inputStr = {
-                .data_ptr = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(literal.data())),
+                .data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(literal.data())),
                 .size = static_cast<LONGLONG>(literal.size() * sizeof(wchar_t)),
             };
             wil::com_ptr<IRegExMatchResults> results;
