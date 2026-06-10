@@ -18,14 +18,14 @@ RegExMatchBase::~RegExMatchBase() = default;
 
 RegExMatchBase::RegExMatchBase(
     _In_ RegEx* regex,
-    _In_ RegExBytes const* pInput,
+    RegExBytes const& input,
     RegExEncoding inputEncoding,
     UINT_PTR startByteOffset,
     RegExMatchFlags flags)
     : m_refCount(1)
     , m_regex(regex)
-    , m_inputData(reinterpret_cast<void const*>(static_cast<UINT_PTR>(pInput->data)))
-    , m_inputSize(static_cast<UINT_PTR>(pInput->size))
+    , m_inputData(reinterpret_cast<void const*>(static_cast<UINT_PTR>(input.data)))
+    , m_inputSize(static_cast<UINT_PTR>(input.size))
     , m_inputEncoding(inputEncoding)
     , m_state(RegExEnumerationState_not_started)
     , m_variantEnumerator()

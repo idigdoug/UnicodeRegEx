@@ -399,13 +399,13 @@ RegExLibrary::GetEscapeFormatLiteralChars(
 
 HRESULT
 RegExLibrary::Transcode(
-    _In_ RegExBytes const* pInput,
+    RegExBytes input,
     RegExEncoding inputEncoding,
     _Out_ BSTR* pOutput) noexcept
 {
     *pOutput = nullptr;
 
-    if (!InputTranscoder::OffsetAndSizeAreAlignedForEncoding(pInput->data, pInput->size, inputEncoding))
+    if (!InputTranscoder::OffsetAndSizeAreAlignedForEncoding(input.data, input.size, inputEncoding))
     {
         return E_INVALIDARG;
     }
@@ -413,26 +413,26 @@ RegExLibrary::Transcode(
     HRESULT hr;
     try
     {
-        std::span<BYTE const> input(
-            reinterpret_cast<BYTE const*>(static_cast<UINT_PTR>(pInput->data)),
-            static_cast<size_t>(pInput->size));
+        std::span<BYTE const> inputBytes(
+            reinterpret_cast<BYTE const*>(static_cast<UINT_PTR>(input.data)),
+            static_cast<size_t>(input.size));
 
-        std::span<BYTE const> output;
+        std::span<BYTE const> outputBytes;
         OutputSink sink;
         if (inputEncoding == RegExEncoding_utf16le)
         {
-            output = input;
+            outputBytes = inputBytes;
         }
         else
         {
             sink.ResetToVector(RegExEncoding_utf16le);
-            sink.AppendBytes(input, inputEncoding);
-            output = sink.FinishVector();
+            sink.AppendBytes(inputBytes, inputEncoding);
+            outputBytes = sink.FinishVector();
         }
 
         *pOutput = SysAllocStringLen(
-            reinterpret_cast<OLECHAR const*>(output.data()),
-            static_cast<UINT>(output.size() / sizeof(OLECHAR)));
+            reinterpret_cast<OLECHAR const*>(outputBytes.data()),
+            static_cast<UINT>(outputBytes.size() / sizeof(OLECHAR)));
         hr = *pOutput ? S_OK : E_OUTOFMEMORY;
     }
     catch (...)
@@ -445,7 +445,7 @@ RegExLibrary::Transcode(
 
 HRESULT
 RegExLibrary::TranscodeTo(
-    _In_ RegExBytes const* pInput,
+    RegExBytes input,
     RegExEncoding inputEncoding,
     RegExEncoding outputEncoding,
     _In_ ISequentialStream* outputStream) noexcept
@@ -456,7 +456,7 @@ RegExLibrary::TranscodeTo(
     }
     else if (
         !RegExEncodingIsValid(outputEncoding) ||
-        !InputTranscoder::OffsetAndSizeAreAlignedForEncoding(pInput->data, pInput->size, inputEncoding))
+        !InputTranscoder::OffsetAndSizeAreAlignedForEncoding(input.data, input.size, inputEncoding))
     {
         return E_INVALIDARG;
     }
@@ -464,19 +464,19 @@ RegExLibrary::TranscodeTo(
     HRESULT hr;
     try
     {
-        std::span<BYTE const> input(
-            reinterpret_cast<BYTE const*>(static_cast<UINT_PTR>(pInput->data)),
-            static_cast<size_t>(pInput->size));
+        std::span<BYTE const> inputBytes(
+            reinterpret_cast<BYTE const*>(static_cast<UINT_PTR>(input.data)),
+            static_cast<size_t>(input.size));
 
         if (inputEncoding == outputEncoding)
         {
-            hr = WriteAllBytesToStream(outputStream, input);
+            hr = WriteAllBytesToStream(outputStream, inputBytes);
         }
         else
         {
             OutputSink sink;
             sink.ResetToStream(outputEncoding, outputStream);
-            sink.AppendBytes(input, inputEncoding);
+            sink.AppendBytes(inputBytes, inputEncoding);
             sink.FinishStream();
             hr = S_OK;
         }

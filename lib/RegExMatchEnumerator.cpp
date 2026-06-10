@@ -3,11 +3,11 @@
 
 RegExMatchEnumerator::RegExMatchEnumerator(
     _In_ RegEx* regex,
-    _In_ RegExBytes const* pInput,
+    RegExBytes const& input,
     RegExEncoding inputEncoding,
     _In_ UINT_PTR startByteOffset,
     RegExMatchFlags flags)
-    : RegExMatchBase(regex, pInput, inputEncoding, startByteOffset, flags)
+    : RegExMatchBase(regex, input, inputEncoding, startByteOffset, flags)
 {
 }
 

@@ -17,7 +17,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"hello world"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            HRESULT hr = regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
+            HRESULT hr = regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
             Assert::AreEqual(S_OK, hr);
             Assert::IsNotNull(enumerator.get());
 
@@ -51,7 +51,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"abc 123 def 456"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
+            regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
 
             // First match: "123" at offset 4
             VARIANT_BOOL found = VARIANT_FALSE;
@@ -81,7 +81,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"hello world"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
+            regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
 
             VARIANT_BOOL found = VARIANT_FALSE;
             Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
@@ -97,7 +97,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
             Assert::AreEqual(
                 S_OK,
-                regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put()));
+                regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put()));
 
             VARIANT_BOOL found = VARIANT_FALSE;
             Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
@@ -153,7 +153,7 @@ namespace RegExTests
             RegExBytes inputBytes_idot = MakeString(u"\u0130"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enum_idot;
-            Assert::AreEqual(S_OK, regex_i->EnumerateMatches(&inputBytes_idot, RegExEncoding_utf16le, 0, RegExMatchFlag_default, enum_idot.put()));
+            Assert::AreEqual(S_OK, regex_i->EnumerateMatches(inputBytes_idot, RegExEncoding_utf16le, 0, RegExMatchFlag_default, enum_idot.put()));
 
             VARIANT_BOOL found = VARIANT_FALSE;
             Assert::AreEqual(S_OK, enum_idot->NextMatch(&found));
@@ -163,7 +163,7 @@ namespace RegExTests
             RegExBytes inputBytes_I = MakeString(u"I"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enum_I;
-            Assert::AreEqual(S_OK, regex_i->EnumerateMatches(&inputBytes_I, RegExEncoding_utf16le, 0, RegExMatchFlag_default, enum_I.put()));
+            Assert::AreEqual(S_OK, regex_i->EnumerateMatches(inputBytes_I, RegExEncoding_utf16le, 0, RegExMatchFlag_default, enum_I.put()));
 
             found = VARIANT_FALSE;
             Assert::AreEqual(S_OK, enum_I->NextMatch(&found));
@@ -178,7 +178,7 @@ namespace RegExTests
             RegExBytes inputBytes_dotless = MakeString(u"\u0131"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enum_dotless;
-            Assert::AreEqual(S_OK, regex_I->EnumerateMatches(&inputBytes_dotless, RegExEncoding_utf16le, 0, RegExMatchFlag_default, enum_dotless.put()));
+            Assert::AreEqual(S_OK, regex_I->EnumerateMatches(inputBytes_dotless, RegExEncoding_utf16le, 0, RegExMatchFlag_default, enum_dotless.put()));
 
             found = VARIANT_FALSE;
             Assert::AreEqual(S_OK, enum_dotless->NextMatch(&found));
@@ -188,7 +188,7 @@ namespace RegExTests
             RegExBytes inputBytes_latin_i = MakeString(u"i"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enum_latin_i;
-            Assert::AreEqual(S_OK, regex_I->EnumerateMatches(&inputBytes_latin_i, RegExEncoding_utf16le, 0, RegExMatchFlag_default, enum_latin_i.put()));
+            Assert::AreEqual(S_OK, regex_I->EnumerateMatches(inputBytes_latin_i, RegExEncoding_utf16le, 0, RegExMatchFlag_default, enum_latin_i.put()));
 
             found = VARIANT_FALSE;
             Assert::AreEqual(S_OK, enum_latin_i->NextMatch(&found));
@@ -202,7 +202,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u"hello world"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            regex->EnumerateMatches(&inputBytes, RegExEncoding_utf16le, 0, RegExMatchFlag_default, enumerator.put());
+            regex->EnumerateMatches(inputBytes, RegExEncoding_utf16le, 0, RegExMatchFlag_default, enumerator.put());
 
             VARIANT_BOOL found = VARIANT_FALSE;
             Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
@@ -221,7 +221,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"a"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
+            regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
 
             RegExEnumerationState state = {};
             enumerator->get_State(&state);
@@ -244,7 +244,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"user@host"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
+            regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
 
             VARIANT_BOOL found = VARIANT_FALSE;
             Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
@@ -272,7 +272,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"hello world"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
+            regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
 
             VARIANT_BOOL found = VARIANT_FALSE;
             Assert::AreEqual(S_OK, enumerator->NextMatch(&found));
@@ -297,7 +297,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"b"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
+            regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
 
             // Should find matches but not loop infinitely
             VARIANT_BOOL found = VARIANT_FALSE;
@@ -324,7 +324,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"a b"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
+            regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
 
             VARIANT_BOOL found = VARIANT_FALSE;
             RegExSubMatch sub = {};
@@ -360,7 +360,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
             Assert::AreEqual(
                 S_OK,
-                regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put()));
+                regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put()));
 
             // First match: empty at offset 0.
             VARIANT_BOOL found = VARIANT_FALSE;
@@ -407,7 +407,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
             Assert::AreEqual(
                 S_OK,
-                regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put()));
+                regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put()));
 
             VARIANT_BOOL found = VARIANT_FALSE;
             RegExSubMatch sub = {};
@@ -442,7 +442,7 @@ namespace RegExTests
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
             HRESULT hr = regex->EnumerateMatches(
-                &inputBytes, RegExEncoding_utf8, 0, static_cast<RegExMatchFlags>(1 << 8), enumerator.put());
+                inputBytes, RegExEncoding_utf8, 0, static_cast<RegExMatchFlags>(1 << 8), enumerator.put());
             Assert::AreEqual(E_INVALIDARG, hr);
             Assert::IsNull(enumerator.get());
         }
@@ -474,7 +474,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"hello world"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            HRESULT hr = regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 5, RegExMatchFlag_default, enumerator.put());
+            HRESULT hr = regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 5, RegExMatchFlag_default, enumerator.put());
             Assert::AreEqual(S_OK, hr);
 
             VARIANT_BOOL found = VARIANT_FALSE;
@@ -490,7 +490,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"hello world"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            HRESULT hr = regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 6, RegExMatchFlag_default, enumerator.put());
+            HRESULT hr = regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 6, RegExMatchFlag_default, enumerator.put());
             Assert::AreEqual(S_OK, hr);
 
             VARIANT_BOOL found = VARIANT_FALSE;
@@ -512,7 +512,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"hello world"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            HRESULT hr = regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 6, RegExMatchFlag_default, enumerator.put());
+            HRESULT hr = regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 6, RegExMatchFlag_default, enumerator.put());
             Assert::AreEqual(S_OK, hr);
 
             VARIANT_BOOL found = VARIANT_FALSE;
@@ -534,7 +534,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"world"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            HRESULT hr = regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
+            HRESULT hr = regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
             Assert::AreEqual(S_OK, hr);
 
             VARIANT_BOOL found = VARIANT_FALSE;
@@ -549,7 +549,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"hello"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            HRESULT hr = regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 6, RegExMatchFlag_default, enumerator.put());
+            HRESULT hr = regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 6, RegExMatchFlag_default, enumerator.put());
             Assert::AreEqual(E_INVALIDARG, hr);
             Assert::IsNull(enumerator.get());
         }
@@ -563,7 +563,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(input);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            HRESULT hr = regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 1, RegExMatchFlag_default, enumerator.put());
+            HRESULT hr = regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 1, RegExMatchFlag_default, enumerator.put());
             Assert::AreEqual(E_INVALIDARG, hr);
             Assert::IsNull(enumerator.get());
         }
@@ -577,7 +577,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(input);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            HRESULT hr = regex->EnumerateMatches(&inputBytes, RegExEncoding_utf16le, 2, RegExMatchFlag_default, enumerator.put());
+            HRESULT hr = regex->EnumerateMatches(inputBytes, RegExEncoding_utf16le, 2, RegExMatchFlag_default, enumerator.put());
             Assert::AreEqual(E_INVALIDARG, hr);
             Assert::IsNull(enumerator.get());
         }
@@ -591,7 +591,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(input);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            HRESULT hr = regex->EnumerateMatches(&inputBytes, RegExEncoding_utf16le, 1, RegExMatchFlag_default, enumerator.put());
+            HRESULT hr = regex->EnumerateMatches(inputBytes, RegExEncoding_utf16le, 1, RegExMatchFlag_default, enumerator.put());
             Assert::AreEqual(E_INVALIDARG, hr);
             Assert::IsNull(enumerator.get());
         }
@@ -604,7 +604,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"hello"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            HRESULT hr = regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 5, RegExMatchFlag_default, enumerator.put());
+            HRESULT hr = regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 5, RegExMatchFlag_default, enumerator.put());
             Assert::AreEqual(S_OK, hr);
 
             VARIANT_BOOL found = VARIANT_FALSE;
@@ -621,7 +621,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"a"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            regex->EnumerateMatches(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
+            regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
 
             VARIANT_BOOL found = VARIANT_FALSE;
             // First call: finds the match.

@@ -57,13 +57,13 @@ public:
 
     HRESULT STDMETHODCALLTYPE
     Transcode(
-        _In_ RegExBytes const* pInput,
+        RegExBytes input,
         RegExEncoding inputEncoding,
         _Out_ BSTR* pOutput) noexcept override;
 
     HRESULT STDMETHODCALLTYPE
     TranscodeTo(
-        _In_ RegExBytes const* pInput,
+        RegExBytes input,
         RegExEncoding inputEncoding,
         RegExEncoding outputEncoding,
         _In_ ISequentialStream* outputStream) noexcept override;

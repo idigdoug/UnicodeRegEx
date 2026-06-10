@@ -44,7 +44,7 @@ protected:
 
     RegExMatchBase(
         _In_ RegEx* regex,
-        _In_ RegExBytes const* pInput,
+        RegExBytes const& input,
         RegExEncoding inputEncoding,
         UINT_PTR startByteOffset,
         RegExMatchFlags matchFlags);

@@ -378,7 +378,7 @@ interface IRegEx : IUnknown
     // Returned object is apartment-threaded.
     HRESULT
     Match(
-        [in] RegExBytes const* pInput,
+        RegExBytes input,
         RegExEncoding inputEncoding,
         LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string.
         RegExMatchFlags matchFlags,
@@ -388,7 +388,7 @@ interface IRegEx : IUnknown
     // Returned object is apartment-threaded.
     HRESULT
     Search(
-        [in] RegExBytes const* pInput,
+        RegExBytes input,
         RegExEncoding inputEncoding,
         LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string.
         RegExMatchFlags matchFlags,
@@ -398,7 +398,7 @@ interface IRegEx : IUnknown
     // Returned object is apartment-threaded.
     HRESULT
     EnumerateMatches(
-        [in] RegExBytes const* pInput,
+        RegExBytes input,
         RegExEncoding inputEncoding,
         LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string.
         RegExMatchFlags matchFlags,
@@ -406,7 +406,7 @@ interface IRegEx : IUnknown
 
     HRESULT
     Replace(
-        [in] RegExBytes const* pInput,
+        RegExBytes input,
         RegExEncoding inputEncoding,
         LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string. Bytes before the offset are copied to output unchanged.
         RegExMatchFlags matchFlags,
@@ -416,7 +416,7 @@ interface IRegEx : IUnknown
 
     HRESULT
     ReplaceTo(
-        [in] RegExBytes const* pInput,
+        RegExBytes input,
         RegExEncoding inputEncoding,
         LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string. Bytes before the offset are copied to output unchanged.
         RegExMatchFlags matchFlags,
@@ -434,6 +434,12 @@ interface IRegEx : IUnknown
 ]
 interface IRegExMemoryStream : IStream
 {
+    // Returns a pointer to the backing buffer and its current logical size.
+    // The pointer is valid until the next call that may grow or reallocate
+    // the buffer (e.g. Write, Reserve, Reset, or Release).
+    [propget] HRESULT
+    Buffer([out, retval] RegExBytes* pValue);
+
     // Discard the buffered contents and reset the stream position to 0.
     // The underlying buffer capacity is retained for reuse.
     HRESULT
@@ -444,16 +450,7 @@ interface IRegExMemoryStream : IStream
     // position or the logical size. On error, leaves the stream unchanged and
     // returns E_OUTOFMEMORY.
     HRESULT
-    Reserve(
-        [in] LONGLONG capacity);
-
-    // Returns a pointer to the backing buffer and its current logical size.
-    // The pointer is valid until the next call that may grow or reallocate
-    // the buffer (e.g. Write, Reserve, Reset, or Release).
-    HRESULT
-    GetBuffer(
-        [out] LONGLONG* pData,
-        [out] LONGLONG* pSize);
+    Reserve([in] LONGLONG capacity);
 }
 
 [
@@ -591,13 +588,13 @@ interface IRegExLibrary : IUnknown
 
     HRESULT
     Transcode(
-        [in] RegExBytes const* pInput,
+        RegExBytes input,
         RegExEncoding inputEncoding,
         [out, retval] BSTR* pOutput);
 
     HRESULT
     TranscodeTo(
-        [in] RegExBytes const* pInput,
+        RegExBytes input,
         RegExEncoding inputEncoding,
         RegExEncoding outputEncoding,
         [in] ISequentialStream* outputStream);

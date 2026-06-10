@@ -67,13 +67,13 @@ public:
     // IRegExMemoryStream
 
     HRESULT STDMETHODCALLTYPE
+    get_Buffer(_Out_ RegExBytes* pValue) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
     Reset() noexcept override;
 
     HRESULT STDMETHODCALLTYPE
     Reserve(LONGLONG capacity) noexcept override;
-
-    HRESULT STDMETHODCALLTYPE
-    GetBuffer(_Out_ LONGLONG* pData, _Out_ LONGLONG* pSize) noexcept override;
 
 private:
 

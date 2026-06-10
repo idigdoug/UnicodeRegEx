@@ -72,24 +72,22 @@ template<class CharT = char>
 inline std::basic_string_view<CharT>
 StreamView(IRegExMemoryStream* stream) noexcept
 {
-    LONGLONG data = 0;
-    LONGLONG size = 0;
-    (void)stream->GetBuffer(&data, &size);
+    RegExBytes bytes = { 1, 1 };
+    (void)stream->get_Buffer(&bytes);
     return std::basic_string_view<CharT>(
-        reinterpret_cast<CharT const*>(static_cast<UINT_PTR>(data)),
-        static_cast<size_t>(size) / sizeof(CharT));
+        reinterpret_cast<CharT const*>(static_cast<UINT_PTR>(bytes.data)),
+        static_cast<size_t>(bytes.size) / sizeof(CharT));
 }
 
 // Returns a pointer + size view of the bytes written so far.
 inline std::span<BYTE const>
 StreamBytes(IRegExMemoryStream* stream) noexcept
 {
-    LONGLONG data = 0;
-    LONGLONG size = 0;
-    (void)stream->GetBuffer(&data, &size);
+    RegExBytes bytes = { 1, 1 };
+    (void)stream->get_Buffer(&bytes);
     return std::span<BYTE const>(
-        reinterpret_cast<BYTE const*>(static_cast<UINT_PTR>(data)),
-        static_cast<size_t>(size));
+        reinterpret_cast<BYTE const*>(static_cast<UINT_PTR>(bytes.data)),
+        static_cast<size_t>(bytes.size));
 }
 
 // Compiles a regex and returns the HRESULT and error code. Use for tests that

@@ -63,7 +63,7 @@ public:
 
     HRESULT STDMETHODCALLTYPE
     Match(
-        _In_ RegExBytes const* pInput,
+        RegExBytes input,
         RegExEncoding inputEncoding,
         LONGLONG startOffset,
         RegExMatchFlags flags,
@@ -71,7 +71,7 @@ public:
 
     HRESULT STDMETHODCALLTYPE
     Search(
-        _In_ RegExBytes const* pInput,
+        RegExBytes input,
         RegExEncoding inputEncoding,
         LONGLONG startOffset,
         RegExMatchFlags flags,
@@ -79,7 +79,7 @@ public:
 
     HRESULT STDMETHODCALLTYPE
     EnumerateMatches(
-        _In_ RegExBytes const* pInput,
+        RegExBytes input,
         RegExEncoding inputEncoding,
         LONGLONG startOffset,
         RegExMatchFlags flags,
@@ -87,7 +87,7 @@ public:
 
     HRESULT STDMETHODCALLTYPE
     Replace(
-        _In_ RegExBytes const* pInput,
+        RegExBytes input,
         RegExEncoding inputEncoding,
         LONGLONG startByteOffset,
         RegExMatchFlags matchFlags,
@@ -97,7 +97,7 @@ public:
 
     HRESULT STDMETHODCALLTYPE
     ReplaceTo(
-        _In_ RegExBytes const* pInput,
+        RegExBytes input,
         RegExEncoding inputEncoding,
         LONGLONG startByteOffset,
         RegExMatchFlags matchFlags,
@@ -110,7 +110,7 @@ private:
 
     void
     ReplaceImpl(
-        _In_ RegExBytes const* pInput,
+        RegExBytes const& input,
         RegExEncoding inputEncoding,
         UINT_PTR startByteOffset,
         _In_ BSTR formatTemplate,
@@ -119,7 +119,7 @@ private:
 
     HRESULT
     SearchImpl(
-        _In_ RegExBytes const* pInput,
+        RegExBytes const& input,
         RegExEncoding inputEncoding,
         LONGLONG startOffset,
         RegExMatchFlags flags,

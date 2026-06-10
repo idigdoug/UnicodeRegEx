@@ -290,6 +290,19 @@ RegExMemoryStream::Clone(_Outptr_ IStream** ppstm) noexcept
 }
 
 HRESULT STDMETHODCALLTYPE
+RegExMemoryStream::get_Buffer(_Out_ RegExBytes* pValue) noexcept
+{
+    if (pValue == nullptr)
+    {
+        return E_POINTER;
+    }
+
+    pValue->data = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(m_buffer.data()));
+    pValue->size = static_cast<LONGLONG>(m_buffer.size());
+    return S_OK;
+}
+
+HRESULT STDMETHODCALLTYPE
 RegExMemoryStream::Reset() noexcept
 {
     m_buffer.clear();
@@ -322,19 +335,6 @@ RegExMemoryStream::Reserve(LONGLONG capacity) noexcept
         return E_OUTOFMEMORY;
     }
 
-    return S_OK;
-}
-
-HRESULT STDMETHODCALLTYPE
-RegExMemoryStream::GetBuffer(_Out_ LONGLONG* pData, _Out_ LONGLONG* pSize) noexcept
-{
-    if (pData == nullptr || pSize == nullptr)
-    {
-        return E_POINTER;
-    }
-
-    *pData = static_cast<LONGLONG>(reinterpret_cast<UINT_PTR>(m_buffer.data()));
-    *pSize = static_cast<LONGLONG>(m_buffer.size());
     return S_OK;
 }
 

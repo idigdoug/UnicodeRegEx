@@ -21,7 +21,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     RegExMatchFlag_default,
@@ -43,7 +43,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     RegExMatchFlag_default,
@@ -64,7 +64,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     RegExMatchFlag_default,
@@ -86,7 +86,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     RegExMatchFlag_default,
@@ -108,7 +108,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     RegExMatchFlag_default,
@@ -129,7 +129,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     RegExMatchFlag_default,
@@ -150,7 +150,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf16le,
                     0,
                     RegExMatchFlag_default,
@@ -173,7 +173,7 @@ namespace RegExTests
             Assert::AreEqual(
                 E_INVALIDARG,
                 regex->Replace(
-                    &bytes,
+                    bytes,
                     RegExEncoding_utf16le,
                     0,
                     RegExMatchFlag_default,
@@ -193,7 +193,7 @@ namespace RegExTests
             Assert::AreEqual(
                 E_INVALIDARG,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     static_cast<RegExMatchFlags>(boost::regex_constants::match_prev_avail),
@@ -213,7 +213,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->ReplaceTo(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     RegExMatchFlag_default,
@@ -236,7 +236,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->ReplaceTo(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     RegExMatchFlag_default,
@@ -258,7 +258,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->ReplaceTo(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     RegExMatchFlag_default,
@@ -279,7 +279,7 @@ namespace RegExTests
             Assert::AreEqual(
                 E_POINTER,
                 regex->ReplaceTo(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     RegExMatchFlag_default,
@@ -300,7 +300,7 @@ namespace RegExTests
             Assert::AreEqual(
                 E_INVALIDARG,
                 regex->ReplaceTo(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     RegExMatchFlag_default,
@@ -321,7 +321,7 @@ namespace RegExTests
             Assert::AreEqual(
                 E_INVALIDARG,
                 regex->ReplaceTo(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     static_cast<RegExMatchFlags>(boost::regex_constants::match_prev_avail),
@@ -345,7 +345,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     RegExMatchFlag_default,
@@ -366,7 +366,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     RegExMatchFlag_default,
@@ -388,7 +388,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     RegExMatchFlag_default,
@@ -412,7 +412,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     RegExMatchFlag_default,
@@ -434,7 +434,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     0,
                     RegExMatchFlag_default,
@@ -460,7 +460,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     4,
                     RegExMatchFlag_default,
@@ -482,7 +482,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     4,
                     RegExMatchFlag_default,
@@ -505,7 +505,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     7,
                     RegExMatchFlag_default,
@@ -526,7 +526,7 @@ namespace RegExTests
             Assert::AreEqual(
                 E_INVALIDARG,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     4,
                     RegExMatchFlag_default,
@@ -549,7 +549,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     6,
                     RegExMatchFlag_default,
@@ -572,7 +572,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     4,
                     RegExMatchFlag_default,
@@ -595,7 +595,7 @@ namespace RegExTests
             Assert::AreEqual(
                 S_OK,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf16le,
                     8,
                     RegExMatchFlag_default,
@@ -617,7 +617,7 @@ namespace RegExTests
             Assert::AreEqual(
                 E_INVALIDARG,
                 regex->Replace(
-                    &inputBytes,
+                    inputBytes,
                     RegExEncoding_utf8,
                     1,
                     RegExMatchFlag_default,

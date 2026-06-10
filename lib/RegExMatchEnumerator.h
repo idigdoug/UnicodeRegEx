@@ -8,7 +8,7 @@ public:
 
     RegExMatchEnumerator(
         _In_ RegEx* regex,
-        _In_ RegExBytes const* pInput,
+        RegExBytes const& input,
         RegExEncoding inputEncoding,
         _In_ UINT_PTR startByteOffset,
         RegExMatchFlags matchFlags);

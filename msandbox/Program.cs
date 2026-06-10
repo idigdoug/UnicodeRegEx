@@ -15,7 +15,7 @@
             {
                 var regex = RegEx.Create("pat*ern");
 
-                foreach (var match in regex.Matches(
+                foreach (var match in regex.MatchEnumerator(
                     "Input patterns and paerns",
                     formatTemplate: "<$0-$0>"))
                 {

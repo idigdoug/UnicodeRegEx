@@ -33,7 +33,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
+                regex->Search(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};
@@ -56,7 +56,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Match(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
+                regex->Match(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNull(results.get());
         }
 
@@ -73,7 +73,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Match(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
+                regex->Match(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
         }
 
@@ -90,7 +90,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
+                regex->Search(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};
@@ -108,7 +108,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"abc 12345 def"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};
@@ -126,7 +126,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"a   b"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};
@@ -144,7 +144,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"hello WORLD"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};
@@ -162,7 +162,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"HELLO world"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};
@@ -180,7 +180,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"abc!@#xyz"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};
@@ -201,7 +201,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"a\tb"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};
@@ -224,7 +224,7 @@ namespace RegExTests
             };
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(&inputBytes, RegExEncoding_latin1, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExEncoding_latin1, 0, RegExMatchFlag_default, results.put());
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};
@@ -243,7 +243,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"xyzABC"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};
@@ -263,7 +263,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"caesar"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};
@@ -285,7 +285,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"xyzA"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(&inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};

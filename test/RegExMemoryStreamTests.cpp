@@ -698,27 +698,19 @@ namespace RegExTests
             Assert::AreEqual(E_OUTOFMEMORY, stream->Reserve(INT64_MAX));
         }
 
-        TEST_METHOD(GetBuffer_NullData_ReturnsPointer)
+        TEST_METHOD(GetBuffer_Null_ReturnsPointer)
         {
             auto stream = MakeMemoryStream();
             LONGLONG size = 0;
-            Assert::AreEqual(E_POINTER, stream->GetBuffer(nullptr, &size));
-        }
-
-        TEST_METHOD(GetBuffer_NullSize_ReturnsPointer)
-        {
-            auto stream = MakeMemoryStream();
-            LONGLONG data = 0;
-            Assert::AreEqual(E_POINTER, stream->GetBuffer(&data, nullptr));
+            Assert::AreEqual(E_POINTER, stream->get_Buffer(nullptr));
         }
 
         TEST_METHOD(GetBuffer_EmptyStream_ReturnsZeroSize)
         {
             auto stream = MakeMemoryStream();
-            LONGLONG data = 0;
-            LONGLONG size = 0;
-            Assert::AreEqual(S_OK, stream->GetBuffer(&data, &size));
-            Assert::AreEqual(LONGLONG(0), size);
+            RegExBytes bytes = { 1, 1 };
+            Assert::AreEqual(S_OK, stream->get_Buffer(&bytes));
+            Assert::AreEqual(LONGLONG(0), bytes.size);
         }
 
         TEST_METHOD(GetBuffer_AfterWrite_ReturnsLogicalSize)
@@ -726,13 +718,12 @@ namespace RegExTests
             auto stream = MakeMemoryStream();
             stream->Write("hello", 5, nullptr);
 
-            LONGLONG data = 0;
-            LONGLONG size = 0;
-            Assert::AreEqual(S_OK, stream->GetBuffer(&data, &size));
-            Assert::AreEqual(LONGLONG(5), size);
-            Assert::IsTrue(data != 0);
+            RegExBytes bytes = { 1, 1 };
+            Assert::AreEqual(S_OK, stream->get_Buffer(&bytes));
+            Assert::AreEqual(LONGLONG(5), bytes.size);
+            Assert::IsTrue(bytes.data != 0);
 
-            auto const* p = reinterpret_cast<BYTE const*>(static_cast<UINT_PTR>(data));
+            auto const* p = reinterpret_cast<BYTE const*>(static_cast<UINT_PTR>(bytes.data));
             Assert::AreEqual(0, memcmp(p, "hello", 5));
         }
 
@@ -742,10 +733,9 @@ namespace RegExTests
             stream->Write("hello", 5, nullptr);
             stream->Reset();
 
-            LONGLONG data = 0;
-            LONGLONG size = 0;
-            Assert::AreEqual(S_OK, stream->GetBuffer(&data, &size));
-            Assert::AreEqual(LONGLONG(0), size);
+            RegExBytes bytes = { 1, 1 };
+            Assert::AreEqual(S_OK, stream->get_Buffer(&bytes));
+            Assert::AreEqual(LONGLONG(0), bytes.size);
         }
     };
 }

@@ -139,29 +139,29 @@ RegEx::get_Lcid(
 
 HRESULT
 RegEx::Match(
-    _In_ RegExBytes const* pInput,
+    RegExBytes input,
     RegExEncoding inputEncoding,
     LONGLONG startByteOffset,
     RegExMatchFlags flags,
     _Outptr_result_maybenull_ IRegExMatchResults** ppResults) noexcept
 {
-    return SearchImpl(pInput, inputEncoding, startByteOffset, flags, true, ppResults);
+    return SearchImpl(input, inputEncoding, startByteOffset, flags, true, ppResults);
 }
 
 HRESULT
 RegEx::Search(
-    _In_ RegExBytes const* pInput,
+    RegExBytes input,
     RegExEncoding inputEncoding,
     LONGLONG startByteOffset,
     RegExMatchFlags flags,
     _Outptr_result_maybenull_ IRegExMatchResults** ppResults) noexcept
 {
-    return SearchImpl(pInput, inputEncoding, startByteOffset, flags, false, ppResults);
+    return SearchImpl(input, inputEncoding, startByteOffset, flags, false, ppResults);
 }
 
 HRESULT
 RegEx::EnumerateMatches(
-    _In_ RegExBytes const* pInput,
+    RegExBytes input,
     RegExEncoding inputEncoding,
     LONGLONG startByteOffset,
     RegExMatchFlags flags,
@@ -179,13 +179,13 @@ RegEx::EnumerateMatches(
     {
         hr = E_INVALIDARG;
     }
-    else if (startOffsetU > static_cast<UINT_PTR>(pInput->size))
+    else if (startOffsetU > static_cast<UINT_PTR>(input.size))
     {
         hr = E_INVALIDARG;
     }
     else try
     {
-        pEnumerator = std::make_unique<RegExMatchEnumerator>(this, pInput, inputEncoding, startOffsetU, flags);
+        pEnumerator = std::make_unique<RegExMatchEnumerator>(this, input, inputEncoding, startOffsetU, flags);
         hr = S_OK;
     }
     catch (...)
@@ -199,7 +199,7 @@ RegEx::EnumerateMatches(
 
 HRESULT
 RegEx::Replace(
-    _In_ RegExBytes const* pInput,
+    RegExBytes input,
     RegExEncoding inputEncoding,
     LONGLONG startByteOffset,
     RegExMatchFlags matchFlags,
@@ -214,7 +214,7 @@ RegEx::Replace(
     UINT_PTR const startOffsetU = static_cast<UINT_PTR>(startByteOffset);
     if (!RegExEncodingIsValid(inputEncoding) ||
         (flags & boost::match_prev_avail) ||
-        startOffsetU > static_cast<UINT_PTR>(pInput->size))
+        startOffsetU > static_cast<UINT_PTR>(input.size))
     {
         return E_INVALIDARG;
     }
@@ -224,7 +224,7 @@ RegEx::Replace(
     {
         OutputSink outputSink;
         outputSink.ResetToVector(RegExEncoding_utf16le);
-        ReplaceImpl(pInput, inputEncoding, startOffsetU, formatTemplate, flags, outputSink);
+        ReplaceImpl(input, inputEncoding, startOffsetU, formatTemplate, flags, outputSink);
         auto output = outputSink.FinishVector();
         *pOutputString = SysAllocStringLen(
             reinterpret_cast<OLECHAR const*>(output.data()),
@@ -241,7 +241,7 @@ RegEx::Replace(
 
 HRESULT
 RegEx::ReplaceTo(
-    _In_ RegExBytes const* pInput,
+    RegExBytes input,
     RegExEncoding inputEncoding,
     LONGLONG startByteOffset,
     RegExMatchFlags matchFlags,
@@ -261,7 +261,7 @@ RegEx::ReplaceTo(
     if (!RegExEncodingIsValid(inputEncoding) ||
         !RegExEncodingIsValid(outputEncoding) ||
         (flags & boost::match_prev_avail) ||
-        startOffsetU > static_cast<UINT_PTR>(pInput->size))
+        startOffsetU > static_cast<UINT_PTR>(input.size))
     {
         return E_INVALIDARG;
     }
@@ -271,7 +271,7 @@ RegEx::ReplaceTo(
     {
         OutputSink outputSink;
         outputSink.ResetToStream(outputEncoding, outputStream);
-        ReplaceImpl(pInput, inputEncoding, startOffsetU, formatTemplate, flags, outputSink);
+        ReplaceImpl(input, inputEncoding, startOffsetU, formatTemplate, flags, outputSink);
         outputSink.FinishStream();
         hr = S_OK;
     }
@@ -285,7 +285,7 @@ RegEx::ReplaceTo(
 
 void
 RegEx::ReplaceImpl(
-    _In_ RegExBytes const* pInput,
+    RegExBytes const& input,
     RegExEncoding inputEncoding,
     UINT_PTR startByteOffset,
     _In_ BSTR formatTemplate,
@@ -295,8 +295,8 @@ RegEx::ReplaceImpl(
     auto formatSpan = std::span(reinterpret_cast<char16_t const*>(formatTemplate), SysStringLen(formatTemplate));
     auto formatIterators = utf16le::CodePointIterator::FromSpan(formatSpan);
     std::u32string const format(formatIterators.begin, formatIterators.end);
-    auto inputData = reinterpret_cast<void const*>(static_cast<UINT_PTR>(pInput->data));
-    auto inputSize = static_cast<size_t>(pInput->size);
+    auto inputData = reinterpret_cast<void const*>(static_cast<UINT_PTR>(input.data));
+    auto inputSize = static_cast<size_t>(input.size);
 
     // Driver shared by all encodings: mirrors boost::regex_replace's structure but
     // uses MatchEnumerator so we get the corrected iteration semantics (the same
@@ -363,7 +363,7 @@ RegEx::ReplaceImpl(
 
 HRESULT
 RegEx::SearchImpl(
-    _In_ RegExBytes const* pInput,
+    RegExBytes const& input,
     RegExEncoding inputEncoding,
     LONGLONG startByteOffset,
     RegExMatchFlags flags,
@@ -376,13 +376,13 @@ RegEx::SearchImpl(
 
     if (!RegExEncodingIsValid(inputEncoding) ||
         (flags & static_cast<RegExMatchFlags>(boost::match_prev_avail)) ||
-        startOffsetU > static_cast<UINT_PTR>(pInput->size))
+        startOffsetU > static_cast<UINT_PTR>(input.size))
     {
         hr = E_INVALIDARG;
     }
     else try
     {
-        hr = RegExMatchResults::Search(this, pInput, inputEncoding, startOffsetU, flags, wholeStringMatch, &pResults);
+        hr = RegExMatchResults::Search(this, input, inputEncoding, startOffsetU, flags, wholeStringMatch, &pResults);
     }
     catch (...)
     {
