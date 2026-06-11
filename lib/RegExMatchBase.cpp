@@ -210,8 +210,8 @@ RegExMatchBase::Format(_Out_ BSTR* pOutputString) noexcept
 
 HRESULT
 RegExMatchBase::FormatTo(
-    RegExEncoding outputEncoding,
-    _In_ ISequentialStream* outputStream) noexcept
+    _In_ ISequentialStream* outputStream,
+    RegExEncoding outputEncoding) noexcept
 {
     HRESULT hr;
 
@@ -301,8 +301,8 @@ HRESULT
 RegExMatchBase::CopyInputTo(
     LONGLONG inputOffset,
     LONGLONG size,
-    RegExEncoding outputEncoding,
-    _In_ ISequentialStream* outputStream) noexcept
+    _In_ ISequentialStream* outputStream,
+    RegExEncoding outputEncoding) noexcept
 {
     if (outputStream == nullptr)
     {

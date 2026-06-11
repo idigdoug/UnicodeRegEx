@@ -447,8 +447,8 @@ HRESULT
 RegExLibrary::TranscodeTo(
     RegExBytes input,
     RegExEncoding inputEncoding,
-    RegExEncoding outputEncoding,
-    _In_ ISequentialStream* outputStream) noexcept
+    _In_ ISequentialStream* outputStream,
+    RegExEncoding outputEncoding) noexcept
 {
     if (outputStream == nullptr)
     {

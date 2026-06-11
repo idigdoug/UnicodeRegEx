@@ -13,13 +13,17 @@
         {
             try
             {
-                var regex = RegEx.Create("pat*ern");
-
-                foreach (var match in regex.MatchEnumerator(
-                    "Input patterns and paerns",
-                    formatTemplate: "<$0-$0>"))
+                using (var str = new BytesPin("Input patterns and paerns"))
                 {
-                    Console.WriteLine(match.Format());
+                    var regex = RegEx.Create("pat*ern");
+
+                    foreach (var match in regex.EnumerateMatches(
+                        str,
+                        RegExEncoding.RegExEncoding_utf16le,
+                        formatTemplate: "<$0-$0>"))
+                    {
+                        Console.WriteLine(match.Format());
+                    }
                 }
             }
             catch (Exception ex)

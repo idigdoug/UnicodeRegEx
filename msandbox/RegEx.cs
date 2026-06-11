@@ -2,182 +2,66 @@ namespace msandbox
 {
     using RepStrRegEx;
     using System;
+    using System.Runtime.CompilerServices;
     using System.Runtime.InteropServices;
     using System.Text;
 
-    /// <summary>
-    /// Exception thrown by RegEx.Create when pattern parsing fails.
-    /// </summary>
-    internal class RegExException : Exception
+    internal sealed class BytesPin : IDisposable
     {
-        private readonly string pattern;
-        private readonly RegExSyntaxFlags syntaxFlags;
-        private readonly RegExErrorCode errorCode;
-        private readonly string nativeMessage;
+        nuint size;
+        GCHandle handle;
 
-        public string Pattern => pattern;
-        public RegExSyntaxFlags SyntaxFlags => syntaxFlags;
-        public RegExErrorCode ErrorCode => errorCode;
-        public string NativeMessage => nativeMessage;
-
-        public RegExException(string pattern, RegExSyntaxFlags syntaxFlags, RegExErrorCode errorCode, string? nativeMessage)
-            : base(FormatMessage(pattern, errorCode, nativeMessage))
+        ~BytesPin()
         {
-            this.pattern = pattern;
-            this.syntaxFlags = syntaxFlags;
-            this.errorCode = errorCode;
-            this.nativeMessage = nativeMessage ?? errorCode.ToString();
-        }
-
-        private static string FormatMessage(string pattern, RegExErrorCode errorCode, string? nativeMessage)
-        {
-            if (nativeMessage == null)
+            if (handle.IsAllocated)
             {
-                return $"Failed to compile regex ({errorCode}): {pattern}";
-            }
-            else
-            {
-                return $"Failed to compile regex ({errorCode}, {nativeMessage}): {pattern}";
-            }
-        }
-    }
-
-    internal static class RegExExtensions
-    {
-        /// <summary>
-        /// Iterate matches over a string (will be pinned for the duration of iteration).
-        /// </summary>
-        public static RegExMatchEnumerator MatchEnumerator(
-            this IRegEx self,
-            string data,
-            RegExMatchFlags matchFlags = RegExMatchFlags.RegExMatchFlag_default,
-            string? formatTemplate = null,
-            RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
-            => new RegExMatchEnumerator(self, data, matchFlags, formatTemplate, formatFlags);
-
-        /// <summary>
-        /// Iterate matches over a byte array + encoding (will be pinned for the duration of iteration).
-        /// </summary>
-        public static RegExMatchEnumerator MatchEnumerator(
-            this IRegEx self,
-            byte[] data,
-            RegExEncoding encoding,
-            RegExMatchFlags matchFlags = RegExMatchFlags.RegExMatchFlag_default,
-            string? formatTemplate = null,
-            RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
-            => new RegExMatchEnumerator(self, data, encoding, matchFlags, formatTemplate, formatFlags);
-
-        /// <summary>
-        /// Iterate matches over pinned bytes + encoding.
-        /// The caller must ensure the data remains valid for the lifetime of enumeration.
-        /// </summary>
-        public static unsafe RegExMatchEnumerator MatchEnumerator(
-            this IRegEx self,
-            nuint data,
-            nuint size,
-            RegExEncoding encoding,
-            RegExMatchFlags matchFlags = RegExMatchFlags.RegExMatchFlag_default,
-            string? formatTemplate = null,
-            RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
-            => new RegExMatchEnumerator(self, data, size, encoding, matchFlags, formatTemplate, formatFlags);
-
-        /// <summary>
-        /// Iterate matches over pinned bytes + encoding.
-        /// The caller must ensure the data remains valid for the lifetime of enumeration.
-        /// </summary>
-        public static unsafe RegExMatchEnumerator MatchEnumerator(
-            this IRegEx self,
-            void* data,
-            nuint size,
-            RegExEncoding encoding,
-            RegExMatchFlags matchFlags = RegExMatchFlags.RegExMatchFlag_default,
-            string? formatTemplate = null,
-            RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
-            => new RegExMatchEnumerator(self, data, size, encoding, matchFlags, formatTemplate, formatFlags);
-    }
-
-    internal ref struct RegExMatchEnumerator
-    {
-        private GCHandle pin;
-        private IRegExMatchEnumerator enumerator;
-
-        private RegExMatchEnumerator(
-            IRegEx regex,
-            GCHandle pin,
-            nuint data,
-            nuint size,
-            RegExEncoding encoding,
-            RegExMatchFlags matchFlags,
-            string? formatTemplate,
-            RegExFormatFlags formatFlags)
-        {
-            this.pin = pin;
-            var inputString = new PinnedBytes(
-                pin.IsAllocated ? (nuint)(nint)pin.AddrOfPinnedObject() : data,
-                size);
-            this.enumerator = regex.EnumerateMatches(inputString, encoding, 0, matchFlags);
-            if (formatTemplate != null)
-            {
-                enumerator.SetFormatTemplate(formatTemplate, formatFlags);
+                handle.Free();
             }
         }
 
-        /// <summary>
-        /// Creates an enumerator that pins a string for the duration of iteration.
-        /// </summary>
-        public RegExMatchEnumerator(IRegEx regex, string data, RegExMatchFlags matchFlags, string? formatTemplate = null, RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
-            : this(regex, GCHandle.Alloc(data, GCHandleType.Pinned), 0, (uint)(data.Length * sizeof(char)), RegExEncoding.RegExEncoding_utf16le, matchFlags, formatTemplate, formatFlags)
+        public BytesPin(string value)
         {
+            this.size = (uint)value.Length * sizeof(char);
+            this.handle = GCHandle.Alloc(value, GCHandleType.Pinned);
         }
 
-        /// <summary>
-        /// Creates an enumerator that pins a byte array for the duration of iteration.
-        /// </summary>
-        public RegExMatchEnumerator(IRegEx regex, byte[] data, RegExEncoding encoding, RegExMatchFlags matchFlags, string? formatTemplate = null, RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
-            : this(regex, GCHandle.Alloc(data, GCHandleType.Pinned), 0, (uint)data.Length, encoding, matchFlags, formatTemplate, formatFlags)
+        public BytesPin(byte[] value)
         {
+            this.size = (uint)value.Length;
+            this.handle = GCHandle.Alloc(value, GCHandleType.Pinned);
         }
 
-        /// <summary>
-        /// Creates an enumerator over already-stable data.
-        /// </summary>
-        public RegExMatchEnumerator(IRegEx regex, nuint data, nuint size, RegExEncoding encoding, RegExMatchFlags matchFlags, string? formatTemplate = null, RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
-            : this(regex, default, data, size, encoding, matchFlags, formatTemplate, formatFlags)
-        {
-        }
-
-        /// <summary>
-        /// Creates an enumerator over already-stable data.
-        /// </summary>
-        public unsafe RegExMatchEnumerator(IRegEx regex, void* data, nuint size, RegExEncoding encoding, RegExMatchFlags matchFlags, string? formatTemplate = null, RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
-            : this(regex, default, (nuint)data, size, encoding, matchFlags, formatTemplate, formatFlags)
-        {
-        }
-
-        public RegExMatchEnumerator GetEnumerator() => this;
-
-        public IRegExMatchEnumerator Current => enumerator;
-
-        public bool MoveNext() => enumerator.NextMatch();
+        public static implicit operator PinnedBytes(BytesPin self) => new PinnedBytes((nuint)(nint)self.handle.AddrOfPinnedObject(), self.size);
 
         public void Dispose()
         {
-            if (enumerator != null)
+            if (handle.IsAllocated)
             {
-                Marshal.FinalReleaseComObject(enumerator);
-            }
-
-            if (pin.IsAllocated)
-            {
-                pin.Free();
+                handle.Free();
+                GC.SuppressFinalize(this);
             }
         }
     }
 
     internal ref struct PinnedBytes
     {
+        private static Encoding? encodingLatin1; // ISO-8859-1 = GetEncoding(28591)
         private nuint data;
         private nuint size;
+        private static Encoding EncodingLatin1
+        {
+            get
+            {
+                var enc = encodingLatin1;
+                if (enc == null)
+                {
+                    enc = Encoding.GetEncoding(28591);
+                    encodingLatin1 = enc;
+                }
+
+                return enc;
+            }
+        }
 
         public PinnedBytes(nuint data, nuint size)
         {
@@ -193,7 +77,7 @@ namespace msandbox
         public PinnedBytes(long data, long size)
             : this(unchecked((nuint)data), checked((nuint)size)) { }
 
-        public PinnedBytes(IntPtr data, int size)
+        public PinnedBytes(nint data, int size)
             : this(unchecked((nuint)(nint)data), checked((nuint)size)) { }
 
         public unsafe PinnedBytes(void* data, long size)
@@ -315,7 +199,7 @@ namespace msandbox
                 switch (encoding)
                 {
                     case RegExEncoding.RegExEncoding_latin1:
-                        return RegEx.EncodingLatin1.GetString(this.DataPtr, this.SizeInt);
+                        return EncodingLatin1.GetString(this.DataPtr, this.SizeInt);
                     case RegExEncoding.RegExEncoding_utf8:
                         return Encoding.UTF8.GetString(this.DataPtr, this.SizeInt);
                     case RegExEncoding.RegExEncoding_utf16le:
@@ -330,24 +214,47 @@ namespace msandbox
         }
     }
 
-    internal static class RegEx
+    internal struct RegEx
     {
-        private static Encoding? encodingLatin1; // ISO-8859-1 = GetEncoding(28591)
+        private static IRegExLibrary? library;
+        private IRegEx inner;
 
-        public static Encoding EncodingLatin1
+        private static IRegExLibrary Library
         {
             get
             {
-                if (encodingLatin1 == null)
+                var value = library;
+                if (value == null)
                 {
-                    encodingLatin1 = Encoding.GetEncoding(28591);
+                    int hr;
+                    switch (RuntimeInformation.ProcessArchitecture)
+                    {
+                        case Architecture.X86:
+                            hr = NativeMethods.X86.RepStrRegExLibraryCreate(out value);
+                            break;
+                        case Architecture.X64:
+                            hr = NativeMethods.X64.RepStrRegExLibraryCreate(out value);
+                            break;
+                        case Architecture.Arm64:
+                            hr = NativeMethods.Arm64.RepStrRegExLibraryCreate(out value);
+                            break;
+                        default:
+                            throw new PlatformNotSupportedException($"Unsupported architecture: {RuntimeInformation.ProcessArchitecture}");
+                    }
+
+                    if (hr < 0)
+                    {
+                        Marshal.ThrowExceptionForHR(hr);
+                    }
+
+                    library = value;
                 }
 
-                return encodingLatin1;
+                return value;
             }
         }
 
-        public static IRegEx Create(
+        public static RegEx Create(
             string pattern,
             RegExSyntaxFlags syntaxFlags = RegExSyntaxFlags.RegExSyntaxFlags_ECMAScript,
             int lcid = 0)
@@ -357,7 +264,7 @@ namespace msandbox
             RegExErrorCode errorCode = RegExErrorCode.RegExErrorCode_unknown;
             try
             {
-                return GetLibrary().CreateRegEx(pattern, syntaxFlags, (uint)lcid, out errorCode);
+                return new RegEx(Library.CreateRegEx(pattern, syntaxFlags, (uint)lcid, out errorCode));
             }
             catch (COMException ex) when (ex.HResult == MK_E_SYNTAX)
             {
@@ -365,38 +272,74 @@ namespace msandbox
             }
         }
 
-        private static IRegExLibrary? s_library;
-
-        private static IRegExLibrary GetLibrary()
+        private RegEx(IRegEx inner)
         {
-            if (s_library == null)
+            this.inner = inner;
+        }
+
+        public string Pattern => inner.Pattern;
+
+        public RegExSyntaxFlags Flags => inner.Flags;
+
+        public uint Lcid => inner.Lcid;
+
+        public RegExMatchResults Match(
+            PinnedBytes input,
+            RegExEncoding inputEncoding,
+            long startByteOffset = 0,
+            RegExMatchFlags matchFlags = RegExMatchFlags.RegExMatchFlag_default)
+        {
+            return new RegExMatchResults(inner.Match(input, inputEncoding, (long)startByteOffset, matchFlags));
+        }
+
+        public RegExMatchResults Search(
+            PinnedBytes input,
+            RegExEncoding inputEncoding,
+            long startByteOffset = 0,
+            RegExMatchFlags matchFlags = RegExMatchFlags.RegExMatchFlag_default)
+        {
+            return new RegExMatchResults(inner.Search(input, inputEncoding, (long)startByteOffset, matchFlags));
+        }
+
+        public RegExMatchEnumerator EnumerateMatches(
+            PinnedBytes input,
+            RegExEncoding inputEncoding,
+            nuint startByteOffset = 0,
+            RegExMatchFlags matchFlags = RegExMatchFlags.RegExMatchFlag_default,
+            string? formatTemplate = null,
+            RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
+        {
+            var enumerator = inner.EnumerateMatches(input, inputEncoding, (long)startByteOffset, matchFlags);
+            if (formatTemplate != null)
             {
-                IRegExLibrary library;
-                int hr;
-                switch (RuntimeInformation.ProcessArchitecture)
-                {
-                    case Architecture.X86:
-                        hr = NativeMethods.X86.RepStrRegExLibraryCreate(out library);
-                        break;
-                    case Architecture.X64:
-                        hr = NativeMethods.X64.RepStrRegExLibraryCreate(out library);
-                        break;
-                    case Architecture.Arm64:
-                        hr = NativeMethods.Arm64.RepStrRegExLibraryCreate(out library);
-                        break;
-                    default:
-                        throw new PlatformNotSupportedException($"Unsupported architecture: {RuntimeInformation.ProcessArchitecture}");
-                }
-
-                if (hr < 0)
-                {
-                    Marshal.ThrowExceptionForHR(hr);
-                }
-
-                s_library = library;
+                enumerator.SetFormatTemplate(formatTemplate, formatFlags);
             }
 
-            return s_library;
+            return new RegExMatchEnumerator(enumerator);
+        }
+
+        public string Replace(
+            PinnedBytes input,
+            RegExEncoding inputEncoding,
+            nuint startByteOffset,
+            RegExMatchFlags matchFlags,
+            string formatTemplate,
+            RegExFormatFlags formatFlags = RegExFormatFlags.RegExFormatFlag_perl)
+        {
+            return inner.Replace(input, inputEncoding, (long)startByteOffset, matchFlags, formatTemplate, formatFlags);
+        }
+
+        public void ReplaceTo(
+            PinnedBytes input,
+            RegExEncoding inputEncoding,
+            nuint startByteOffset,
+            RegExMatchFlags matchFlags,
+            string formatTemplate,
+            RegExFormatFlags formatFlags,
+            ISequentialStream outputStream,
+            RegExEncoding outputEncoding)
+        {
+            inner.ReplaceTo(input, inputEncoding, (long)startByteOffset, matchFlags, formatTemplate, formatFlags, outputStream, outputEncoding);
         }
 
         private static class NativeMethods
@@ -426,6 +369,118 @@ namespace msandbox
                 [DllImport(RepStrRegExLib, ExactSpelling = true, PreserveSig = true)]
                 public static extern int RepStrRegExLibraryCreate(
                     [MarshalAs(UnmanagedType.Interface)] out IRegExLibrary library);
+            }
+        }
+    }
+
+    internal ref struct RegExMatchResults
+    {
+        private readonly IRegExMatchResults inner;
+
+        public RegExMatchResults(IRegExMatchResults inner)
+        {
+            this.inner = inner;
+        }
+
+        public PinnedBytes Input => inner.Input;
+
+        public RegExEncoding InputEncoding => inner.InputEncoding;
+
+        public int SubMatchCount => (int)inner.SubMatchCount;
+
+        public RegExSubMatch GetSubMatch(int subMatchIndex) => inner.GetSubMatch((uint)subMatchIndex);
+
+        public void SetFormatTemplate(string formatTemplate, RegExFormatFlags formatFlags)
+        {
+            inner.SetFormatTemplate(formatTemplate, formatFlags);
+        }
+
+        public string Format()
+        {
+            return inner.Format();
+        }
+
+        public void FormatTo(ISequentialStream outputStream, RegExEncoding outputEncoding)
+        {
+            inner.FormatTo(outputStream, outputEncoding);
+        }
+
+        public string CopyInput(nuint inputOffset, int size)
+        {
+            return inner.CopyInput((long)inputOffset, checked((uint)size));
+        }
+
+        public void CopyInputTo(nuint inputOffset, nuint size, ISequentialStream outputStream, RegExEncoding outputEncoding)
+        {
+            inner.CopyInputTo((long)inputOffset, (long)size, outputStream, outputEncoding);
+        }
+
+        public void Dispose()
+        {
+            if (inner != null)
+            {
+                Marshal.FinalReleaseComObject(inner);
+            }
+        }
+    }
+
+    internal ref struct RegExMatchEnumerator
+    {
+        private readonly IRegExMatchEnumerator inner;
+
+        public RegExMatchEnumerator(IRegExMatchEnumerator inner)
+        {
+            this.inner = inner;
+        }
+
+        public RegExMatchEnumerator GetEnumerator() => this;
+
+        public RegExMatchResults Current => new RegExMatchResults(inner);
+
+        public bool MoveNext() => inner.NextMatch();
+
+        public void Dispose()
+        {
+            if (inner != null)
+            {
+                Marshal.FinalReleaseComObject(inner);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Exception thrown by RegEx.Create when pattern parsing fails.
+    /// </summary>
+    internal class RegExException : Exception
+    {
+        private readonly string pattern;
+        private readonly RegExSyntaxFlags syntaxFlags;
+        private readonly RegExErrorCode errorCode;
+        private readonly string nativeMessage;
+
+        public string Pattern => pattern;
+        public RegExSyntaxFlags SyntaxFlags => syntaxFlags;
+        public RegExErrorCode ErrorCode => errorCode;
+        public string NativeMessage => nativeMessage;
+
+        public RegExException(string pattern, RegExSyntaxFlags syntaxFlags, RegExErrorCode errorCode, string? nativeMessage)
+            : base(FormatMessage(pattern, errorCode, nativeMessage))
+        {
+            this.pattern = pattern;
+            this.syntaxFlags = syntaxFlags;
+            this.errorCode = errorCode;
+            this.nativeMessage = nativeMessage ?? errorCode.ToString();
+        }
+
+        private static string FormatMessage(string pattern, RegExErrorCode errorCode, string? nativeMessage)
+        {
+            if (nativeMessage == null)
+            {
+                return $"Failed to compile regex ({errorCode}): {pattern}";
+            }
+            else
+            {
+                return $"Failed to compile regex ({errorCode}, {nativeMessage}): {pattern}";
             }
         }
     }

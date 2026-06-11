@@ -247,8 +247,8 @@ RegEx::ReplaceTo(
     RegExMatchFlags matchFlags,
     _In_ BSTR formatTemplate,
     RegExFormatFlags formatFlags,
-    RegExEncoding outputEncoding,
-    _In_ ISequentialStream* outputStream) noexcept
+    _In_ ISequentialStream* outputStream,
+    RegExEncoding outputEncoding) noexcept
 {
     if (outputStream == nullptr)
     {

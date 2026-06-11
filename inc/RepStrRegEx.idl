@@ -318,8 +318,8 @@ interface IRegExMatchResults : IUnknown
     // Returns E_NOT_VALID_STATE if called before first match or after enumeration finished.
     HRESULT
     FormatTo(
-        RegExEncoding outputEncoding,
-        [in] ISequentialStream* outputStream);
+        [in] ISequentialStream* outputStream,
+        RegExEncoding outputEncoding);
 
     // Converts the specified portion of the input to a BSTR and returns it.
     // Typically used with offsets returned by GetSubMatch.
@@ -336,8 +336,8 @@ interface IRegExMatchResults : IUnknown
     CopyInputTo(
         LONGLONG inputOffset,
         LONGLONG size,
-        RegExEncoding outputEncoding,
-        [in] ISequentialStream* outputStream);
+        [in] ISequentialStream* outputStream,
+        RegExEncoding outputEncoding);
 };
 
 [
@@ -422,8 +422,8 @@ interface IRegEx : IUnknown
         RegExMatchFlags matchFlags,
         [in] BSTR formatTemplate,
         RegExFormatFlags formatFlags,
-        RegExEncoding outputEncoding,
-        [in] ISequentialStream* outputStream);
+        [in] ISequentialStream* outputStream,
+        RegExEncoding outputEncoding);
 }
 
 [
@@ -596,8 +596,8 @@ interface IRegExLibrary : IUnknown
     TranscodeTo(
         RegExBytes input,
         RegExEncoding inputEncoding,
-        RegExEncoding outputEncoding,
-        [in] ISequentialStream* outputStream);
+        [in] ISequentialStream* outputStream,
+        RegExEncoding outputEncoding);
 
     // Create an in-memory stream. The returned object is apartment-threaded.
     // initialCapacity is a hint for the initial buffer size; pass 0 for the

@@ -219,8 +219,8 @@ namespace RegExTests
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_perl,
-                    RegExEncoding_utf8,
-                    stream.get()));
+                    stream.get(),
+                    RegExEncoding_utf8));
             Assert::AreEqual("a # b # c #"sv, StreamView(stream.get()));
         }
 
@@ -242,8 +242,8 @@ namespace RegExTests
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_perl,
-                    RegExEncoding_utf16le,
-                    stream.get()));
+                    stream.get(),
+                    RegExEncoding_utf16le));
             Assert::IsTrue(u"a # b #"sv == StreamView<char16_t>(stream.get()));
         }
 
@@ -264,8 +264,8 @@ namespace RegExTests
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_first_only,
-                    RegExEncoding_utf8,
-                    stream.get()));
+                    stream.get(),
+                    RegExEncoding_utf8));
             Assert::AreEqual("a # b 2"sv, StreamView(stream.get()));
         }
 
@@ -285,8 +285,8 @@ namespace RegExTests
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_perl,
-                    RegExEncoding_utf8,
-                    nullptr));
+                    nullptr,
+                    RegExEncoding_utf8));
         }
 
         TEST_METHOD(ReplaceTo_InvalidOutputEncoding)
@@ -306,8 +306,8 @@ namespace RegExTests
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_perl,
-                    static_cast<RegExEncoding>(9999),
-                    stream.get()));
+                    stream.get(),
+                    static_cast<RegExEncoding>(9999)));
         }
 
         TEST_METHOD(ReplaceTo_RejectsMatchPrevAvail)
@@ -327,8 +327,8 @@ namespace RegExTests
                     static_cast<RegExMatchFlags>(boost::regex_constants::match_prev_avail),
                     formatTemplate.get(),
                     RegExFormatFlag_perl,
-                    RegExEncoding_utf8,
-                    stream.get()));
+                    stream.get(),
+                    RegExEncoding_utf8));
         }
 
         // ----- Replacement transformations: \U, \L, \E -----

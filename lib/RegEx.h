@@ -103,8 +103,8 @@ public:
         RegExMatchFlags matchFlags,
         _In_ BSTR formatTemplate,
         RegExFormatFlags formatFlags,
-        RegExEncoding outputEncoding,
-        _In_ ISequentialStream* outputStream) noexcept override;
+        _In_ ISequentialStream* outputStream,
+        RegExEncoding outputEncoding) noexcept override;
 
 private:
 

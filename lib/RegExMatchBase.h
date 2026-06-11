@@ -87,8 +87,8 @@ public:
 
     HRESULT STDMETHODCALLTYPE
     FormatTo(
-        RegExEncoding outputEncoding,
-        _In_ ISequentialStream* outputStream) noexcept override;
+        _In_ ISequentialStream* outputStream,
+        RegExEncoding outputEncoding) noexcept override;
 
     HRESULT STDMETHODCALLTYPE
     CopyInput(
@@ -100,8 +100,8 @@ public:
     CopyInputTo(
         LONGLONG inputOffset,
         LONGLONG size,
-        RegExEncoding outputEncoding,
-        _In_ ISequentialStream* outputStream) noexcept override;
+        _In_ ISequentialStream* outputStream,
+        RegExEncoding outputEncoding) noexcept override;
 
     // IRegExMatchEnumerator
 

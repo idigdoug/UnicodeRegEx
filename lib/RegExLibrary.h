@@ -65,8 +65,8 @@ public:
     TranscodeTo(
         RegExBytes input,
         RegExEncoding inputEncoding,
-        RegExEncoding outputEncoding,
-        _In_ ISequentialStream* outputStream) noexcept override;
+        _In_ ISequentialStream* outputStream,
+        RegExEncoding outputEncoding) noexcept override;
 
     HRESULT STDMETHODCALLTYPE
     CreateMemoryStream(

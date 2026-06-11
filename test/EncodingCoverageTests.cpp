@@ -137,7 +137,7 @@ namespace RegExTests
             regex->Search(inputBytes, RegExEncoding_latin1, 0, RegExMatchFlag_default, results.put());
 
             auto stream = MakeMemoryStream();
-            Assert::AreEqual(S_OK, results->CopyInputTo(6, 5, RegExEncoding_latin1, stream.get()));
+            Assert::AreEqual(S_OK, results->CopyInputTo(6, 5, stream.get(), RegExEncoding_latin1));
             Assert::AreEqual("world"sv, StreamView(stream.get()));
         }
 
@@ -151,7 +151,7 @@ namespace RegExTests
             regex->Search(inputBytes, RegExEncoding_latin1, 0, RegExMatchFlag_default, results.put());
 
             auto stream = MakeMemoryStream();
-            Assert::AreEqual(S_OK, results->CopyInputTo(0, 5, RegExEncoding_utf16le, stream.get()));
+            Assert::AreEqual(S_OK, results->CopyInputTo(0, 5, stream.get(), RegExEncoding_utf16le));
             Assert::IsTrue(u"hello"sv == StreamView<char16_t>(stream.get()));
         }
 
@@ -207,8 +207,8 @@ namespace RegExTests
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_perl,
-                    RegExEncoding_latin1,
-                    stream.get()));
+                    stream.get(),
+                    RegExEncoding_latin1));
             Assert::AreEqual("a # b #"sv, StreamView(stream.get()));
         }
 
@@ -389,7 +389,7 @@ namespace RegExTests
 
             auto stream = MakeMemoryStream();
             // Copy bytes 12..22 = "world" in BE. Same encoding = byte-for-byte copy.
-            Assert::AreEqual(S_OK, results->CopyInputTo(12, 10, RegExEncoding_utf16be, stream.get()));
+            Assert::AreEqual(S_OK, results->CopyInputTo(12, 10, stream.get(), RegExEncoding_utf16be));
             // Verify bytes match the BE source.
             auto written = StreamBytes(stream.get());
             Assert::AreEqual(size_t(10), written.size());
@@ -416,7 +416,7 @@ namespace RegExTests
             regex->Search(inputBytes, RegExEncoding_utf16be, 0, RegExMatchFlag_default, results.put());
 
             auto stream = MakeMemoryStream();
-            Assert::AreEqual(S_OK, results->CopyInputTo(0, 10, RegExEncoding_utf8, stream.get()));
+            Assert::AreEqual(S_OK, results->CopyInputTo(0, 10, stream.get(), RegExEncoding_utf8));
             Assert::AreEqual("hello"sv, StreamView(stream.get()));
         }
 
@@ -490,8 +490,8 @@ namespace RegExTests
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_perl,
-                    RegExEncoding_utf8,
-                    stream.get()));
+                    stream.get(),
+                    RegExEncoding_utf8));
             Assert::AreEqual("a # b #"sv, StreamView(stream.get()));
         }
 
@@ -546,7 +546,7 @@ namespace RegExTests
             auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->TranscodeTo(inputBytes, RegExEncoding_utf16be, RegExEncoding_utf16be, stream.get()));
+                GetLibrary()->TranscodeTo(inputBytes, RegExEncoding_utf16be, stream.get(), RegExEncoding_utf16be));
             // Fast-path: bytes are copied verbatim.
             auto written = StreamBytes(stream.get());
             Assert::AreEqual(size_t(4), written.size());
@@ -560,7 +560,7 @@ namespace RegExTests
             auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->TranscodeTo(inputBytes, RegExEncoding_utf8, RegExEncoding_utf16be, stream.get()));
+                GetLibrary()->TranscodeTo(inputBytes, RegExEncoding_utf8, stream.get(), RegExEncoding_utf16be));
 
             // Expect BE bytes: 0x00 0x68 0x00 0x69 for "hi".
             auto bytes = StreamBytes(stream.get());

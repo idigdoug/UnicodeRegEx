@@ -390,7 +390,7 @@ namespace RegExTests
                 results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_perl));
 
             auto stream = MakeMemoryStream();
-            Assert::AreEqual(S_OK, results->FormatTo(RegExEncoding_utf8, stream.get()));
+            Assert::AreEqual(S_OK, results->FormatTo(stream.get(), RegExEncoding_utf8));
             Assert::AreEqual("world hello"sv, StreamView(stream.get()));
         }
 
@@ -414,7 +414,7 @@ namespace RegExTests
                 results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_perl));
 
             auto stream = MakeMemoryStream();
-            Assert::AreEqual(S_OK, results->FormatTo(RegExEncoding_utf8, stream.get()));
+            Assert::AreEqual(S_OK, results->FormatTo(stream.get(), RegExEncoding_utf8));
             Assert::AreEqual("HELLO WORLD"sv, StreamView(stream.get()));
         }
 
@@ -436,7 +436,7 @@ namespace RegExTests
                 results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_perl));
 
             auto stream = MakeMemoryStream();
-            Assert::AreEqual(S_OK, results->FormatTo(RegExEncoding_utf16le, stream.get()));
+            Assert::AreEqual(S_OK, results->FormatTo(stream.get(), RegExEncoding_utf16le));
             Assert::IsTrue(u"world hello"sv == StreamView<char16_t>(stream.get()));
         }
 
@@ -452,7 +452,7 @@ namespace RegExTests
             wil::unique_bstr formatTemplate(SysAllocString(L"y"));
             results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_perl);
 
-            Assert::AreEqual(E_POINTER, results->FormatTo(RegExEncoding_utf8, nullptr));
+            Assert::AreEqual(E_POINTER, results->FormatTo(nullptr, RegExEncoding_utf8));
         }
 
         TEST_METHOD(FormatTo_InvalidEncoding)
@@ -468,7 +468,7 @@ namespace RegExTests
             results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_perl);
 
             auto stream = MakeMemoryStream();
-            Assert::AreEqual(E_INVALIDARG, results->FormatTo(static_cast<RegExEncoding>(9999), stream.get()));
+            Assert::AreEqual(E_INVALIDARG, results->FormatTo(stream.get(), static_cast<RegExEncoding>(9999)));
         }
 
         TEST_METHOD(CopyInput_Utf8Input)
@@ -569,7 +569,7 @@ namespace RegExTests
             regex->Search(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
 
             auto stream = MakeMemoryStream();
-            Assert::AreEqual(S_OK, results->CopyInputTo(6, 5, RegExEncoding_utf8, stream.get()));
+            Assert::AreEqual(S_OK, results->CopyInputTo(6, 5, stream.get(), RegExEncoding_utf8));
             Assert::AreEqual("world"sv, StreamView(stream.get()));
         }
 
@@ -584,7 +584,7 @@ namespace RegExTests
             regex->Search(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
 
             auto stream = MakeMemoryStream();
-            Assert::AreEqual(S_OK, results->CopyInputTo(0, 5, RegExEncoding_utf16le, stream.get()));
+            Assert::AreEqual(S_OK, results->CopyInputTo(0, 5, stream.get(), RegExEncoding_utf16le));
             Assert::IsTrue(u"hello"sv == StreamView<char16_t>(stream.get()));
         }
 
@@ -597,7 +597,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             regex->Search(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, results.put());
 
-            Assert::AreEqual(E_POINTER, results->CopyInputTo(0, 5, RegExEncoding_utf8, nullptr));
+            Assert::AreEqual(E_POINTER, results->CopyInputTo(0, 5, nullptr, RegExEncoding_utf8));
         }
 
         TEST_METHOD(CopyInputTo_InvalidOutputEncoding)
@@ -612,7 +612,7 @@ namespace RegExTests
             auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 E_INVALIDARG,
-                results->CopyInputTo(0, 5, static_cast<RegExEncoding>(9999), stream.get()));
+                results->CopyInputTo(0, 5, stream.get(), static_cast<RegExEncoding>(9999)));
         }
 
         TEST_METHOD(CopyInputTo_OutOfBounds)
@@ -627,7 +627,7 @@ namespace RegExTests
             auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 E_INVALIDARG,
-                results->CopyInputTo(3, 5, RegExEncoding_utf8, stream.get()));
+                results->CopyInputTo(3, 5, stream.get(), RegExEncoding_utf8));
         }
 
         TEST_METHOD(GetSubMatch_NonParticipatingGroup)
