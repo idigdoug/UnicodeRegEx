@@ -31,15 +31,17 @@ namespace msandbox
             this.handle = GCHandle.Alloc(value, GCHandleType.Pinned);
         }
 
-        public static implicit operator PinnedBytes(BytesPin self) => new PinnedBytes((nuint)(nint)self.handle.AddrOfPinnedObject(), self.size);
+        public static implicit operator PinnedBytes(BytesPin self)
+            => new PinnedBytes((nuint)(nint)self.handle.AddrOfPinnedObject(), self.size);
 
         public void Dispose()
         {
             if (handle.IsAllocated)
             {
                 handle.Free();
-                GC.SuppressFinalize(this);
             }
+
+            GC.SuppressFinalize(this);
         }
     }
 
@@ -88,9 +90,6 @@ namespace msandbox
 
         public static implicit operator RegExBytes(PinnedBytes pinned) =>
             new RegExBytes { data = unchecked((long)pinned.data), size = unchecked((long)pinned.size) };
-
-        public static implicit operator PinnedBytes(RegExBytes regex) =>
-            new PinnedBytes(unchecked((nuint)regex.data), checked((nuint)regex.size));
 
         public nuint Data => data;
         public unsafe byte* DataPtr => (byte*)data;
@@ -283,22 +282,22 @@ namespace msandbox
 
         public uint Lcid => inner.Lcid;
 
-        public RegExMatchResults Match(
+        public RegExMatch Match(
             PinnedBytes input,
             RegExEncoding inputEncoding,
-            long startByteOffset = 0,
+            nuint startByteOffset = 0,
             RegExMatchFlags matchFlags = RegExMatchFlags.RegExMatchFlag_default)
         {
-            return new RegExMatchResults(inner.Match(input, inputEncoding, (long)startByteOffset, matchFlags));
+            return new RegExMatch(inner.Match(input, inputEncoding, (long)startByteOffset, matchFlags));
         }
 
-        public RegExMatchResults Search(
+        public RegExMatch Search(
             PinnedBytes input,
             RegExEncoding inputEncoding,
-            long startByteOffset = 0,
+            nuint startByteOffset = 0,
             RegExMatchFlags matchFlags = RegExMatchFlags.RegExMatchFlag_default)
         {
-            return new RegExMatchResults(inner.Search(input, inputEncoding, (long)startByteOffset, matchFlags));
+            return new RegExMatch(inner.Search(input, inputEncoding, (long)startByteOffset, matchFlags));
         }
 
         public RegExMatchEnumerator EnumerateMatches(
@@ -373,7 +372,13 @@ namespace msandbox
         }
     }
 
-    internal ref struct RegExMatchResults
+    /// <summary>
+    /// Non-owning view over a match result. Obtained from a RegExMatch (via
+    /// .Results) or from RegExMatchEnumerator.Current. Does not release the
+    /// underlying COM object; the owner (RegExMatch or RegExMatchEnumerator)
+    /// does. Only valid while that owner is alive and the input stays pinned.
+    /// </summary>
+    internal readonly ref struct RegExMatchResults
     {
         private readonly IRegExMatchResults inner;
 
@@ -382,7 +387,14 @@ namespace msandbox
             this.inner = inner;
         }
 
-        public PinnedBytes Input => inner.Input;
+        public PinnedBytes Input
+        {
+            get
+            {
+                var input = inner.Input;
+                return new PinnedBytes(input.data, input.size);
+            }
+        }
 
         public RegExEncoding InputEncoding => inner.InputEncoding;
 
@@ -414,6 +426,34 @@ namespace msandbox
         {
             inner.CopyInputTo((long)inputOffset, (long)size, outputStream, outputEncoding);
         }
+    }
+
+    /// <summary>
+    /// Owns the COM object produced by RegEx.Match / RegEx.Search and releases
+    /// it on Dispose. Hand the non-owning RegExMatchResults view (via .Results
+    /// or the implicit conversion) to code that just inspects a match, so the
+    /// same helper can accept a result whether it came from Match/Search or
+    /// from a RegExMatchEnumerator.Current.
+    /// </summary>
+    internal ref struct RegExMatch
+    {
+        private readonly IRegExMatchResults inner;
+
+        public RegExMatch(IRegExMatchResults inner)
+        {
+            this.inner = inner;
+        }
+
+        /// <summary>True if Match/Search found a match (non-null result).</summary>
+        public bool Success => inner != null;
+
+        /// <summary>
+        /// The non-owning view over this match. Only valid while this owner is
+        /// alive (not yet Disposed) and while the input remains pinned.
+        /// </summary>
+        public RegExMatchResults Results => new RegExMatchResults(inner);
+
+        public static implicit operator RegExMatchResults(RegExMatch self) => self.Results;
 
         public void Dispose()
         {
