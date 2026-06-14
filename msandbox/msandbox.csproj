@@ -64,9 +64,18 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="PinnedBytes.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RegEx.cs" />
+    <Compile Include="RegExEnums.cs" />
+    <Compile Include="RegExException.cs" />
+    <Compile Include="RegExMisc.cs" />
+    <Compile Include="RegExInput.cs" />
+    <Compile Include="RegExMatch.cs" />
+    <Compile Include="RegExMatchEnumerator.cs" />
+    <Compile Include="RegExMatchResults.cs" />
+    <Compile Include="RegExSubMatch.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

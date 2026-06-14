@@ -1,11 +1,6 @@
 ﻿namespace msandbox
 {
     using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Text;
-    using System.Threading.Tasks;
-    using RepStrRegEx;
 
     internal class Program
     {
@@ -13,18 +8,21 @@
         {
             try
             {
-                using (var str = new BytesPin("Input patterns and paerns"))
+                var regex = RegEx.Create("pat*ern");
+                regex.EnumerateMatches(
+                    "Input patterns and paerns",
+                    new RegExEnumerateOptions { FormatTemplate = "<$0-$0>" },
+                    matches =>
                 {
-                    var regex = RegEx.Create("pat*ern");
-
-                    foreach (var match in regex.EnumerateMatches(
-                        str,
-                        RegExEncoding.RegExEncoding_utf16le,
-                        formatTemplate: "<$0-$0>"))
+                    int count = 0;
+                    foreach (var match in matches)
                     {
-                        Console.WriteLine(match.Format());
+                        Console.WriteLine($"Match: {match.Format()}");
+                        count++;
                     }
-                }
+
+                    return count;
+                });
             }
             catch (Exception ex)
             {

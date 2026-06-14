@@ -701,7 +701,6 @@ namespace RegExTests
         TEST_METHOD(GetBuffer_Null_ReturnsPointer)
         {
             auto stream = MakeMemoryStream();
-            LONGLONG size = 0;
             Assert::AreEqual(E_POINTER, stream->get_Buffer(nullptr));
         }
 

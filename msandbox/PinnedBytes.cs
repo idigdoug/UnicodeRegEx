@@ -1,0 +1,220 @@
+﻿namespace msandbox
+{
+    using System;
+    using System.Runtime.InteropServices;
+    using System.Text;
+
+#pragma warning disable CS0660 // Has operator== but not Equals(object). It's a ref struct so this is normal.
+    internal ref struct PinnedBytes
+#pragma warning restore CS0660
+    {
+        private static Encoding? encodingLatin1; // ISO-8859-1 = GetEncoding(28591)
+        private nuint data;
+        private nuint size;
+        private static Encoding EncodingLatin1
+        {
+            get
+            {
+                var enc = encodingLatin1;
+                if (enc == null)
+                {
+                    enc = Encoding.GetEncoding(28591);
+                    encodingLatin1 = enc;
+                }
+
+                return enc;
+            }
+        }
+
+        public PinnedBytes(nuint data, nuint size)
+        {
+            if (unchecked(data + size) < data)
+            {
+                throw new ArgumentOutOfRangeException(nameof(size), "Size overflows address space.");
+            }
+
+            this.data = data;
+            this.size = size;
+        }
+
+        public PinnedBytes(long data, long size)
+            : this(unchecked((nuint)data), checked((nuint)size)) { }
+
+        public PinnedBytes(nint data, int size)
+            : this(unchecked((nuint)(nint)data), checked((nuint)size)) { }
+
+        public unsafe PinnedBytes(void* data, long size)
+            : this(unchecked((nuint)data), checked((nuint)size)) { }
+
+        public unsafe PinnedBytes(void* data, int size)
+            : this(unchecked((nuint)data), checked((nuint)size)) { }
+
+        /// <summary>
+        /// Returns true if this.pointer == other.pointer and this.size == other.size.
+        /// NOT BASED ON DATA CONTENT.
+        /// </summary>
+        public static bool operator ==(PinnedBytes left, PinnedBytes right) => left.data == right.data && left.size == right.size;
+
+        /// <summary>
+        /// Returns true if this.pointer != other.pointer or this.size != other.size.
+        /// NOT BASED ON DATA CONTENT.
+        /// </summary>
+        public static bool operator !=(PinnedBytes left, PinnedBytes right) => !(left == right);
+
+        public nuint Data => data;
+        public unsafe byte* DataPtr => (byte*)data;
+        public nuint Size => size;
+        public int SizeInt => checked((int)size);
+
+        public byte this[nuint index]
+        {
+            get
+            {
+                if (index >= size)
+                {
+                    throw new IndexOutOfRangeException();
+                }
+
+                unsafe
+                {
+                    return *(byte*)(data + index);
+                }
+            }
+        }
+
+        public PinnedBytes this[nuint begin, nuint end]
+        {
+            get
+            {
+                if (begin > end || end > size)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(end), "Invalid range.");
+                }
+
+                return new PinnedBytes(unchecked(data + begin), end - begin);
+            }
+        }
+
+        public void CopyTo(byte[] dest)
+        {
+            if (dest == null)
+            {
+                throw new ArgumentNullException(nameof(dest));
+            }
+
+            if ((ulong)dest.LongLength < size)
+            {
+                throw new ArgumentException("Destination array is too small.", nameof(dest));
+            }
+
+            unsafe
+            {
+                fixed (byte* pDest = dest)
+                {
+                    Buffer.MemoryCopy((void*)data, pDest, dest.Length, (long)size);
+                }
+            }
+        }
+
+        public PinnedBytes Slice(nuint begin, nuint length)
+        {
+            if (begin > size || length > size - begin)
+            {
+                throw new ArgumentOutOfRangeException(nameof(length), "Slice exceeds bounds of data.");
+            }
+
+            return new PinnedBytes(unchecked(data + begin), length);
+        }
+
+        public PinnedBytes First(nuint length)
+        {
+            if (length > size)
+            {
+                throw new ArgumentOutOfRangeException(nameof(length), "Slice exceeds bounds of data.");
+            }
+
+            return new PinnedBytes(unchecked(data), length);
+        }
+
+        public PinnedBytes Last(nuint length)
+        {
+            if (length > size)
+            {
+                throw new ArgumentOutOfRangeException(nameof(length), "Slice exceeds bounds of data.");
+            }
+
+            return new PinnedBytes(unchecked(data + (size - length)), length);
+        }
+
+        public byte[] ToArray()
+        {
+            byte[] dest = new byte[checked((int)size)];
+
+            unsafe
+            {
+                fixed (byte* pDest = dest)
+                {
+                    Buffer.MemoryCopy((void*)data, pDest, dest.Length, (long)size);
+                }
+            }
+
+            return dest;
+        }
+
+        /// <summary>
+        /// Returns true if this.pointer == other.pointer and this.size == other.size.
+        /// NOT BASED ON DATA CONTENT.
+        /// </summary>
+        public bool Equals(PinnedBytes other) => this == other;
+
+        /// <summary>
+        /// Returns a hash code based on this.pointer and this.size.
+        /// NOT BASED ON DATA CONTENT.
+        /// </summary>
+        public override int GetHashCode()
+        {
+            const int Offset = unchecked((int)0x9E3779B9);
+            var v1 = data.GetHashCode();
+            var v2 = size.GetHashCode();
+            return unchecked(v1 ^ (v2 + Offset + (v1 << 6) + (v1 >> 2)));
+        }
+
+        public override string ToString()
+        {
+            return $"Data: 0x{data:X}, Size: 0x{size:X}";
+        }
+
+        public string ToString(Encoding encoding)
+        {
+            unsafe
+            {
+                return encoding.GetString((byte*)data, checked((int)size));
+            }
+        }
+
+        public string ToString(int codepage)
+        {
+            Encoding encoding;
+            switch (codepage)
+            {
+                case 1200:
+                    return Marshal.PtrToStringUni((nint)this.data, (int)(this.size / sizeof(char)));
+                case 1201:
+                    encoding = Encoding.BigEndianUnicode;
+                    break;
+                case 28591:
+                    encoding = EncodingLatin1;
+                    break;
+                case 65001:
+                    encoding = Encoding.UTF8;
+                    break;
+                default:
+                    encoding = Encoding.GetEncoding(codepage);
+                    break;
+            }
+
+            return ToString(encoding);
+        }
+    }
+}
+
