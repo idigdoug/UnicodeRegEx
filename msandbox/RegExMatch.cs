@@ -11,10 +11,10 @@
     /// </summary>
     internal readonly ref struct RegExMatch
     {
-        private readonly RepStrRegEx.IRegExMatchResults inner;
+        private readonly RepStrRegEx.IRegExMatchResults? inner;
         private readonly PinnedBytes input;
 
-        internal RegExMatch(RepStrRegEx.IRegExMatchResults inner, PinnedBytes input)
+        internal RegExMatch(RepStrRegEx.IRegExMatchResults? inner, PinnedBytes input)
         {
             this.inner = inner;
             this.input = input;

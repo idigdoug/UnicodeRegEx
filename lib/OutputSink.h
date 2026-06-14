@@ -52,7 +52,7 @@ public:
 
     // Reset to accumulate transcoded bytes in the internal vector.
     // Clears any previously buffered data.
-    // Vector is limited to UINT_MAX bytes.
+    // Vector is limited to UINT_MAX bytes so that the result can fit in a BSTR.
     void
     ResetToVector(RegExEncoding outputEncoding);
 
@@ -71,6 +71,21 @@ public:
     // Append bytes. May throw (bad_alloc, or HRESULT wrapped by THROW_HR on stream write failure).
     void
     AppendBytes(std::span<BYTE const> inputBytes, RegExEncoding inputEncoding);
+
+    // Append bytes that are ALREADY in this sink's configured output encoding.
+    // Copies them verbatim (no decode/re-encode round-trip through char32_t), so
+    // malformed sequences in the input are preserved byte-for-byte. Any buffered
+    // code points are flushed first to preserve ordering.
+    // May throw (bad_alloc, or HRESULT wrapped by THROW_HR on stream write failure).
+    void
+    AppendRawBytes(std::span<BYTE const> bytes);
+
+    // The output encoding configured by the most recent ResetTo* call.
+    RegExEncoding
+    Encoding() const noexcept
+    {
+        return m_encoding;
+    }
 
     // Flush any buffered code points and return the accumulated bytes.
     // Must only be called after ResetToVector.

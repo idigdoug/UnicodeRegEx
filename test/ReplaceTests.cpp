@@ -269,6 +269,68 @@ namespace RegExTests
             Assert::AreEqual("a # b 2"sv, StreamView(stream.get()));
         }
 
+        TEST_METHOD(ReplaceTo_SameEncoding_PreservesMalformedGapBytes)
+        {
+            // The library's core promise: when input and output encodings match,
+            // bytes outside matched regions are copied verbatim, including
+            // malformed sequences. Here a stray 0xFF (invalid UTF-8) sits in a
+            // non-matched gap and must survive byte-for-byte. A decode/re-encode
+            // round-trip would have replaced or dropped it.
+            auto regex = MakeRegEx(L"\\d+");
+
+            BYTE const input[] = { 'a', ' ', '1', ' ', 0xFF, ' ', '2' };
+            RegExBytes inputBytes = MakeString(std::string_view(reinterpret_cast<char const*>(input), sizeof(input)));
+            wil::unique_bstr formatTemplate(SysAllocString(L"#"));
+
+            auto stream = MakeMemoryStream();
+            Assert::AreEqual(
+                S_OK,
+                regex->ReplaceTo(
+                    inputBytes,
+                    RegExEncoding_utf8,
+                    0,
+                    RegExMatchFlag_default,
+                    formatTemplate.get(),
+                    RegExFormatFlag_perl,
+                    stream.get(),
+                    RegExEncoding_utf8));
+
+            BYTE const expected[] = { 'a', ' ', '#', ' ', 0xFF, ' ', '#' };
+            auto bytes = StreamBytes(stream.get());
+            Assert::AreEqual(sizeof(expected), bytes.size());
+            Assert::AreEqual(0, memcmp(expected, bytes.data(), sizeof(expected)));
+        }
+
+        TEST_METHOD(ReplaceTo_SameEncoding_PreservesLoneSurrogateGapBytes)
+        {
+            // Same verbatim guarantee for UTF-16LE: a lone high surrogate
+            // (0xD800) in a non-matched gap must be copied byte-for-byte rather
+            // than round-tripped through char32_t.
+            auto regex = MakeRegEx(L"[0-9]+");
+
+            char16_t const input[] = { u'a', u' ', u'1', u' ', 0xD800, u' ', u'2' };
+            RegExBytes inputBytes = MakeString(std::u16string_view(input, std::size(input)));
+            wil::unique_bstr formatTemplate(SysAllocString(L"#"));
+
+            auto stream = MakeMemoryStream();
+            Assert::AreEqual(
+                S_OK,
+                regex->ReplaceTo(
+                    inputBytes,
+                    RegExEncoding_utf16le,
+                    0,
+                    RegExMatchFlag_default,
+                    formatTemplate.get(),
+                    RegExFormatFlag_perl,
+                    stream.get(),
+                    RegExEncoding_utf16le));
+
+            char16_t const expected[] = { u'a', u' ', u'#', u' ', 0xD800, u' ', u'#' };
+            auto bytes = StreamBytes(stream.get());
+            Assert::AreEqual(sizeof(expected), bytes.size());
+            Assert::AreEqual(0, memcmp(expected, bytes.data(), sizeof(expected)));
+        }
+
         TEST_METHOD(ReplaceTo_NullStream)
         {
             auto regex = MakeRegEx(L"x");

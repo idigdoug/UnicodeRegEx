@@ -135,6 +135,35 @@ OutputSink::AppendBytes(
     }
 }
 
+void
+OutputSink::AppendRawBytes(std::span<BYTE const> bytes)
+{
+    auto const* const pBytes = bytes.data();
+    auto const byteCount = bytes.size();
+    if (byteCount == 0)
+    {
+        return;
+    }
+
+    // Preserve ordering: emit any buffered code points before the raw bytes.
+    Flush();
+
+    if (m_pStream == nullptr)
+    {
+        // Don't grow beyond what can be stored in a BSTR.
+        if (sizeof(size_t) > sizeof(UINT) && m_vector.size() + byteCount > UINT_MAX)
+        {
+            THROW_WIN32(ERROR_ARITHMETIC_OVERFLOW);
+        }
+
+        m_vector.insert(m_vector.end(), pBytes, pBytes + byteCount);
+    }
+    else
+    {
+        THROW_IF_FAILED(WriteAllBytesToStream(m_pStream, bytes));
+    }
+}
+
 std::span<BYTE const>
 OutputSink::FinishVector()
 {
@@ -203,6 +232,7 @@ OutputSink::Flush()
 
     if (m_pStream == nullptr)
     {
+        // Don't grow beyond what can be stored in a BSTR.
         if (sizeof(size_t) > sizeof(UINT) && m_vector.size() + byteCount > UINT_MAX)
         {
             THROW_WIN32(ERROR_ARITHMETIC_OVERFLOW);

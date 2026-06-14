@@ -311,6 +311,27 @@ RegEx::ReplaceImpl(
 
         auto out = std::back_inserter(outputSink);
 
+        // Unmatched ("gap") text is copied to the output untouched. When the input
+        // and output encodings match, copy the bytes verbatim so that malformed
+        // sequences survive byte-for-byte; otherwise transcode (decode/re-encode)
+        // through the sink. Matched text always goes through format() (the
+        // modification), which round-trips through char32_t by design.
+        auto copyGap = [inputData, inputEncoding, &outputSink](IteratorT const& gapBegin, IteratorT const& gapEnd)
+        {
+            auto const* const inputBytes = static_cast<BYTE const*>(inputData);
+            size_t const beginOffset = gapBegin.ByteOffset(inputData);
+            size_t const endOffset = gapEnd.ByteOffset(inputData);
+            auto const gap = std::span<BYTE const>(inputBytes + beginOffset, endOffset - beginOffset);
+            if (inputEncoding == outputSink.Encoding())
+            {
+                outputSink.AppendRawBytes(gap);
+            }
+            else
+            {
+                outputSink.AppendBytes(gap, inputEncoding);
+            }
+        };
+
         // Track where unmatched text continues from. Initialized to the start of the
         // input range (so bytes before startByteOffset are copied to output by the
         // first prefix copy below); updated to match[0].second after each successful match.
@@ -323,7 +344,7 @@ RegEx::ReplaceImpl(
             if (!noCopy)
             {
                 // Text between the previous tail position and this match.
-                std::copy(tailStart, matchResults[0].first, out);
+                copyGap(tailStart, matchResults[0].first);
             }
 
             matchResults.format(out, format, flags, m_regex);
@@ -337,7 +358,7 @@ RegEx::ReplaceImpl(
 
         if (!noCopy)
         {
-            std::copy(tailStart, enumerator.End(), out);
+            copyGap(tailStart, enumerator.End());
         }
     };
 
