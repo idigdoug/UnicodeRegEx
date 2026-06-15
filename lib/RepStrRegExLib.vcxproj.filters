@@ -21,7 +21,7 @@
     <ClInclude Include="RegExMatchEnumerator.h" />
     <ClInclude Include="RegExMatchResults.h" />
     <ClInclude Include="OutputSink.h" />
-    <ClInclude Include="InputTranscoder.h" />
+    <ClInclude Include="InputValidation.h" />
     <ClInclude Include="MatchEnumerator.h" />
   </ItemGroup>
   <ItemGroup>
@@ -36,7 +36,7 @@
     <ClCompile Include="RepStrRegExCheck.cpp" />
     <ClCompile Include="WindowsChar32RegexTraits.cpp" />
     <ClCompile Include="OutputSink.cpp" />
-    <ClCompile Include="InputTranscoder.cpp" />
+    <ClCompile Include="InputValidation.cpp" />
     <ClCompile Include="MatchEnumerator.cpp" />
   </ItemGroup>
   <ItemGroup>

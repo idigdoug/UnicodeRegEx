@@ -4,7 +4,7 @@
 #include "RegExFileStream.h"
 #include "RegExMemoryStream.h"
 #include "OutputSink.h"
-#include "InputTranscoder.h"
+#include "InputValidation.h"
 
 #include <utf.h>
 
@@ -307,8 +307,10 @@ EscapeAsciiSpecials(
         outputView = output;
     }
 
-    *pOutput = SysAllocStringLen(outputView.data(), static_cast<UINT>(outputView.size()));
-    return *pOutput ? S_OK : E_OUTOFMEMORY;
+    return AllocBStrFromChars(
+        std::span<char16_t const>(
+            reinterpret_cast<char16_t const*>(outputView.data()), outputView.size()),
+        pOutput);
 }
 
 HRESULT STDMETHODCALLTYPE
@@ -405,7 +407,8 @@ RegExLibrary::Transcode(
 {
     *pOutput = nullptr;
 
-    if (!InputTranscoder::OffsetAndSizeAreAlignedForEncoding(input.data, input.size, inputEncoding))
+    if (!InputIsValid(input) ||
+        !OffsetAndSizeAreAlignedForEncoding(input.data, input.size, inputEncoding))
     {
         return E_INVALIDARG;
     }
@@ -430,10 +433,7 @@ RegExLibrary::Transcode(
             outputBytes = sink.FinishVector();
         }
 
-        *pOutput = SysAllocStringLen(
-            reinterpret_cast<OLECHAR const*>(outputBytes.data()),
-            static_cast<UINT>(outputBytes.size() / sizeof(OLECHAR)));
-        hr = *pOutput ? S_OK : E_OUTOFMEMORY;
+        hr = AllocBStrFromUtf16Bytes(outputBytes, pOutput);
     }
     catch (...)
     {
@@ -456,7 +456,8 @@ RegExLibrary::TranscodeTo(
     }
     else if (
         !RegExEncodingIsValid(outputEncoding) ||
-        !InputTranscoder::OffsetAndSizeAreAlignedForEncoding(input.data, input.size, inputEncoding))
+        !InputIsValid(input) ||
+        !OffsetAndSizeAreAlignedForEncoding(input.data, input.size, inputEncoding))
     {
         return E_INVALIDARG;
     }

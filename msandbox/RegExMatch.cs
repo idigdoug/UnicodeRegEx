@@ -29,7 +29,7 @@
         /// Returns the number of capture groups in this match.
         /// Should always return at least 1 (submatch 0 is "the whole match").
         /// </summary>
-        public int SubMatchCount => (int)inner.SubMatchCount;
+        public int SubMatchCount => checked((int)inner.SubMatchCount);
 
         /// <summary>
         /// Returns the span of the input that a particular capture group matched.
@@ -38,7 +38,7 @@
         /// </summary>
         public RegExSubMatch GetSubMatch(int subMatchIndex)
         {
-            var subMatch = inner.GetSubMatch((uint)subMatchIndex);
+            var subMatch = inner.GetSubMatch(checked((uint)subMatchIndex));
             return new RegExSubMatch(
                 checked((nuint)subMatch.offset),
                 checked((nuint)subMatch.size),

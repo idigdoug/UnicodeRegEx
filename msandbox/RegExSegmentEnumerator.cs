@@ -47,19 +47,19 @@
                     if (inner.NextMatch())
                     {
                         var match = inner.GetSubMatch(0);
-                        var offset = unchecked((nuint)match.offset);
-                        var size = unchecked((nuint)match.size);
+                        var offset = checked((nuint)match.offset);
+                        var size = checked((nuint)match.size);
                         if (offset == end)
                         {
                             begin = offset;
-                            end = offset + size;
+                            end = checked(offset + size);
                             state = State.AtMatch;
                         }
                         else
                         {
                             begin = end;
                             end = offset;
-                            matchEnd = offset + size;
+                            matchEnd = checked(offset + size);
                             state = State.BeforeMatch;
                         }
                     }

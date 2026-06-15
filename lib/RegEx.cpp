@@ -2,7 +2,7 @@
 #include "RegEx.h"
 #include "RegExMatchEnumerator.h"
 #include "RegExMatchResults.h"
-#include "InputTranscoder.h"
+#include "InputValidation.h"
 #include "MatchEnumerator.h"
 #include "OutputSink.h"
 
@@ -100,12 +100,9 @@ RegEx::get_Pattern(
     {
         auto value32 = m_regex.str();
         auto const chars = utf16le::ConvertInPlace(value32);
-        static_assert(sizeof(chars[0]) == sizeof(OLECHAR), "OLECHAR must be UTF-16");
-        auto const value = SysAllocStringLen(
-            reinterpret_cast<OLECHAR const*>(chars.data()),
-            static_cast<UINT>(chars.size()));
-        *pValue = value;
-        hr = value ? S_OK : E_OUTOFMEMORY;
+        hr = AllocBStrFromChars(
+            std::span<char16_t const>(reinterpret_cast<char16_t const*>(chars.data()), chars.size()),
+            pValue);
     }
     catch (std::bad_alloc const&)
     {
@@ -179,7 +176,8 @@ RegEx::EnumerateMatches(
     {
         hr = E_INVALIDARG;
     }
-    else if (startOffsetU > static_cast<UINT_PTR>(input.size))
+    else if (!InputIsValid(input) ||
+        startOffsetU > static_cast<UINT_PTR>(input.size))
     {
         hr = E_INVALIDARG;
     }
@@ -213,6 +211,7 @@ RegEx::Replace(
         static_cast<int>(matchFlags) | static_cast<int>(formatFlags));
     UINT_PTR const startOffsetU = static_cast<UINT_PTR>(startByteOffset);
     if (!RegExEncodingIsValid(inputEncoding) ||
+        !InputIsValid(input) ||
         (flags & boost::match_prev_avail) ||
         startOffsetU > static_cast<UINT_PTR>(input.size))
     {
@@ -226,10 +225,7 @@ RegEx::Replace(
         outputSink.ResetToVector(RegExEncoding_utf16le);
         ReplaceImpl(input, inputEncoding, startOffsetU, formatTemplate, flags, outputSink);
         auto output = outputSink.FinishVector();
-        *pOutputString = SysAllocStringLen(
-            reinterpret_cast<OLECHAR const*>(output.data()),
-            static_cast<UINT>(output.size() / sizeof(OLECHAR)));
-        hr = *pOutputString ? S_OK : E_OUTOFMEMORY;
+        hr = AllocBStrFromUtf16Bytes(output, pOutputString);
     }
     catch (...)
     {
@@ -260,6 +256,7 @@ RegEx::ReplaceTo(
     UINT_PTR const startOffsetU = static_cast<UINT_PTR>(startByteOffset);
     if (!RegExEncodingIsValid(inputEncoding) ||
         !RegExEncodingIsValid(outputEncoding) ||
+        !InputIsValid(input) ||
         (flags & boost::match_prev_avail) ||
         startOffsetU > static_cast<UINT_PTR>(input.size))
     {
@@ -396,6 +393,7 @@ RegEx::SearchImpl(
     UINT_PTR startOffsetU = static_cast<UINT_PTR>(startByteOffset);
 
     if (!RegExEncodingIsValid(inputEncoding) ||
+        !InputIsValid(input) ||
         (flags & static_cast<RegExMatchFlags>(boost::match_prev_avail)) ||
         startOffsetU > static_cast<UINT_PTR>(input.size))
     {

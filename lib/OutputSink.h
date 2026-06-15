@@ -6,6 +6,24 @@ WriteAllBytesToStream(
     _In_ ISequentialStream* pStream,
     std::span<BYTE const> data) noexcept;
 
+// Allocates a BSTR from a buffer of UTF-16 bytes (the byte count must be even).
+// Centralizes the bytes -> BSTR-length narrowing: a BSTR length is a UINT, so a
+// buffer larger than UINT_MAX UTF-16 code units cannot be represented and would
+// otherwise silently truncate the length. Returns E_OUTOFMEMORY on allocation
+// failure, or a failure HRESULT if the code-unit count exceeds UINT_MAX.
+HRESULT
+AllocBStrFromUtf16Bytes(
+    std::span<BYTE const> utf16Bytes,
+    _Out_ BSTR* pResult) noexcept;
+
+// Allocates a BSTR from a buffer of UTF-16 code units. Like AllocBStrFromUtf16Bytes,
+// but the length is already a code-unit count. Returns E_OUTOFMEMORY on allocation
+// failure, or a failure HRESULT if the count exceeds UINT_MAX.
+HRESULT
+AllocBStrFromChars(
+    std::span<char16_t const> chars,
+    _Out_ BSTR* pResult) noexcept;
+
 // Accumulates char32_t code points via push_back (for use with std::back_inserter),
 // transcodes them in batches into the configured output encoding, and either
 // accumulates the transcoded bytes in an internal vector or forwards them to an

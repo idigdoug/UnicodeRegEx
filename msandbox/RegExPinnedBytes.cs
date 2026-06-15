@@ -198,7 +198,7 @@
             switch (codepage)
             {
                 case 1200:
-                    return Marshal.PtrToStringUni((nint)this.data, (int)(this.size / sizeof(char)));
+                    return Marshal.PtrToStringUni((nint)this.data, checked((int)(this.size / sizeof(char))));
                 case 1201:
                     encoding = Encoding.BigEndianUnicode;
                     break;

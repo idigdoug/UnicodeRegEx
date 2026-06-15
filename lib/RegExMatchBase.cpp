@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "RegExMatchBase.h"
 #include "RegEx.h"
-#include "InputTranscoder.h"
+#include "InputValidation.h"
 
 #include <utf.h>
 
@@ -193,10 +193,7 @@ RegExMatchBase::Format(_Out_ BSTR* pOutputString) noexcept
             if (SUCCEEDED(hr))
             {
                 auto bytes = m_outputSink.FinishVector();
-                *pOutputString = SysAllocStringLen(
-                    reinterpret_cast<OLECHAR const*>(bytes.data()),
-                    static_cast<UINT>(bytes.size() / sizeof(OLECHAR)));
-                hr = *pOutputString ? S_OK : E_OUTOFMEMORY;
+                hr = AllocBStrFromUtf16Bytes(bytes, pOutputString);
             }
         }
         catch (...)
@@ -259,8 +256,8 @@ RegExMatchBase::CopyInput(
 {
     *pOutputString = nullptr;
 
-    if (!InputTranscoder::RangeIsInBounds(inputOffset, size, m_inputSize) ||
-        !InputTranscoder::OffsetAndSizeAreAlignedForEncoding(inputOffset, size, m_inputEncoding))
+    if (!RangeIsInBounds(inputOffset, size, m_inputSize) ||
+        !OffsetAndSizeAreAlignedForEncoding(inputOffset, size, m_inputEncoding))
     {
         return E_INVALIDARG;
     }
@@ -284,10 +281,7 @@ RegExMatchBase::CopyInput(
             output = m_outputSink.FinishVector();
         }
 
-        *pOutputString = SysAllocStringLen(
-            reinterpret_cast<OLECHAR const*>(output.data()),
-            static_cast<UINT>(output.size() / sizeof(OLECHAR)));
-        hr = *pOutputString ? S_OK : E_OUTOFMEMORY;
+        hr = AllocBStrFromUtf16Bytes(output, pOutputString);
     }
     catch (...)
     {
@@ -310,8 +304,8 @@ RegExMatchBase::CopyInputTo(
     }
     else if (
         !RegExEncodingIsValid(outputEncoding) ||
-        !InputTranscoder::RangeIsInBounds(inputOffset, size, m_inputSize) ||
-        !InputTranscoder::OffsetAndSizeAreAlignedForEncoding(inputOffset, size, m_inputEncoding))
+        !RangeIsInBounds(inputOffset, size, m_inputSize) ||
+        !OffsetAndSizeAreAlignedForEncoding(inputOffset, size, m_inputEncoding))
     {
         return E_INVALIDARG;
     }

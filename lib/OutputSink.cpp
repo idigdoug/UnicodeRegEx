@@ -38,6 +38,43 @@ WriteAllBytesToStream(
     return S_OK;
 }
 
+HRESULT
+AllocBStrFromChars(
+    std::span<char16_t const> chars,
+    _Out_ BSTR* pResult) noexcept
+{
+    static_assert(sizeof(char16_t) == sizeof(OLECHAR), "OLECHAR must be UTF-16");
+
+    *pResult = nullptr;
+
+    size_t const charCount = chars.size();
+    if (charCount > UINT_MAX)
+    {
+        // A BSTR length is a UINT; this buffer can't be represented as a BSTR.
+        return HRESULT_FROM_WIN32(ERROR_ARITHMETIC_OVERFLOW);
+    }
+
+    *pResult = SysAllocStringLen(
+        reinterpret_cast<OLECHAR const*>(chars.data()),
+        static_cast<UINT>(charCount));
+    return *pResult ? S_OK : E_OUTOFMEMORY;
+}
+
+HRESULT
+AllocBStrFromUtf16Bytes(
+    std::span<BYTE const> utf16Bytes,
+    _Out_ BSTR* pResult) noexcept
+{
+    auto const byteCount = utf16Bytes.size();
+    assert((byteCount & 1) == 0);
+
+    return AllocBStrFromChars(
+        std::span<char16_t const>(
+            reinterpret_cast<char16_t const*>(utf16Bytes.data()),
+            byteCount / sizeof(char16_t)),
+        pResult);
+}
+
 OutputSink::OutputSink() noexcept
     : m_bufferPos(0)
     , m_encoding(RegExEncoding_none)
