@@ -150,7 +150,7 @@
         /// keeping the memory pinned for the duration of any operation that uses
         /// this input.
         /// </summary>
-        public RegExInput(PinnedBytes bytes, RegExEncoding encoding)
+        public RegExInput(RegExPinnedBytes bytes, RegExEncoding encoding)
             : this(null, bytes.Data, bytes.Size, encoding, PinMethod.PinnedBytes)
         {
         }
@@ -171,13 +171,13 @@
         /// finally block, or via using) to release the pin. Intended to be used
         /// only by the RegEx operation implementations.
         /// </summary>
-        public PinScope Pin(out PinnedBytes bytes)
+        public PinScope Pin(out RegExPinnedBytes bytes)
         {
             switch (pinMethod)
             {
                 case PinMethod.PinnedBytes:
                     // data is the absolute base pointer; nothing to pin or release.
-                    bytes = new PinnedBytes(data, size);
+                    bytes = new RegExPinnedBytes(data, size);
                     return default;
 
                 case PinMethod.GCPinned:
@@ -185,7 +185,7 @@
                     var handle = GCHandle.Alloc(value, GCHandleType.Pinned);
                     // data is the byte offset into the pinned object (0 for whole object).
                     var ptr = (nuint)(nint)handle.AddrOfPinnedObject() + data;
-                    bytes = new PinnedBytes(ptr, size);
+                    bytes = new RegExPinnedBytes(ptr, size);
                     return new PinScope(handle);
                 }
 
@@ -198,7 +198,7 @@
                         buffer.AcquirePointer(ref basePtr);
                         // data holds the byte offset within the buffer.
                         var ptr = (nuint)basePtr + data;
-                        bytes = new PinnedBytes(ptr, size);
+                        bytes = new RegExPinnedBytes(ptr, size);
                         return new PinScope(buffer);
                     }
                 }

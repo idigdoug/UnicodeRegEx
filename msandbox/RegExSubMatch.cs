@@ -20,7 +20,7 @@
         /// If Matched, returns inputBytes[Begin..End] (may throw if out of range).
         /// If !Matched, returns default and false.
         /// </summary>
-        public bool TryGetBytes(PinnedBytes inputBytes, out PinnedBytes subMatchBytes)
+        public bool TryGetBytes(RegExPinnedBytes inputBytes, out RegExPinnedBytes subMatchBytes)
         {
             if (Matched)
             {

@@ -5,7 +5,7 @@
     using System.Text;
 
 #pragma warning disable CS0660 // Has operator== but not Equals(object). It's a ref struct so this is normal.
-    internal ref struct PinnedBytes
+    internal ref struct RegExPinnedBytes
 #pragma warning restore CS0660
     {
         private static Encoding? encodingLatin1; // ISO-8859-1 = GetEncoding(28591)
@@ -26,7 +26,7 @@
             }
         }
 
-        public PinnedBytes(nuint data, nuint size)
+        public RegExPinnedBytes(nuint data, nuint size)
         {
             if (unchecked(data + size) < data)
             {
@@ -37,29 +37,29 @@
             this.size = size;
         }
 
-        public PinnedBytes(long data, long size)
+        public RegExPinnedBytes(long data, long size)
             : this(unchecked((nuint)data), checked((nuint)size)) { }
 
-        public PinnedBytes(nint data, int size)
+        public RegExPinnedBytes(nint data, int size)
             : this(unchecked((nuint)(nint)data), checked((nuint)size)) { }
 
-        public unsafe PinnedBytes(void* data, long size)
+        public unsafe RegExPinnedBytes(void* data, long size)
             : this(unchecked((nuint)data), checked((nuint)size)) { }
 
-        public unsafe PinnedBytes(void* data, int size)
+        public unsafe RegExPinnedBytes(void* data, int size)
             : this(unchecked((nuint)data), checked((nuint)size)) { }
 
         /// <summary>
         /// Returns true if this.pointer == other.pointer and this.size == other.size.
         /// NOT BASED ON DATA CONTENT.
         /// </summary>
-        public static bool operator ==(PinnedBytes left, PinnedBytes right) => left.data == right.data && left.size == right.size;
+        public static bool operator ==(RegExPinnedBytes left, RegExPinnedBytes right) => left.data == right.data && left.size == right.size;
 
         /// <summary>
         /// Returns true if this.pointer != other.pointer or this.size != other.size.
         /// NOT BASED ON DATA CONTENT.
         /// </summary>
-        public static bool operator !=(PinnedBytes left, PinnedBytes right) => !(left == right);
+        public static bool operator !=(RegExPinnedBytes left, RegExPinnedBytes right) => !(left == right);
 
         public nuint Data => data;
         public unsafe byte* DataPtr => (byte*)data;
@@ -82,7 +82,7 @@
             }
         }
 
-        public PinnedBytes this[nuint begin, nuint end]
+        public RegExPinnedBytes this[nuint begin, nuint end]
         {
             get
             {
@@ -91,7 +91,7 @@
                     throw new ArgumentOutOfRangeException(nameof(end), "Invalid range.");
                 }
 
-                return new PinnedBytes(unchecked(data + begin), end - begin);
+                return new RegExPinnedBytes(unchecked(data + begin), end - begin);
             }
         }
 
@@ -116,34 +116,34 @@
             }
         }
 
-        public PinnedBytes Slice(nuint begin, nuint length)
+        public RegExPinnedBytes Slice(nuint begin, nuint length)
         {
             if (begin > size || length > size - begin)
             {
                 throw new ArgumentOutOfRangeException(nameof(length), "Slice exceeds bounds of data.");
             }
 
-            return new PinnedBytes(unchecked(data + begin), length);
+            return new RegExPinnedBytes(unchecked(data + begin), length);
         }
 
-        public PinnedBytes First(nuint length)
+        public RegExPinnedBytes First(nuint length)
         {
             if (length > size)
             {
                 throw new ArgumentOutOfRangeException(nameof(length), "Slice exceeds bounds of data.");
             }
 
-            return new PinnedBytes(unchecked(data), length);
+            return new RegExPinnedBytes(unchecked(data), length);
         }
 
-        public PinnedBytes Last(nuint length)
+        public RegExPinnedBytes Last(nuint length)
         {
             if (length > size)
             {
                 throw new ArgumentOutOfRangeException(nameof(length), "Slice exceeds bounds of data.");
             }
 
-            return new PinnedBytes(unchecked(data + (size - length)), length);
+            return new RegExPinnedBytes(unchecked(data + (size - length)), length);
         }
 
         public byte[] ToArray()
@@ -165,7 +165,7 @@
         /// Returns true if this.pointer == other.pointer and this.size == other.size.
         /// NOT BASED ON DATA CONTENT.
         /// </summary>
-        public bool Equals(PinnedBytes other) => this == other;
+        public bool Equals(RegExPinnedBytes other) => this == other;
 
         /// <summary>
         /// Returns a hash code based on this.pointer and this.size.

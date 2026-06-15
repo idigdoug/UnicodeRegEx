@@ -3,33 +3,17 @@ namespace msandbox
     using System;
     using System.Runtime.InteropServices;
 
-    /*
-    Ideas:
-
-    // Yields alternating Unmatched / Match segments across the whole input,
-    // including the trailing unmatched tail. Decides nothing — just exposes structure.
-    ref struct SegmentEnumerator {
-        Segment Current;  // { bool IsMatch; nuint Offset; nuint Size; RegExMatchResults Match; }
-        bool MoveNext();
-    }
-
-    // Binds (stream, encoding) so every write agrees on encoding. No policy, just consistency.
-    readonly struct RegExWriter {        // wraps ISequentialStream + RegExEncoding
-        void WriteInput(RegExMatchResults r, nuint offset, nuint size);  // -> CopyInputTo(..., boundEncoding)
-        void WriteFormat(RegExMatchResults r);                            // -> FormatTo(boundEncoding)
-        void WriteBytes(PinnedBytes raw);                                 // verbatim escape hatch
-    }
-    */
-
     internal struct RegEx
     {
         private static RepStrRegEx.IRegExLibrary? library;
         private RepStrRegEx.IRegEx inner;
 
-        public delegate void MatchAction(RegExMatchResults matchResults);
-        public delegate T MatchFunc<T>(RegExMatchResults matchResults);
-        public delegate void EnumerateAction(RegExMatchEnumerator enumerator);
-        public delegate T EnumerateFunc<T>(RegExMatchEnumerator enumerator);
+        public delegate void MatchAction(RegExMatch match);
+        public delegate T MatchFunc<T>(RegExMatch match);
+        public delegate void EnumerateMatchesAction(RegExMatchEnumerator enumerator);
+        public delegate T EnumerateMatchesFunc<T>(RegExMatchEnumerator enumerator);
+        public delegate void EnumerateSegmentsAction(RegExSegmentEnumerator enumerator);
+        public delegate T EnumerateSegmentsFunc<T>(RegExSegmentEnumerator enumerator);
 
         // STATIC
 
@@ -108,14 +92,14 @@ namespace msandbox
 
         public static string Transcode(RegExInput input)
         {
-            PinnedBytes inputBytes;
+            RegExPinnedBytes inputBytes;
             using (var pin = input.Pin(out inputBytes))
             {
                 return Transcode(inputBytes, input.Encoding);
             }
         }
 
-        public static string Transcode(PinnedBytes inputBytes, RegExEncoding inputEncoding)
+        public static string Transcode(RegExPinnedBytes inputBytes, RegExEncoding inputEncoding)
         {
             var bytes = new RepStrRegEx.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
             return Library.Transcode(bytes, (RepStrRegEx.RegExEncoding)inputEncoding);
@@ -123,14 +107,14 @@ namespace msandbox
 
         public static void TranscodeTo(RegExInput input, RepStrRegEx.ISequentialStream output, RegExEncoding outputEncoding)
         {
-            PinnedBytes inputBytes;
+            RegExPinnedBytes inputBytes;
             using (var pin = input.Pin(out inputBytes))
             {
                 TranscodeTo(inputBytes, input.Encoding, output, outputEncoding);
             }
         }
 
-        public static void TranscodeTo(PinnedBytes inputBytes, RegExEncoding inputEncoding, RepStrRegEx.ISequentialStream output, RegExEncoding outputEncoding)
+        public static void TranscodeTo(RegExPinnedBytes inputBytes, RegExEncoding inputEncoding, RepStrRegEx.ISequentialStream output, RegExEncoding outputEncoding)
         {
             var bytes = new RepStrRegEx.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
             Library.TranscodeTo(bytes, (RepStrRegEx.RegExEncoding)inputEncoding, output, (RepStrRegEx.RegExEncoding)outputEncoding);
@@ -167,95 +151,107 @@ namespace msandbox
         public void Match(
             RegExInput input,
             RegExMatchOptions options,
-            MatchAction callback)
+            MatchAction matchCallback)
         {
-            PinnedBytes inputBytes;
+            RegExPinnedBytes inputBytes;
             using (var pin = input.Pin(out inputBytes))
             {
-                callback(Match(inputBytes, input.Encoding, options));
+                var result = Match(inputBytes, input.Encoding, options);
+                if (result.IsMatch)
+                {
+                    matchCallback(result.Match);
+                }
             }
         }
 
         public T Match<T>(
             RegExInput input,
             RegExMatchOptions options,
-            MatchFunc<T> callback)
+            T noMatchReturnValue,
+            MatchFunc<T> matchCallback)
         {
-            PinnedBytes inputBytes;
+            RegExPinnedBytes inputBytes;
             using (var pin = input.Pin(out inputBytes))
             {
-                return callback(Match(inputBytes, input.Encoding, options));
+                var result = Match(inputBytes, input.Encoding, options);
+                return result.IsMatch ? matchCallback(result.Match) : noMatchReturnValue;
             }
         }
 
-        public RegExMatch Match(
-            PinnedBytes inputBytes,
+        public RegExMatchResult Match(
+            RegExPinnedBytes inputBytes,
             RegExEncoding inputEncoding,
             RegExMatchOptions options = default)
         {
             var bytes = new RepStrRegEx.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            return new RegExMatch(inner.Match(bytes, (RepStrRegEx.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (RepStrRegEx.RegExMatchFlags)options.MatchFlags), inputBytes);
+            return new RegExMatchResult(inner.Match(bytes, (RepStrRegEx.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (RepStrRegEx.RegExMatchFlags)options.MatchFlags), inputBytes);
         }
 
         public void Search(
             RegExInput input,
             RegExMatchOptions options,
-            MatchAction callback)
+            MatchAction matchCallback)
         {
-            PinnedBytes inputBytes;
+            RegExPinnedBytes inputBytes;
             using (var pin = input.Pin(out inputBytes))
             {
-                callback(Search(inputBytes, input.Encoding, options));
+                var result = Search(inputBytes, input.Encoding, options);
+                if (result.IsMatch)
+                {
+                    matchCallback(result.Match);
+                }
             }
         }
 
         public T Search<T>(
             RegExInput input,
             RegExMatchOptions options,
-            MatchFunc<T> callback)
+            T noMatchReturnValue,
+            MatchFunc<T> matchCallback)
         {
-            PinnedBytes inputBytes;
+            RegExPinnedBytes inputBytes;
             using (var pin = input.Pin(out inputBytes))
             {
-                return callback(Search(inputBytes, input.Encoding, options));
+                var result = Search(inputBytes, input.Encoding, options);
+                return result.IsMatch ? matchCallback(result.Match) : noMatchReturnValue;
             }
         }
 
-        public RegExMatch Search(
-            PinnedBytes inputBytes,
+        public RegExMatchResult Search(
+            RegExPinnedBytes inputBytes,
             RegExEncoding inputEncoding,
             RegExMatchOptions options = default)
         {
             var bytes = new RepStrRegEx.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            return new RegExMatch(inner.Search(bytes, (RepStrRegEx.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (RepStrRegEx.RegExMatchFlags)options.MatchFlags), inputBytes);
+            return new RegExMatchResult(inner.Search(bytes, (RepStrRegEx.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (RepStrRegEx.RegExMatchFlags)options.MatchFlags), inputBytes);
         }
 
         public void EnumerateMatches(
             RegExInput input,
             RegExEnumerateOptions options,
-            EnumerateAction callback)
+            EnumerateMatchesAction enumerateCallback)
         {
-            PinnedBytes inputBytes;
+            RegExPinnedBytes inputBytes;
             using (var pin = input.Pin(out inputBytes))
             {
-                callback(EnumerateMatches(inputBytes, input.Encoding, options));
+                enumerateCallback(EnumerateMatches(inputBytes, input.Encoding, options));
             }
         }
 
         public T EnumerateMatches<T>(
             RegExInput input,
             RegExEnumerateOptions options,
-            EnumerateFunc<T> callback)
+            EnumerateMatchesFunc<T> enumerateCallback)
         {
-            PinnedBytes inputBytes;
+            RegExPinnedBytes inputBytes;
             using (var pin = input.Pin(out inputBytes))
             {
-                return callback(EnumerateMatches(inputBytes, input.Encoding, options));
+                return enumerateCallback(EnumerateMatches(inputBytes, input.Encoding, options));
             }
         }
 
         public RegExMatchEnumerator EnumerateMatches(
-            PinnedBytes inputBytes,
+            RegExPinnedBytes inputBytes,
             RegExEncoding inputEncoding,
             RegExEnumerateOptions options = default)
         {
@@ -269,12 +265,51 @@ namespace msandbox
             return new RegExMatchEnumerator(enumerator, inputBytes);
         }
 
+        public void EnumerateSegments(
+            RegExInput input,
+            RegExEnumerateOptions options,
+            EnumerateSegmentsAction enumerateCallback)
+        {
+            RegExPinnedBytes inputBytes;
+            using (var pin = input.Pin(out inputBytes))
+            {
+                enumerateCallback(EnumerateSegments(inputBytes, input.Encoding, options));
+            }
+        }
+
+        public T EnumerateSegments<T>(
+            RegExInput input,
+            RegExEnumerateOptions options,
+            EnumerateSegmentsFunc<T> enumerateCallback)
+        {
+            RegExPinnedBytes inputBytes;
+            using (var pin = input.Pin(out inputBytes))
+            {
+                return enumerateCallback(EnumerateSegments(inputBytes, input.Encoding, options));
+            }
+        }
+
+        public RegExSegmentEnumerator EnumerateSegments(
+            RegExPinnedBytes inputBytes,
+            RegExEncoding inputEncoding,
+            RegExEnumerateOptions options = default)
+        {
+            var bytes = new RepStrRegEx.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
+            var enumerator = inner.EnumerateMatches(bytes, (RepStrRegEx.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (RepStrRegEx.RegExMatchFlags)options.MatchFlags);
+            if (options.FormatTemplate != null)
+            {
+                enumerator.SetFormatTemplate(options.FormatTemplate, (RepStrRegEx.RegExFormatFlags)options.FormatFlags);
+            }
+
+            return new RegExSegmentEnumerator(enumerator, inputBytes);
+        }
+
         public string Replace(
             RegExInput input,
             string formatTemplate,
             RegExReplaceOptions options = default)
         {
-            PinnedBytes inputBytes;
+            RegExPinnedBytes inputBytes;
             using (var pin = input.Pin(out inputBytes))
             {
                 return Replace(inputBytes, input.Encoding, formatTemplate, options);
@@ -282,7 +317,7 @@ namespace msandbox
         }
 
         public string Replace(
-            PinnedBytes inputBytes,
+            RegExPinnedBytes inputBytes,
             RegExEncoding inputEncoding,
             string formatTemplate,
             RegExReplaceOptions options = default)
@@ -298,7 +333,7 @@ namespace msandbox
             string formatTemplate,
             RegExReplaceOptions options = default)
         {
-            PinnedBytes inputBytes;
+            RegExPinnedBytes inputBytes;
             using (var pin = input.Pin(out inputBytes))
             {
                 ReplaceTo(inputBytes, input.Encoding, outputStream, outputEncoding, formatTemplate, options);
@@ -306,7 +341,7 @@ namespace msandbox
         }
 
         public void ReplaceTo(
-            PinnedBytes inputBytes,
+            RegExPinnedBytes inputBytes,
             RegExEncoding inputEncoding,
             RepStrRegEx.ISequentialStream outputStream,
             RegExEncoding outputEncoding,
