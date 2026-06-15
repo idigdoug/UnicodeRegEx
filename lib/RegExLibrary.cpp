@@ -92,7 +92,7 @@ EscapeFormatLiteralChars(RegExFormatFlags formatFlags, _Out_ std::string_view& c
 }
 
 STDAPI
-RepStrRegExLibraryCreate(
+UnicodeRegExLibraryCreate(
     _Outptr_ IRegExLibrary** ppLibrary)
 {
     if (ppLibrary == nullptr)

@@ -1,14 +1,14 @@
-﻿namespace msandbox
+﻿namespace UnicodeRegEx
 {
     using System;
     using System.Runtime.InteropServices;
 
     internal readonly ref struct RegExMatchResult
     {
-        private readonly RepStrRegEx.IRegExMatchResults? inner;
+        private readonly Interop.IRegExMatchResults? inner;
         private readonly RegExPinnedBytes input;
 
-        internal RegExMatchResult(RepStrRegEx.IRegExMatchResults? inner, RegExPinnedBytes input)
+        internal RegExMatchResult(Interop.IRegExMatchResults? inner, RegExPinnedBytes input)
         {
             this.inner = inner;
             this.input = input;

@@ -1,4 +1,4 @@
-﻿namespace msandbox
+﻿namespace UnicodeRegEx
 {
     using System;
     using System.Runtime.InteropServices;
@@ -8,10 +8,10 @@
 
     internal static class RegExExtensions
     {
-        public static IDisposable LinkCancellation(this RepStrRegEx.IRegExFileStream self, CancellationToken token)
+        public static IDisposable LinkCancellation(this Interop.IRegExFileStream self, CancellationToken token)
         {
             // If already cancelled, cancel immediately; Register handles this synchronously.
-            return token.Register(static s => ((RepStrRegEx.IRegExFileStream)s!).Cancel(), self);
+            return token.Register(static s => ((Interop.IRegExFileStream)s!).Cancel(), self);
         }
     }
 

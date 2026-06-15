@@ -95,12 +95,12 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="RepStrRegEx.Interop">
-      <HintPath>..\out\RepStrRegEx.Interop.dll</HintPath>
+    <Reference Include="UnicodeRegEx.Interop">
+      <HintPath>..\out\UnicodeRegEx.Interop.dll</HintPath>
       <EmbedInteropTypes>true</EmbedInteropTypes>
       <Private>false</Private>
     </Reference>
-    <ProjectReference Include="..\lib\RepStrRegExLib.vcxproj">
+    <ProjectReference Include="..\lib\UnicodeRegExLib.vcxproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
   </ItemGroup>

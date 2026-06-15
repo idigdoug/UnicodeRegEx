@@ -1,6 +1,6 @@
 //{{NO_DEPENDENCIES}}
 // Microsoft Visual C++ generated include file.
-// Used by RepStrRegExDll.rc
+// Used by UnicodeRegExDll.rc
 //
 #define IDR_TYPELIB1                    102
 

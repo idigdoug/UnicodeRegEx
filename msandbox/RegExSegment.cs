@@ -1,17 +1,17 @@
-﻿namespace msandbox
+﻿namespace UnicodeRegEx
 {
     using System;
 
     internal readonly ref struct RegExSegment
     {
-        private readonly RepStrRegEx.IRegExMatchResults inner;
+        private readonly Interop.IRegExMatchResults inner;
         private readonly RegExPinnedBytes input;
         private readonly nuint begin;
         private readonly nuint end;
         private readonly bool isMatch;
 
         internal RegExSegment(
-            RepStrRegEx.IRegExMatchResults inner,
+            Interop.IRegExMatchResults inner,
             RegExPinnedBytes input,
             nuint begin,
             nuint end,
@@ -64,9 +64,9 @@
         /// <summary>
         /// Converts the specified span of input to a string in the specified encoding and writes it to the specified output stream.
         /// </summary>
-        public void CopyInputTo(nuint inputOffset, nuint size, RepStrRegEx.ISequentialStream outputStream, RegExEncoding outputEncoding)
+        public void CopyInputTo(nuint inputOffset, nuint size, Interop.ISequentialStream outputStream, RegExEncoding outputEncoding)
         {
-            inner.CopyInputTo((long)inputOffset, (long)size, outputStream, (RepStrRegEx.RegExEncoding)outputEncoding);
+            inner.CopyInputTo((long)inputOffset, (long)size, outputStream, (Interop.RegExEncoding)outputEncoding);
         }
     }
 }

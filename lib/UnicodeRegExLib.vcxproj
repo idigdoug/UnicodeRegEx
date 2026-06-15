@@ -54,9 +54,9 @@
     <VCProjectVersion>18.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{d051ca0f-f2b7-43fe-bbdd-667b70abf684}</ProjectGuid>
-    <RootNamespace>RepStrLib</RootNamespace>
+    <RootNamespace>UnicodeRegEx</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>RepStrRegExLib</ProjectName>
+    <ProjectName>UnicodeRegExLib</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
@@ -713,7 +713,7 @@
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "$(SolutionDir)out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -749,7 +749,7 @@
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "$(SolutionDir)out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -785,7 +785,7 @@
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "$(SolutionDir)out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -821,7 +821,7 @@
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "$(SolutionDir)out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -857,7 +857,7 @@
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "$(SolutionDir)out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -893,7 +893,7 @@
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)RepStrRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "$(SolutionDir)out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -933,11 +933,11 @@
     <ClCompile Include="RegExMatchBase.cpp" />
     <ClCompile Include="RegExMatchEnumerator.cpp" />
     <ClCompile Include="RegExMatchResults.cpp" />
-    <ClCompile Include="RepStrRegExCheck.cpp" />
+    <ClCompile Include="RegExCheck.cpp" />
     <ClCompile Include="WindowsChar32RegexTraits.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <Midl Include="..\inc\RepStrRegEx.idl" />
+    <Midl Include="..\inc\UnicodeRegEx.idl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
@@ -946,10 +946,10 @@
     <_TlbImpExe Condition="'$(_TlbImpExe)' == '' AND Exists('$(WindowsSdkDir)bin\NETFX 4.8 Tools\TlbImp.exe')">$(WindowsSdkDir)bin\NETFX 4.8 Tools\TlbImp.exe</_TlbImpExe>
     <_TlbImpExe Condition="'$(_TlbImpExe)' == '' AND Exists('$(NETFXSDKDir)bin\NETFX 4.8 Tools\TlbImp.exe')">$(NETFXSDKDir)bin\NETFX 4.8 Tools\TlbImp.exe</_TlbImpExe>
     <_TlbImpExe Condition="'$(_TlbImpExe)' == ''">TlbImp.exe</_TlbImpExe>
-    <_InteropAssembly>$(SolutionDir)out\RepStrRegEx.Interop.dll</_InteropAssembly>
+    <_InteropAssembly>$(SolutionDir)out\UnicodeRegEx.Interop.dll</_InteropAssembly>
   </PropertyGroup>
-  <Target Name="GenerateInteropAssembly" AfterTargets="Build" Inputs="$(IntDir)RepStrRegEx.tlb" Outputs="$(_InteropAssembly)">
-    <Message Importance="high" Text="Generating $(_InteropAssembly) from $(IntDir)RepStrRegEx.tlb" />
-    <Exec Command="&quot;$(_TlbImpExe)&quot; &quot;$(IntDir)RepStrRegEx.tlb&quot; /out:&quot;$(_InteropAssembly)&quot; /namespace:RepStrRegEx /silent" />
+  <Target Name="GenerateInteropAssembly" AfterTargets="Build" Inputs="$(IntDir)UnicodeRegEx.tlb" Outputs="$(_InteropAssembly)">
+    <Message Importance="high" Text="Generating $(_InteropAssembly) from $(IntDir)UnicodeRegEx.tlb" />
+    <Exec Command="&quot;$(_TlbImpExe)&quot; &quot;$(IntDir)UnicodeRegEx.tlb&quot; /out:&quot;$(_InteropAssembly)&quot; /namespace:UnicodeRegEx.Interop /silent" />
   </Target>
 </Project>

@@ -1,5 +1,5 @@
 #pragma once
-#include <RepStrRegEx.h>
+#include <UnicodeRegEx.h>
 
 // Apartment-threaded IRegExMemoryStream implementation.
 // Backed by a std::vector<BYTE> with a separate position cursor that supports

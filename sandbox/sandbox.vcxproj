@@ -259,7 +259,7 @@
     <ResourceCompile Include="sandbox.rc" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\lib\RepStrRegExLib.vcxproj">
+    <ProjectReference Include="..\lib\UnicodeRegExLib.vcxproj">
       <Project>{d051ca0f-f2b7-43fe-bbdd-667b70abf684}</Project>
     </ProjectReference>
   </ItemGroup>

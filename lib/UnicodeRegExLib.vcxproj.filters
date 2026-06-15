@@ -33,14 +33,14 @@
     <ClCompile Include="RegExMatchBase.cpp" />
     <ClCompile Include="RegExMatchEnumerator.cpp" />
     <ClCompile Include="RegExMatchResults.cpp" />
-    <ClCompile Include="RepStrRegExCheck.cpp" />
+    <ClCompile Include="RegExCheck.cpp" />
     <ClCompile Include="WindowsChar32RegexTraits.cpp" />
     <ClCompile Include="OutputSink.cpp" />
     <ClCompile Include="InputValidation.cpp" />
     <ClCompile Include="MatchEnumerator.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <Midl Include="..\inc\RepStrRegEx.idl">
+    <Midl Include="..\inc\UnicodeRegEx.idl">
       <Filter>inc</Filter>
     </Midl>
   </ItemGroup>

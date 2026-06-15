@@ -1,5 +1,5 @@
 #pragma once
-#include <RepStrRegEx.h>
+#include <UnicodeRegEx.h>
 #include <utf.h>
 #include <WindowsChar32RegexTraits.h>
 #include "MatchEnumerator.h"

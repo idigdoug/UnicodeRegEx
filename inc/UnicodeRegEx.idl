@@ -1,4 +1,3 @@
-// RepStrRegEx.idl
 // Pseudo-COM regex interfaces for use by .NET Framework 4.8 via typelib.
 
 import "oaidl.idl";
@@ -631,14 +630,14 @@ interface IRegExLibrary : IUnknown
 
 cpp_quote("// Constructor for IRegExLibrary factory class. Returned object is free-threaded.")
 cpp_quote("STDAPI")
-cpp_quote("RepStrRegExLibraryCreate(_Outptr_ IRegExLibrary** ppLibrary);")
+cpp_quote("UnicodeRegExLibraryCreate(_Outptr_ IRegExLibrary** ppLibrary);")
 
 [
     uuid(F6E5D4C3-B2A1-4089-9E7D-6C5B4A3F2E1D),
     version(1.0),
-    helpstring("RepStr RegEx Type Library")
+    helpstring("Unicode RegEx Type Library")
 ]
-library RepStrRegEx
+library UnicodeRegEx
 {
     importlib("stdole2.tlb");
 

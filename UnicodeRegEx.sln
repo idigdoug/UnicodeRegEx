@@ -5,16 +5,16 @@ VisualStudioVersion = 18.6.11806.211
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sandbox", "sandbox\sandbox.vcxproj", "{BA91EC20-9936-45C1-93FF-C9B81DBE0090}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RepStrRegExLib", "lib\RepStrRegExLib.vcxproj", "{D051CA0F-F2B7-43FE-BBDD-667B70ABF684}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "UnicodeRegExLib", "lib\UnicodeRegExLib.vcxproj", "{D051CA0F-F2B7-43FE-BBDD-667B70ABF684}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RepStrRegExTests", "test\RepStrRegExTests.vcxproj", "{E3A1B2C4-D5F6-4789-ABCD-EF0123456789}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "UnicodeRegExTests", "test\UnicodeRegExTests.vcxproj", "{E3A1B2C4-D5F6-4789-ABCD-EF0123456789}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "msandbox", "msandbox\msandbox.csproj", "{5FB09166-5A15-4CC5-BAED-AE646D0C79C5}"
 	ProjectSection(ProjectDependencies) = postProject
 		{D051CA0F-F2B7-43FE-BBDD-667B70ABF684} = {D051CA0F-F2B7-43FE-BBDD-667B70ABF684}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RepStrRegExDll", "dll\RepStrRegExDll.vcxproj", "{384EF215-E1B7-48E2-836C-244947796D69}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "UnicodeRegExDll", "dll\UnicodeRegExDll.vcxproj", "{384EF215-E1B7-48E2-836C-244947796D69}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

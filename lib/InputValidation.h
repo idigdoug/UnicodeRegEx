@@ -1,5 +1,5 @@
 #pragma once
-#include <RepStrRegEx.h>
+#include <UnicodeRegEx.h>
 
 // Returns true if a RegExBytes is a valid whole-input descriptor: size is
 // non-negative and a non-empty buffer has a non-null base. Used by the

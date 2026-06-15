@@ -1,12 +1,12 @@
-namespace msandbox
+namespace UnicodeRegEx
 {
     using System;
     using System.Runtime.InteropServices;
 
     internal struct RegEx
     {
-        private static RepStrRegEx.IRegExLibrary? library;
-        private RepStrRegEx.IRegEx inner;
+        private static Interop.IRegExLibrary? library;
+        private Interop.IRegEx inner;
 
         public delegate void MatchAction(RegExMatch match);
         public delegate T MatchFunc<T>(RegExMatch match);
@@ -17,7 +17,7 @@ namespace msandbox
 
         // STATIC
 
-        private static RepStrRegEx.IRegExLibrary Library
+        private static Interop.IRegExLibrary Library
         {
             get
             {
@@ -28,13 +28,13 @@ namespace msandbox
                     switch (RuntimeInformation.ProcessArchitecture)
                     {
                         case Architecture.X86:
-                            hr = NativeMethods.X86.RepStrRegExLibraryCreate(out value);
+                            hr = NativeMethods.X86.UnicodeRegExLibraryCreate(out value);
                             break;
                         case Architecture.X64:
-                            hr = NativeMethods.X64.RepStrRegExLibraryCreate(out value);
+                            hr = NativeMethods.X64.UnicodeRegExLibraryCreate(out value);
                             break;
                         case Architecture.Arm64:
-                            hr = NativeMethods.Arm64.RepStrRegExLibraryCreate(out value);
+                            hr = NativeMethods.Arm64.UnicodeRegExLibraryCreate(out value);
                             break;
                         default:
                             throw new PlatformNotSupportedException($"Unsupported architecture: {RuntimeInformation.ProcessArchitecture}");
@@ -59,10 +59,10 @@ namespace msandbox
         {
             const int MK_E_SYNTAX = unchecked((int)0x800401E4);
 
-            RepStrRegEx.RegExErrorCode errorCode = default;
+            Interop.RegExErrorCode errorCode = default;
             try
             {
-                return new RegEx(Library.CreateRegEx(pattern, (RepStrRegEx.RegExSyntaxFlags)syntaxFlags, (uint)lcid, out errorCode));
+                return new RegEx(Library.CreateRegEx(pattern, (Interop.RegExSyntaxFlags)syntaxFlags, (uint)lcid, out errorCode));
             }
             catch (COMException ex) when (ex.HResult == MK_E_SYNTAX)
             {
@@ -72,22 +72,22 @@ namespace msandbox
 
         public static string EscapePatternLiteral(string patternLiteral, RegExSyntaxFlags syntaxFlags = RegExSyntaxFlags.ECMAScript)
         {
-            return Library.EscapePatternLiteral(patternLiteral, (RepStrRegEx.RegExSyntaxFlags)syntaxFlags);
+            return Library.EscapePatternLiteral(patternLiteral, (Interop.RegExSyntaxFlags)syntaxFlags);
         }
 
         public static string EscapeFormatLiteral(string formatLiteral, RegExFormatFlags formatFlags = RegExFormatFlags.Perl)
         {
-            return Library.EscapeFormatLiteral(formatLiteral, (RepStrRegEx.RegExFormatFlags)formatFlags);
+            return Library.EscapeFormatLiteral(formatLiteral, (Interop.RegExFormatFlags)formatFlags);
         }
 
         public static string GetEscapePatternLiteralChars(RegExSyntaxFlags syntaxFlags = RegExSyntaxFlags.ECMAScript)
         {
-            return Library.GetEscapePatternLiteralChars((RepStrRegEx.RegExSyntaxFlags)syntaxFlags);
+            return Library.GetEscapePatternLiteralChars((Interop.RegExSyntaxFlags)syntaxFlags);
         }
 
         public static string GetEscapeFormatLiteralChars(RegExFormatFlags formatFlags = RegExFormatFlags.Perl)
         {
-            return Library.GetEscapeFormatLiteralChars((RepStrRegEx.RegExFormatFlags)formatFlags);
+            return Library.GetEscapeFormatLiteralChars((Interop.RegExFormatFlags)formatFlags);
         }
 
         public static string Transcode(RegExInput input)
@@ -101,11 +101,11 @@ namespace msandbox
 
         public static string Transcode(RegExPinnedBytes inputBytes, RegExEncoding inputEncoding)
         {
-            var bytes = new RepStrRegEx.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            return Library.Transcode(bytes, (RepStrRegEx.RegExEncoding)inputEncoding);
+            var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
+            return Library.Transcode(bytes, (Interop.RegExEncoding)inputEncoding);
         }
 
-        public static void TranscodeTo(RegExInput input, RepStrRegEx.ISequentialStream output, RegExEncoding outputEncoding)
+        public static void TranscodeTo(RegExInput input, Interop.ISequentialStream output, RegExEncoding outputEncoding)
         {
             RegExPinnedBytes inputBytes;
             using (var pin = input.Pin(out inputBytes))
@@ -114,30 +114,30 @@ namespace msandbox
             }
         }
 
-        public static void TranscodeTo(RegExPinnedBytes inputBytes, RegExEncoding inputEncoding, RepStrRegEx.ISequentialStream output, RegExEncoding outputEncoding)
+        public static void TranscodeTo(RegExPinnedBytes inputBytes, RegExEncoding inputEncoding, Interop.ISequentialStream output, RegExEncoding outputEncoding)
         {
-            var bytes = new RepStrRegEx.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            Library.TranscodeTo(bytes, (RepStrRegEx.RegExEncoding)inputEncoding, output, (RepStrRegEx.RegExEncoding)outputEncoding);
+            var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
+            Library.TranscodeTo(bytes, (Interop.RegExEncoding)inputEncoding, output, (Interop.RegExEncoding)outputEncoding);
         }
 
-        public static RegExInterfaceWrapper<RepStrRegEx.IRegExMemoryStream> CreateMemoryStream(int initialCapacity = 0)
+        public static RegExInterfaceWrapper<Interop.IRegExMemoryStream> CreateMemoryStream(int initialCapacity = 0)
         {
-            return new RegExInterfaceWrapper<RepStrRegEx.IRegExMemoryStream>(Library.CreateMemoryStream(initialCapacity));
+            return new RegExInterfaceWrapper<Interop.IRegExMemoryStream>(Library.CreateMemoryStream(initialCapacity));
         }
 
-        public static RegExInterfaceWrapper<RepStrRegEx.IRegExFileStream> CreateFileStream(string path, RegExFileStreamFlags flags)
+        public static RegExInterfaceWrapper<Interop.IRegExFileStream> CreateFileStream(string path, RegExFileStreamFlags flags)
         {
-            return new RegExInterfaceWrapper<RepStrRegEx.IRegExFileStream>(Library.CreateFileStream(path, (RepStrRegEx.RegExFileStreamFlags)flags));
+            return new RegExInterfaceWrapper<Interop.IRegExFileStream>(Library.CreateFileStream(path, (Interop.RegExFileStreamFlags)flags));
         }
 
-        public static RegExInterfaceWrapper<RepStrRegEx.IRegExFileStream> CreateReplacementFileStream(string finalPath)
+        public static RegExInterfaceWrapper<Interop.IRegExFileStream> CreateReplacementFileStream(string finalPath)
         {
-            return new RegExInterfaceWrapper<RepStrRegEx.IRegExFileStream>(Library.CreateReplacementFileStream(finalPath));
+            return new RegExInterfaceWrapper<Interop.IRegExFileStream>(Library.CreateReplacementFileStream(finalPath));
         }
 
         // INSTANCE
 
-        private RegEx(RepStrRegEx.IRegEx inner)
+        private RegEx(Interop.IRegEx inner)
         {
             this.inner = inner;
         }
@@ -183,8 +183,8 @@ namespace msandbox
             RegExEncoding inputEncoding,
             RegExMatchOptions options = default)
         {
-            var bytes = new RepStrRegEx.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            return new RegExMatchResult(inner.Match(bytes, (RepStrRegEx.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (RepStrRegEx.RegExMatchFlags)options.MatchFlags), inputBytes);
+            var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
+            return new RegExMatchResult(inner.Match(bytes, (Interop.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags), inputBytes);
         }
 
         public void Search(
@@ -222,8 +222,8 @@ namespace msandbox
             RegExEncoding inputEncoding,
             RegExMatchOptions options = default)
         {
-            var bytes = new RepStrRegEx.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            return new RegExMatchResult(inner.Search(bytes, (RepStrRegEx.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (RepStrRegEx.RegExMatchFlags)options.MatchFlags), inputBytes);
+            var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
+            return new RegExMatchResult(inner.Search(bytes, (Interop.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags), inputBytes);
         }
 
         public void EnumerateMatches(
@@ -255,11 +255,11 @@ namespace msandbox
             RegExEncoding inputEncoding,
             RegExEnumerateOptions options = default)
         {
-            var bytes = new RepStrRegEx.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            var enumerator = inner.EnumerateMatches(bytes, (RepStrRegEx.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (RepStrRegEx.RegExMatchFlags)options.MatchFlags);
+            var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
+            var enumerator = inner.EnumerateMatches(bytes, (Interop.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags);
             if (options.FormatTemplate != null)
             {
-                enumerator.SetFormatTemplate(options.FormatTemplate, (RepStrRegEx.RegExFormatFlags)options.FormatFlags);
+                enumerator.SetFormatTemplate(options.FormatTemplate, (Interop.RegExFormatFlags)options.FormatFlags);
             }
 
             return new RegExMatchEnumerator(enumerator, inputBytes);
@@ -294,11 +294,11 @@ namespace msandbox
             RegExEncoding inputEncoding,
             RegExEnumerateOptions options = default)
         {
-            var bytes = new RepStrRegEx.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            var enumerator = inner.EnumerateMatches(bytes, (RepStrRegEx.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (RepStrRegEx.RegExMatchFlags)options.MatchFlags);
+            var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
+            var enumerator = inner.EnumerateMatches(bytes, (Interop.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags);
             if (options.FormatTemplate != null)
             {
-                enumerator.SetFormatTemplate(options.FormatTemplate, (RepStrRegEx.RegExFormatFlags)options.FormatFlags);
+                enumerator.SetFormatTemplate(options.FormatTemplate, (Interop.RegExFormatFlags)options.FormatFlags);
             }
 
             return new RegExSegmentEnumerator(enumerator, inputBytes);
@@ -322,13 +322,13 @@ namespace msandbox
             string formatTemplate,
             RegExReplaceOptions options = default)
         {
-            var bytes = new RepStrRegEx.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            return inner.Replace(bytes, (RepStrRegEx.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (RepStrRegEx.RegExMatchFlags)options.MatchFlags, formatTemplate, (RepStrRegEx.RegExFormatFlags)options.FormatFlags);
+            var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
+            return inner.Replace(bytes, (Interop.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags, formatTemplate, (Interop.RegExFormatFlags)options.FormatFlags);
         }
 
         public void ReplaceTo(
             RegExInput input,
-            RepStrRegEx.ISequentialStream outputStream,
+            Interop.ISequentialStream outputStream,
             RegExEncoding outputEncoding,
             string formatTemplate,
             RegExReplaceOptions options = default)
@@ -343,13 +343,13 @@ namespace msandbox
         public void ReplaceTo(
             RegExPinnedBytes inputBytes,
             RegExEncoding inputEncoding,
-            RepStrRegEx.ISequentialStream outputStream,
+            Interop.ISequentialStream outputStream,
             RegExEncoding outputEncoding,
             string formatTemplate,
             RegExReplaceOptions options = default)
         {
-            var bytes = new RepStrRegEx.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            inner.ReplaceTo(bytes, (RepStrRegEx.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (RepStrRegEx.RegExMatchFlags)options.MatchFlags, formatTemplate, (RepStrRegEx.RegExFormatFlags)options.FormatFlags, outputStream, (RepStrRegEx.RegExEncoding)outputEncoding);
+            var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
+            inner.ReplaceTo(bytes, (Interop.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags, formatTemplate, (Interop.RegExFormatFlags)options.FormatFlags, outputStream, (Interop.RegExEncoding)outputEncoding);
         }
 
         // PRIVATE
@@ -358,29 +358,29 @@ namespace msandbox
         {
             public static class X86
             {
-                private const string RepStrRegExLib = "RepStrRegEx_x86.dll";
+                private const string UnicodeRegExLib = "UnicodeRegEx_x86.dll";
 
-                [DllImport(RepStrRegExLib, ExactSpelling = true, PreserveSig = true)]
-                public static extern int RepStrRegExLibraryCreate(
-                    [MarshalAs(UnmanagedType.Interface)] out RepStrRegEx.IRegExLibrary library);
+                [DllImport(UnicodeRegExLib, ExactSpelling = true, PreserveSig = true)]
+                public static extern int UnicodeRegExLibraryCreate(
+                    [MarshalAs(UnmanagedType.Interface)] out Interop.IRegExLibrary library);
             }
 
             public static class X64
             {
-                private const string RepStrRegExLib = "RepStrRegEx_x64.dll";
+                private const string UnicodeRegExLib = "UnicodeRegEx_x64.dll";
 
-                [DllImport(RepStrRegExLib, ExactSpelling = true, PreserveSig = true)]
-                public static extern int RepStrRegExLibraryCreate(
-                    [MarshalAs(UnmanagedType.Interface)] out RepStrRegEx.IRegExLibrary library);
+                [DllImport(UnicodeRegExLib, ExactSpelling = true, PreserveSig = true)]
+                public static extern int UnicodeRegExLibraryCreate(
+                    [MarshalAs(UnmanagedType.Interface)] out Interop.IRegExLibrary library);
             }
 
             public static class Arm64
             {
-                private const string RepStrRegExLib = "RepStrRegEx_ARM64.dll";
+                private const string UnicodeRegExLib = "UnicodeRegEx_ARM64.dll";
 
-                [DllImport(RepStrRegExLib, ExactSpelling = true, PreserveSig = true)]
-                public static extern int RepStrRegExLibraryCreate(
-                    [MarshalAs(UnmanagedType.Interface)] out RepStrRegEx.IRegExLibrary library);
+                [DllImport(UnicodeRegExLib, ExactSpelling = true, PreserveSig = true)]
+                public static extern int UnicodeRegExLibraryCreate(
+                    [MarshalAs(UnmanagedType.Interface)] out Interop.IRegExLibrary library);
             }
         }
     }

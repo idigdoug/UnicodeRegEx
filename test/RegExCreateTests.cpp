@@ -182,7 +182,7 @@ namespace RegExTests
             // Force creation of a new library instance to verify ref-counting independent
             // of the cached process-wide one.
             wil::com_ptr<IRegExLibrary> library;
-            Assert::AreEqual(S_OK, RepStrRegExLibraryCreate(library.put()));
+            Assert::AreEqual(S_OK, UnicodeRegExLibraryCreate(library.put()));
             Assert::IsNotNull(library.get());
 
             IRegExLibrary* raw = library.get();

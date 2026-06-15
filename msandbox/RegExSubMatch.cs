@@ -1,4 +1,4 @@
-﻿namespace msandbox
+﻿namespace UnicodeRegEx
 {
     internal readonly struct RegExSubMatch
     {

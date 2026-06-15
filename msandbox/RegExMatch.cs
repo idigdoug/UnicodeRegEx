@@ -1,4 +1,4 @@
-﻿namespace msandbox
+﻿namespace UnicodeRegEx
 {
     /// <summary>
     /// Represents the result of a successful regex match.
@@ -6,10 +6,10 @@
     /// </summary>
     internal readonly ref struct RegExMatch
     {
-        private readonly RepStrRegEx.IRegExMatchResults inner;
+        private readonly Interop.IRegExMatchResults inner;
         private readonly RegExPinnedBytes input;
 
-        internal RegExMatch(RepStrRegEx.IRegExMatchResults inner, RegExPinnedBytes input)
+        internal RegExMatch(Interop.IRegExMatchResults inner, RegExPinnedBytes input)
         {
             this.inner = inner;
             this.input = input;
@@ -60,7 +60,7 @@
         /// </summary>
         public void SetFormatTemplate(string formatTemplate, RegExFormatFlags formatFlags)
         {
-            inner.SetFormatTemplate(formatTemplate, (RepStrRegEx.RegExFormatFlags)formatFlags);
+            inner.SetFormatTemplate(formatTemplate, (Interop.RegExFormatFlags)formatFlags);
         }
 
         /// <summary>
@@ -74,9 +74,9 @@
         /// <summary>
         /// Formats this match according to the previously set format template and returns the result.
         /// </summary>
-        public void FormatTo(RepStrRegEx.ISequentialStream outputStream, RegExEncoding outputEncoding)
+        public void FormatTo(Interop.ISequentialStream outputStream, RegExEncoding outputEncoding)
         {
-            inner.FormatTo(outputStream, (RepStrRegEx.RegExEncoding)outputEncoding);
+            inner.FormatTo(outputStream, (Interop.RegExEncoding)outputEncoding);
         }
 
         /// <summary>
@@ -90,9 +90,9 @@
         /// <summary>
         /// Converts the specified span of input to a string in the specified encoding and writes it to the specified output stream.
         /// </summary>
-        public void CopyInputTo(nuint inputOffset, nuint size, RepStrRegEx.ISequentialStream outputStream, RegExEncoding outputEncoding)
+        public void CopyInputTo(nuint inputOffset, nuint size, Interop.ISequentialStream outputStream, RegExEncoding outputEncoding)
         {
-            inner.CopyInputTo((long)inputOffset, (long)size, outputStream, (RepStrRegEx.RegExEncoding)outputEncoding);
+            inner.CopyInputTo((long)inputOffset, (long)size, outputStream, (Interop.RegExEncoding)outputEncoding);
         }
     }
 }

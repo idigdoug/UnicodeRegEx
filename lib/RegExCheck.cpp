@@ -1,5 +1,5 @@
 #include "pch.h"
-#include <RepStrRegEx.h>
+#include <UnicodeRegEx.h>
 
 // RegExSyntaxFlags
 static_assert(RegExSyntaxFlags_perl_syntax_group == (int)boost::regbase::perl_syntax_group);

@@ -1,8 +1,8 @@
 #pragma once
-#include <RepStrRegEx.h>
+#include <UnicodeRegEx.h>
 
 // Free-threaded library root object. Stateless; all methods are reentrant.
-// Constructed via RepStrRegExLibraryCreate.
+// Constructed via UnicodeRegExLibraryCreate.
 class RegExLibrary final : public IRegExLibrary
 {
     volatile long m_refCount;

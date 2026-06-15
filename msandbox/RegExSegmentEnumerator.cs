@@ -1,4 +1,4 @@
-﻿namespace msandbox
+﻿namespace UnicodeRegEx
 {
     using System;
     using System.Runtime.InteropServices;
@@ -6,14 +6,14 @@
 
     internal ref struct RegExSegmentEnumerator
     {
-        private RepStrRegEx.IRegExMatchEnumerator inner;   // readonly
-        private RegExPinnedBytes input;                 // readonly
+        private Interop.IRegExMatchEnumerator inner;   // readonly
+        private RegExPinnedBytes input;                // readonly
         private nuint begin;
         private nuint end;
         private nuint matchEnd;
         private State state;
 
-        internal RegExSegmentEnumerator(RepStrRegEx.IRegExMatchEnumerator inner, RegExPinnedBytes input)
+        internal RegExSegmentEnumerator(Interop.IRegExMatchEnumerator inner, RegExPinnedBytes input)
         {
             this.inner = inner;
             this.input = input;

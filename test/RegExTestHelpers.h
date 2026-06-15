@@ -1,5 +1,5 @@
 #pragma once
-#include <RepStrRegEx.h>
+#include <UnicodeRegEx.h>
 
 template<class CharT>
 constexpr RegExBytes
@@ -47,7 +47,7 @@ GetLibrary()
     if (!s_library)
     {
         wil::com_ptr<IRegExLibrary> library;
-        if (SUCCEEDED(RepStrRegExLibraryCreate(library.put())))
+        if (SUCCEEDED(UnicodeRegExLibraryCreate(library.put())))
         {
             s_library = std::move(library);
         }
