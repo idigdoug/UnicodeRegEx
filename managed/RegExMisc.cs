@@ -4,9 +4,7 @@
     using System.Runtime.InteropServices;
     using System.Threading;
 
-#pragma warning disable CS0649 // Field is never assigned to, and will always have its default value.
-
-    internal static class RegExExtensions
+    public static class RegExExtensions
     {
         public static IDisposable LinkCancellation(this Interop.IRegExFileStream self, CancellationToken token)
         {
@@ -15,20 +13,20 @@
         }
     }
 
-    internal struct RegExMatchOptions
+    public struct RegExMatchOptions
     {
         public nuint StartByteOffset;
         public RegExMatchFlags MatchFlags;
     }
 
-    internal struct RegExReplaceOptions
+    public struct RegExReplaceOptions
     {
         public nuint StartByteOffset;
         public RegExMatchFlags MatchFlags;
         public RegExFormatFlags FormatFlags;
     }
 
-    internal struct RegExEnumerateOptions
+    public struct RegExEnumerateOptions
     {
         public nuint StartByteOffset;
         public RegExMatchFlags MatchFlags;
@@ -39,11 +37,11 @@
     /// <summary>
     /// Wrapper to simplify calling Dispose on a COM object.
     /// </summary>
-    internal sealed class RegExInterfaceWrapper<T> : IDisposable where T : class
+    public sealed class RegExInterfaceWrapper<T> : IDisposable where T : class
     {
         private T? inner;
 
-        public RegExInterfaceWrapper(T? inner)
+        internal RegExInterfaceWrapper(T? inner)
         {
             this.inner = inner;
         }

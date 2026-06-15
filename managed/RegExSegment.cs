@@ -2,7 +2,7 @@
 {
     using System;
 
-    internal readonly ref struct RegExSegment
+    public readonly ref struct RegExSegment
     {
         private readonly Interop.IRegExMatchResults inner;
         private readonly RegExPinnedBytes input;

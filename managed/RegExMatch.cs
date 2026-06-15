@@ -4,7 +4,7 @@
     /// Represents the result of a successful regex match.
     /// Obtained from a RegExMatchResult (via .Match) or from RegExMatchEnumerator.Current.
     /// </summary>
-    internal readonly ref struct RegExMatch
+    public readonly ref struct RegExMatch
     {
         private readonly Interop.IRegExMatchResults inner;
         private readonly RegExPinnedBytes input;

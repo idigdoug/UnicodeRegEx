@@ -1,12 +1,12 @@
 ﻿namespace UnicodeRegEx
 {
-    internal readonly struct RegExSubMatch
+    public readonly struct RegExSubMatch
     {
         public readonly nuint Begin;
         public readonly nuint Size;
         public readonly bool Matched;
 
-        public RegExSubMatch(nuint begin, nuint size, bool matched)
+        internal RegExSubMatch(nuint begin, nuint size, bool matched)
         {
             this.Begin = begin;
             this.Size = size;

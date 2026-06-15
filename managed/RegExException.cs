@@ -5,7 +5,7 @@
     /// <summary>
     /// Exception thrown by RegEx.Create when pattern parsing fails.
     /// </summary>
-    internal class RegExException : Exception
+    public class RegExException : Exception
     {
         private readonly string pattern;
         private readonly RegExSyntaxFlags syntaxFlags;

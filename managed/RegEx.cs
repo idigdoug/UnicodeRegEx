@@ -3,7 +3,7 @@ namespace UnicodeRegEx
     using System;
     using System.Runtime.InteropServices;
 
-    internal struct RegEx
+    public struct RegEx
     {
         private static Interop.IRegExLibrary? library;
         private Interop.IRegEx inner;
@@ -92,10 +92,14 @@ namespace UnicodeRegEx
 
         public static string Transcode(RegExInput input)
         {
-            RegExPinnedBytes inputBytes;
-            using (var pin = input.Pin(out inputBytes))
+            RegExInput.PinScope pinScope = default;
+            try
             {
-                return Transcode(inputBytes, input.Encoding);
+                return Transcode(input.Pin(ref pinScope), input.Encoding);
+            }
+            finally
+            {
+                pinScope.Dispose();
             }
         }
 
@@ -107,10 +111,14 @@ namespace UnicodeRegEx
 
         public static void TranscodeTo(RegExInput input, Interop.ISequentialStream output, RegExEncoding outputEncoding)
         {
-            RegExPinnedBytes inputBytes;
-            using (var pin = input.Pin(out inputBytes))
+            RegExInput.PinScope pinScope = default;
+            try
             {
-                TranscodeTo(inputBytes, input.Encoding, output, outputEncoding);
+                TranscodeTo(input.Pin(ref pinScope), input.Encoding, output, outputEncoding);
+            }
+            finally
+            {
+                pinScope.Dispose();
             }
         }
 
@@ -153,14 +161,18 @@ namespace UnicodeRegEx
             RegExMatchOptions options,
             MatchAction matchCallback)
         {
-            RegExPinnedBytes inputBytes;
-            using (var pin = input.Pin(out inputBytes))
+            RegExInput.PinScope pinScope = default;
+            try
             {
-                var result = Match(inputBytes, input.Encoding, options);
+                var result = Match(input.Pin(ref pinScope), input.Encoding, options);
                 if (result.IsMatch)
                 {
                     matchCallback(result.Match);
                 }
+            }
+            finally
+            {
+                pinScope.Dispose();
             }
         }
 
@@ -170,11 +182,15 @@ namespace UnicodeRegEx
             T noMatchReturnValue,
             MatchFunc<T> matchCallback)
         {
-            RegExPinnedBytes inputBytes;
-            using (var pin = input.Pin(out inputBytes))
+            RegExInput.PinScope pinScope = default;
+            try
             {
-                var result = Match(inputBytes, input.Encoding, options);
+                var result = Match(input.Pin(ref pinScope), input.Encoding, options);
                 return result.IsMatch ? matchCallback(result.Match) : noMatchReturnValue;
+            }
+            finally
+            {
+                pinScope.Dispose();
             }
         }
 
@@ -192,14 +208,18 @@ namespace UnicodeRegEx
             RegExMatchOptions options,
             MatchAction matchCallback)
         {
-            RegExPinnedBytes inputBytes;
-            using (var pin = input.Pin(out inputBytes))
+            RegExInput.PinScope pinScope = default;
+            try
             {
-                var result = Search(inputBytes, input.Encoding, options);
+                var result = Search(input.Pin(ref pinScope), input.Encoding, options);
                 if (result.IsMatch)
                 {
                     matchCallback(result.Match);
                 }
+            }
+            finally
+            {
+                pinScope.Dispose();
             }
         }
 
@@ -209,11 +229,15 @@ namespace UnicodeRegEx
             T noMatchReturnValue,
             MatchFunc<T> matchCallback)
         {
-            RegExPinnedBytes inputBytes;
-            using (var pin = input.Pin(out inputBytes))
+            RegExInput.PinScope pinScope = default;
+            try
             {
-                var result = Search(inputBytes, input.Encoding, options);
+                var result = Search(input.Pin(ref pinScope), input.Encoding, options);
                 return result.IsMatch ? matchCallback(result.Match) : noMatchReturnValue;
+            }
+            finally
+            {
+                pinScope.Dispose();
             }
         }
 
@@ -231,10 +255,14 @@ namespace UnicodeRegEx
             RegExEnumerateOptions options,
             EnumerateMatchesAction enumerateCallback)
         {
-            RegExPinnedBytes inputBytes;
-            using (var pin = input.Pin(out inputBytes))
+            RegExInput.PinScope pinScope = default;
+            try
             {
-                enumerateCallback(EnumerateMatches(inputBytes, input.Encoding, options));
+                enumerateCallback(EnumerateMatches(input.Pin(ref pinScope), input.Encoding, options));
+            }
+            finally
+            {
+                pinScope.Dispose();
             }
         }
 
@@ -243,10 +271,14 @@ namespace UnicodeRegEx
             RegExEnumerateOptions options,
             EnumerateMatchesFunc<T> enumerateCallback)
         {
-            RegExPinnedBytes inputBytes;
-            using (var pin = input.Pin(out inputBytes))
+            RegExInput.PinScope pinScope = default;
+            try
             {
-                return enumerateCallback(EnumerateMatches(inputBytes, input.Encoding, options));
+                return enumerateCallback(EnumerateMatches(input.Pin(ref pinScope), input.Encoding, options));
+            }
+            finally
+            {
+                pinScope.Dispose();
             }
         }
 
@@ -270,10 +302,14 @@ namespace UnicodeRegEx
             RegExEnumerateOptions options,
             EnumerateSegmentsAction enumerateCallback)
         {
-            RegExPinnedBytes inputBytes;
-            using (var pin = input.Pin(out inputBytes))
+            RegExInput.PinScope pinScope = default;
+            try
             {
-                enumerateCallback(EnumerateSegments(inputBytes, input.Encoding, options));
+                enumerateCallback(EnumerateSegments(input.Pin(ref pinScope), input.Encoding, options));
+            }
+            finally
+            {
+                pinScope.Dispose();
             }
         }
 
@@ -282,10 +318,14 @@ namespace UnicodeRegEx
             RegExEnumerateOptions options,
             EnumerateSegmentsFunc<T> enumerateCallback)
         {
-            RegExPinnedBytes inputBytes;
-            using (var pin = input.Pin(out inputBytes))
+            RegExInput.PinScope pinScope = default;
+            try
             {
-                return enumerateCallback(EnumerateSegments(inputBytes, input.Encoding, options));
+                return enumerateCallback(EnumerateSegments(input.Pin(ref pinScope), input.Encoding, options));
+            }
+            finally
+            {
+                pinScope.Dispose();
             }
         }
 
@@ -309,10 +349,14 @@ namespace UnicodeRegEx
             string formatTemplate,
             RegExReplaceOptions options = default)
         {
-            RegExPinnedBytes inputBytes;
-            using (var pin = input.Pin(out inputBytes))
+            RegExInput.PinScope pinScope = default;
+            try
             {
-                return Replace(inputBytes, input.Encoding, formatTemplate, options);
+                return Replace(input.Pin(ref pinScope), input.Encoding, formatTemplate, options);
+            }
+            finally
+            {
+                pinScope.Dispose();
             }
         }
 
@@ -333,10 +377,14 @@ namespace UnicodeRegEx
             string formatTemplate,
             RegExReplaceOptions options = default)
         {
-            RegExPinnedBytes inputBytes;
-            using (var pin = input.Pin(out inputBytes))
+            RegExInput.PinScope pinScope = default;
+            try
             {
-                ReplaceTo(inputBytes, input.Encoding, outputStream, outputEncoding, formatTemplate, options);
+                ReplaceTo(input.Pin(ref pinScope), input.Encoding, outputStream, outputEncoding, formatTemplate, options);
+            }
+            finally
+            {
+                pinScope.Dispose();
             }
         }
 

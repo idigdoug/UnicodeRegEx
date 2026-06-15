@@ -3,7 +3,7 @@
     using System;
 
     [Flags]
-    internal enum RegExSyntaxFlags
+    public enum RegExSyntaxFlags
     {
         PerlSyntaxGroup = 0,
         BasicSyntaxGroup = 1,
@@ -24,7 +24,7 @@
     }
 
     [Flags]
-    internal enum RegExMatchFlags
+    public enum RegExMatchFlags
     {
         Default = 0,
         NotBol = 1,
@@ -37,7 +37,7 @@
     }
 
     [Flags]
-    internal enum RegExFormatFlags
+    public enum RegExFormatFlags
     {
         Perl = 0,
         Sed = 0x1000000,
@@ -46,7 +46,7 @@
         FirstOnly = 0x8000000
     }
 
-    internal enum RegExErrorCode
+    public enum RegExErrorCode
     {
         Ok,
         NoMatch,
@@ -73,7 +73,7 @@
         BadAlloc
     }
 
-    internal enum RegExEncoding
+    public enum RegExEncoding
     {
         None = 0,
         Utf16LE = 1200,
@@ -82,14 +82,14 @@
         Utf8 = 65001
     }
 
-    internal enum RegExEnumerationState
+    public enum RegExEnumerationState
     {
         NotStarted,
         Enumerating,
         Finished
     }
 
-    internal enum RegExStreamCancelStatus
+    public enum RegExStreamCancelStatus
     {
         Running,
         Cancelling,
@@ -97,7 +97,7 @@
     }
 
     [Flags]
-    internal enum RegExFileStreamFlags
+    public enum RegExFileStreamFlags
     {
         OpenExisting = 0,
         CreateNew = 1,
@@ -109,7 +109,7 @@
     }
 
     [Flags]
-    internal enum RegExFileMoveFlags
+    public enum RegExFileMoveFlags
     {
         Default,
         ReplaceExisting

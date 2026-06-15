@@ -5,12 +5,13 @@
     using System.Text;
 
 #pragma warning disable CS0660 // Has operator== but not Equals(object). It's a ref struct so this is normal.
-    internal ref struct RegExPinnedBytes
+    public ref struct RegExPinnedBytes
 #pragma warning restore CS0660
     {
         private static Encoding? encodingLatin1; // ISO-8859-1 = GetEncoding(28591)
         private nuint data;
         private nuint size;
+
         private static Encoding EncodingLatin1
         {
             get
@@ -28,7 +29,7 @@
 
         public RegExPinnedBytes(nuint data, nuint size)
         {
-            if (unchecked(data + size) < data)
+            if (data + size < data)
             {
                 throw new ArgumentOutOfRangeException(nameof(size), "Size overflows address space.");
             }
@@ -37,29 +38,22 @@
             this.size = size;
         }
 
-        public RegExPinnedBytes(long data, long size)
-            : this(unchecked((nuint)data), checked((nuint)size)) { }
-
-        public RegExPinnedBytes(nint data, int size)
-            : this(unchecked((nuint)(nint)data), checked((nuint)size)) { }
-
-        public unsafe RegExPinnedBytes(void* data, long size)
-            : this(unchecked((nuint)data), checked((nuint)size)) { }
-
-        public unsafe RegExPinnedBytes(void* data, int size)
-            : this(unchecked((nuint)data), checked((nuint)size)) { }
+        public unsafe RegExPinnedBytes(void* data, nuint size)
+            : this((nuint)data, size) { }
 
         /// <summary>
         /// Returns true if this.pointer == other.pointer and this.size == other.size.
         /// NOT BASED ON DATA CONTENT.
         /// </summary>
-        public static bool operator ==(RegExPinnedBytes left, RegExPinnedBytes right) => left.data == right.data && left.size == right.size;
+        public static bool operator ==(RegExPinnedBytes left, RegExPinnedBytes right)
+            => left.data == right.data && left.size == right.size;
 
         /// <summary>
         /// Returns true if this.pointer != other.pointer or this.size != other.size.
         /// NOT BASED ON DATA CONTENT.
         /// </summary>
-        public static bool operator !=(RegExPinnedBytes left, RegExPinnedBytes right) => !(left == right);
+        public static bool operator !=(RegExPinnedBytes left, RegExPinnedBytes right)
+            => !(left == right);
 
         public nuint Data => data;
         public unsafe byte* DataPtr => (byte*)data;
@@ -91,27 +85,17 @@
                     throw new ArgumentOutOfRangeException(nameof(end), "Invalid range.");
                 }
 
-                return new RegExPinnedBytes(unchecked(data + begin), end - begin);
+                return new RegExPinnedBytes(data + begin, end - begin);
             }
         }
 
         public void CopyTo(byte[] dest)
         {
-            if (dest == null)
-            {
-                throw new ArgumentNullException(nameof(dest));
-            }
-
-            if ((ulong)dest.LongLength < size)
-            {
-                throw new ArgumentException("Destination array is too small.", nameof(dest));
-            }
-
             unsafe
             {
                 fixed (byte* pDest = dest)
                 {
-                    Buffer.MemoryCopy((void*)data, pDest, dest.Length, (long)size);
+                    Buffer.MemoryCopy((void*)data, pDest, dest.LongLength, (long)size);
                 }
             }
         }
@@ -123,7 +107,7 @@
                 throw new ArgumentOutOfRangeException(nameof(length), "Slice exceeds bounds of data.");
             }
 
-            return new RegExPinnedBytes(unchecked(data + begin), length);
+            return new RegExPinnedBytes(data + begin, length);
         }
 
         public RegExPinnedBytes First(nuint length)
@@ -133,7 +117,7 @@
                 throw new ArgumentOutOfRangeException(nameof(length), "Slice exceeds bounds of data.");
             }
 
-            return new RegExPinnedBytes(unchecked(data), length);
+            return new RegExPinnedBytes(data, length);
         }
 
         public RegExPinnedBytes Last(nuint length)
@@ -143,12 +127,12 @@
                 throw new ArgumentOutOfRangeException(nameof(length), "Slice exceeds bounds of data.");
             }
 
-            return new RegExPinnedBytes(unchecked(data + (size - length)), length);
+            return new RegExPinnedBytes(data + (size - length), length);
         }
 
         public byte[] ToArray()
         {
-            byte[] dest = new byte[checked((int)size)];
+            byte[] dest = new byte[size];
 
             unsafe
             {
@@ -176,7 +160,7 @@
             const int Offset = unchecked((int)0x9E3779B9);
             var v1 = data.GetHashCode();
             var v2 = size.GetHashCode();
-            return unchecked(v1 ^ (v2 + Offset + (v1 << 6) + (v1 >> 2)));
+            return v1 ^ (v2 + Offset + (v1 << 6) + (v1 >> 2));
         }
 
         public override string ToString()
@@ -217,4 +201,3 @@
         }
     }
 }
-

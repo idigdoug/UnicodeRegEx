@@ -3,7 +3,7 @@
     using System;
     using System.Runtime.InteropServices;
 
-    internal readonly ref struct RegExMatchEnumerator
+    public readonly ref struct RegExMatchEnumerator
     {
         private readonly Interop.IRegExMatchEnumerator inner;
         private readonly RegExPinnedBytes input;

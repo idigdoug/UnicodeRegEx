@@ -4,7 +4,7 @@
     using System.Runtime.InteropServices;
     using Debug = System.Diagnostics.Debug;
 
-    internal ref struct RegExSegmentEnumerator
+    public ref struct RegExSegmentEnumerator
     {
         private Interop.IRegExMatchEnumerator inner;   // readonly
         private RegExPinnedBytes input;                // readonly
