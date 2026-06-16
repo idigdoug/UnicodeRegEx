@@ -5,6 +5,10 @@
     using System.Text;
 
 #pragma warning disable CS0660 // Has operator== but not Equals(object). It's a ref struct so this is normal.
+    /// <summary>
+    /// A pointer/size pair describing a pinned (or otherwise fixed) block of bytes. The caller is
+    /// responsible for keeping the underlying memory valid for the lifetime of this value.
+    /// </summary>
     public ref struct RegExPinnedBytes
 #pragma warning restore CS0660
     {
@@ -27,6 +31,7 @@
             }
         }
 
+        /// <summary>Creates a descriptor for <paramref name="size"/> bytes starting at <paramref name="data"/>.</summary>
         public RegExPinnedBytes(nuint data, nuint size)
         {
             if (data + size < data)
@@ -38,6 +43,7 @@
             this.size = size;
         }
 
+        /// <summary>Creates a descriptor for <paramref name="size"/> bytes starting at <paramref name="data"/>.</summary>
         public unsafe RegExPinnedBytes(void* data, nuint size)
             : this((nuint)data, size) { }
 
@@ -55,11 +61,19 @@
         public static bool operator !=(RegExPinnedBytes left, RegExPinnedBytes right)
             => !(left == right);
 
+        /// <summary>The base address of the bytes.</summary>
         public nuint Data => data;
+
+        /// <summary>The base address of the bytes as a pointer.</summary>
         public unsafe byte* DataPtr => (byte*)data;
+
+        /// <summary>The size of the block, in bytes.</summary>
         public nuint Size => size;
+
+        /// <summary>The size of the block, in bytes, as an <see cref="int"/>. Throws if the size exceeds <see cref="int.MaxValue"/>.</summary>
         public int SizeInt => checked((int)size);
 
+        /// <summary>Gets the byte at <paramref name="index"/>. Throws if out of range.</summary>
         public byte this[nuint index]
         {
             get
@@ -76,6 +90,7 @@
             }
         }
 
+        /// <summary>Returns the sub-range <c>[begin, end)</c>. Throws if the range is invalid.</summary>
         public RegExPinnedBytes this[nuint begin, nuint end]
         {
             get
@@ -89,6 +104,7 @@
             }
         }
 
+        /// <summary>Copies these bytes into <paramref name="dest"/>.</summary>
         public void CopyTo(byte[] dest)
         {
             unsafe
@@ -100,6 +116,7 @@
             }
         }
 
+        /// <summary>Returns <paramref name="length"/> bytes starting at <paramref name="begin"/>. Throws if out of range.</summary>
         public RegExPinnedBytes Slice(nuint begin, nuint length)
         {
             if (begin > size || length > size - begin)
@@ -110,6 +127,7 @@
             return new RegExPinnedBytes(data + begin, length);
         }
 
+        /// <summary>Returns the first <paramref name="length"/> bytes. Throws if out of range.</summary>
         public RegExPinnedBytes First(nuint length)
         {
             if (length > size)
@@ -120,6 +138,7 @@
             return new RegExPinnedBytes(data, length);
         }
 
+        /// <summary>Returns the last <paramref name="length"/> bytes. Throws if out of range.</summary>
         public RegExPinnedBytes Last(nuint length)
         {
             if (length > size)
@@ -130,6 +149,7 @@
             return new RegExPinnedBytes(data + (size - length), length);
         }
 
+        /// <summary>Copies these bytes into a new array.</summary>
         public byte[] ToArray()
         {
             byte[] dest = new byte[size];
@@ -163,11 +183,15 @@
             return v1 ^ (v2 + Offset + (v1 << 6) + (v1 >> 2));
         }
 
+        /// <summary>
+        /// Returns a string of the form "Data=0x12345678, Size=0x42". NOT BASED ON DATA CONTENT.
+        /// </summary>
         public override string ToString()
         {
             return $"Data: 0x{data:X}, Size: 0x{size:X}";
         }
 
+        /// <summary>Decodes these bytes to a string using the given <see cref="Encoding"/>.</summary>
         public string ToString(Encoding encoding)
         {
             unsafe
@@ -176,6 +200,7 @@
             }
         }
 
+        /// <summary>Decodes these bytes to a string using the given code page.</summary>
         public string ToString(int codepage)
         {
             Encoding encoding;

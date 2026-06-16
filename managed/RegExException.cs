@@ -12,11 +12,19 @@
         private readonly RegExErrorCode errorCode;
         private readonly string nativeMessage;
 
+        /// <summary>The pattern that failed to compile.</summary>
         public string Pattern => pattern;
+
+        /// <summary>The syntax flags the pattern was compiled with.</summary>
         public RegExSyntaxFlags SyntaxFlags => syntaxFlags;
+
+        /// <summary>The error code describing why compilation failed.</summary>
         public RegExErrorCode ErrorCode => errorCode;
+
+        /// <summary>The error message from the native regex engine.</summary>
         public string NativeMessage => nativeMessage;
 
+        /// <summary>Creates a <see cref="RegExException"/> describing a pattern compilation failure.</summary>
         public RegExException(string pattern, RegExSyntaxFlags syntaxFlags, RegExErrorCode errorCode, string? nativeMessage)
             : base(FormatMessage(pattern, errorCode, nativeMessage))
         {

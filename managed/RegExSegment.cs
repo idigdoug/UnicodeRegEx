@@ -2,6 +2,10 @@
 {
     using System;
 
+    /// <summary>
+    /// One segment of the input produced by segment enumeration: either a matched region or the
+    /// unmatched text between matches.
+    /// </summary>
     public readonly ref struct RegExSegment
     {
         private readonly Interop.IRegExMatchResults inner;
@@ -34,6 +38,7 @@
         /// </summary>
         public RegExEncoding InputEncoding => (RegExEncoding)inner.InputEncoding;
 
+        /// <summary>The input bytes that make up this segment.</summary>
         public RegExPinnedBytes Bytes => input[begin, end];
 
         /// <summary>
@@ -41,7 +46,10 @@
         /// </summary>
         public bool IsMatch => isMatch;
 
+        /// <summary>The byte offset where this segment begins (relative to the input).</summary>
         public nuint Begin => begin;
+
+        /// <summary>The byte offset where this segment ends (relative to the input).</summary>
         public nuint End => end;
 
         /// <summary>

@@ -4,6 +4,10 @@
     using System.Runtime.InteropServices;
     using Debug = System.Diagnostics.Debug;
 
+    /// <summary>
+    /// Enumerates the input as a sequence of <see cref="RegExSegment"/>s alternating between unmatched
+    /// text and matches, covering the whole input. Supports <c>foreach</c>; must be disposed.
+    /// </summary>
     public ref struct RegExSegmentEnumerator
     {
         private Interop.IRegExMatchEnumerator inner;   // readonly
@@ -23,13 +27,16 @@
             this.state = State.BeforeBegin;
         }
 
+        /// <summary>The current segment. Throws if the enumeration is before the first or after the last segment.</summary>
         public RegExSegment Current =>
             state > State.BeforeBegin
             ? new RegExSegment(inner, input, begin, end, state == State.AtMatch)
             : throw new InvalidOperationException("Enumeration is before-begin or after-end.");
 
+        /// <summary>Returns this enumerator (enables <c>foreach</c>).</summary>
         public RegExSegmentEnumerator GetEnumerator() => this;
 
+        /// <summary>Advances to the next segment. Returns false when the whole input has been enumerated.</summary>
         public bool MoveNext()
         {
             Debug.Assert(begin <= end);
@@ -98,6 +105,7 @@
             return state > State.BeforeBegin;
         }
 
+        /// <summary>Releases the underlying native enumerator.</summary>
         public void Dispose()
         {
             if (inner != null)

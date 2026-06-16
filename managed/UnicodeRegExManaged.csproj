@@ -11,6 +11,7 @@
 
     <AssemblyName>UnicodeRegEx</AssemblyName>
     <AssemblyTitle>UnicodeRegEx</AssemblyTitle>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
 
   </PropertyGroup>
 

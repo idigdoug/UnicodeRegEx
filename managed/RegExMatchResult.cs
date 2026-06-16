@@ -3,6 +3,10 @@
     using System;
     using System.Runtime.InteropServices;
 
+    /// <summary>
+    /// The outcome of a single <see cref="RegEx.Match(RegExPinnedBytes, RegExEncoding, RegExMatchOptions)"/> or
+    /// <see cref="RegEx.Search(RegExPinnedBytes, RegExEncoding, RegExMatchOptions)"/> call. Must be disposed.
+    /// </summary>
     public readonly ref struct RegExMatchResult
     {
         private readonly Interop.IRegExMatchResults? inner;
@@ -28,6 +32,7 @@
             ? new RegExMatch(inner, input)
             : throw new InvalidOperationException("No match available.");
 
+        /// <summary>Releases the underlying native match object.</summary>
         public void Dispose()
         {
             if (inner != null)

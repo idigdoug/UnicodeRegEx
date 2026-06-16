@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <WarningLevel>4</WarningLevel>
+
+    <!-- AnyCPU like msandbox and the wrapper: the host process architecture
+         selects the matching native UnicodeRegEx_<arch>.dll at runtime. -->
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <PreferNativeArm64>true</PreferNativeArm64>
+
+    <!-- Output next to the native DLLs (SolutionDir\out\<Config>) so they load,
+         exactly like the msandbox app. -->
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>..\out\$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>..\out\obj\$(Configuration)\managedtest\</IntermediateOutputPath>
+
+    <AssemblyName>UnicodeRegExManagedTests</AssemblyName>
+    <RootNamespace>UnicodeRegEx.Tests</RootNamespace>
+
+    <IsPackable>false</IsPackable>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.6.0" />
+    <PackageReference Include="MSTest.TestAdapter" Version="4.2.3" />
+    <PackageReference Include="MSTest.TestFramework" Version="4.2.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Embed the COM interop types (type equivalence) like the wrapper project,
+         so the Interop.* types exposed by the wrapper's stream APIs unify with
+         ours. The wrapper's stream factories are non-generic, so their embedded
+         interop return/parameter types cross the assembly boundary fine. -->
+    <Reference Include="UnicodeRegEx.Interop">
+      <HintPath>..\out\UnicodeRegEx.Interop.dll</HintPath>
+      <EmbedInteropTypes>true</EmbedInteropTypes>
+      <Private>false</Private>
+    </Reference>
+    <ProjectReference Include="..\managed\UnicodeRegExManaged.csproj" />
+  </ItemGroup>
+
+</Project>

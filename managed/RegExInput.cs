@@ -37,6 +37,7 @@
 
         // ---- Text sources
 
+        /// <summary>Wraps an entire UTF-16 string as input.</summary>
         public RegExInput(string value)
             : this(
                 value ?? throw new ArgumentNullException(nameof(value)),
@@ -47,6 +48,7 @@
         {
         }
 
+        /// <summary>Wraps a <paramref name="charCount"/>-char range of a UTF-16 string starting at <paramref name="charOffset"/>.</summary>
         public RegExInput(string value, int charOffset, int charCount)
             : this(
                 value ?? throw new ArgumentNullException(nameof(value)),
@@ -70,6 +72,7 @@
             }
         }
 
+        /// <summary>Wraps an entire UTF-16 character array as input.</summary>
         public RegExInput(char[] value)
             : this(
                 value ?? throw new ArgumentNullException(nameof(value)),
@@ -80,6 +83,7 @@
         {
         }
 
+        /// <summary>Wraps a segment of a UTF-16 character array as input.</summary>
         public RegExInput(ArraySegment<char> value)
             : this(
                 value.Array ?? throw new ArgumentNullException(nameof(value)),
@@ -92,6 +96,7 @@
 
         // ---- Byte sources
 
+        /// <summary>Wraps an entire byte array, interpreted with the given encoding, as input.</summary>
         public RegExInput(byte[] value, RegExEncoding encoding)
             : this(
                 value ?? throw new ArgumentNullException(nameof(value)),
@@ -102,6 +107,7 @@
         {
         }
 
+        /// <summary>Wraps a segment of a byte array, interpreted with the given encoding, as input.</summary>
         public RegExInput(ArraySegment<byte> value, RegExEncoding encoding)
             : this(
                 value.Array ?? throw new ArgumentNullException(nameof(value)),
@@ -149,8 +155,13 @@
         {
         }
 
+        /// <summary>Wraps a string as input.</summary>
         public static implicit operator RegExInput(string value) => new RegExInput(value);
+
+        /// <summary>Wraps a character array as input.</summary>
         public static implicit operator RegExInput(char[] value) => new RegExInput(value);
+
+        /// <summary>Wraps a character array segment as input.</summary>
         public static implicit operator RegExInput(ArraySegment<char> value) => new RegExInput(value);
 
         /// <summary>The encoding of the input bytes.</summary>
