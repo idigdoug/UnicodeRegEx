@@ -18,7 +18,7 @@ namespace UnicodeRegEx.Tests
                 var list = new List<string>();
                 foreach (var m in e)
                 {
-                    list.Add(TestHelpers.WholeMatchText(m));
+                    list.Add(m.Text);
                 }
 
                 return list;
@@ -47,25 +47,61 @@ namespace UnicodeRegEx.Tests
         }
 
         [TestMethod]
-        public void EnumerateMatches_State_TransitionsToFinished()
+        public void EnumerateMatches_CanBeEnumeratedMoreThanOnce()
         {
             var regex = RegEx.Create("a");
 
-            // Drive MoveNext() manually rather than via foreach: a foreach over the
-            // ref struct enumerator disposes (releases) the underlying COM object at
-            // the end of the loop, after which State could not be read.
-            var finalState = regex.EnumerateMatches("aaa", default, e =>
+            // Each GetEnumerator() (each foreach) creates a fresh native cursor that scans
+            // from the beginning, so the same enumerable yields the same matches every time.
+            var counts = regex.EnumerateMatches("banana", default, matches =>
             {
-                Assert.AreEqual(RegExEnumerationState.NotStarted, e.State);
-                while (e.MoveNext())
+                int first = 0;
+                foreach (var _ in matches)
                 {
-                    Assert.AreEqual(RegExEnumerationState.Enumerating, e.State);
+                    first++;
                 }
 
-                return e.State;
+                int second = 0;
+                foreach (var _ in matches)
+                {
+                    second++;
+                }
+
+                return (first, second);
             });
 
-            Assert.AreEqual(RegExEnumerationState.Finished, finalState);
+            Assert.AreEqual(3, counts.first);
+            Assert.AreEqual(3, counts.second, "Re-enumerating should scan again from the beginning.");
+        }
+
+        [TestMethod]
+        public void EnumerateMatches_ManualEnumeratorDispose()
+        {
+            var regex = RegEx.Create("a");
+
+            // Drive a manually-obtained enumerator to completion and dispose it explicitly;
+            // the enumerator owns its cursor, and Dispose is idempotent.
+            int count = regex.EnumerateMatches("aaa", default, matches =>
+            {
+                var e = matches.GetEnumerator();
+                int n = 0;
+                try
+                {
+                    while (e.MoveNext())
+                    {
+                        n++;
+                    }
+                }
+                finally
+                {
+                    e.Dispose();
+                    e.Dispose(); // idempotent
+                }
+
+                return n;
+            });
+
+            Assert.AreEqual(3, count);
         }
 
         [TestMethod]
@@ -169,6 +205,33 @@ namespace UnicodeRegEx.Tests
             Assert.AreEqual(1, segments.Count);
             Assert.IsFalse(segments[0].IsMatch);
             Assert.AreEqual("abc", segments[0].Text);
+        }
+
+        [TestMethod]
+        public void EnumerateSegments_CanBeEnumeratedMoreThanOnce()
+        {
+            var regex = RegEx.Create("a");
+
+            var counts = regex.EnumerateSegments("banana", default, segments =>
+            {
+                int first = 0;
+                foreach (var _ in segments)
+                {
+                    first++;
+                }
+
+                int second = 0;
+                foreach (var _ in segments)
+                {
+                    second++;
+                }
+
+                return (first, second);
+            });
+
+            // "b","a","n","a","n","a" => 6 segments, both times.
+            Assert.AreEqual(6, counts.first);
+            Assert.AreEqual(6, counts.second, "Re-enumerating should scan again from the beginning.");
         }
     }
 }

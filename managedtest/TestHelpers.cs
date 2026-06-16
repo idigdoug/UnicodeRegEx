@@ -71,20 +71,6 @@ namespace UnicodeRegEx.Tests
         public static string ReadAllText(Interop.IRegExMemoryStream stream, RegExEncoding encoding)
             => Decode(ReadAllBytes(stream), encoding);
 
-        /// <summary>Returns the text of the whole match (sub-match 0), decoded with the input encoding.</summary>
-        public static string WholeMatchText(RegExMatch match)
-        {
-            var sub = match.GetSubMatch(0);
-            return match.Input.Slice(sub.Begin, sub.Size).ToString((int)match.InputEncoding);
-        }
-
-        /// <summary>Returns the text of the given sub-match, decoded with the input encoding.</summary>
-        public static string SubMatchText(RegExMatch match, int subMatchIndex)
-        {
-            var sub = match.GetSubMatch(subMatchIndex);
-            return match.Input.Slice(sub.Begin, sub.Size).ToString((int)match.InputEncoding);
-        }
-
         /// <summary>Returns the bytes of a segment as text, decoded with the input encoding.</summary>
         public static string SegmentText(RegExSegment segment)
             => segment.Bytes.ToString((int)segment.InputEncoding);

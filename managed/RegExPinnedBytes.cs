@@ -9,12 +9,12 @@
     /// A pointer/size pair describing a pinned (or otherwise fixed) block of bytes. The caller is
     /// responsible for keeping the underlying memory valid for the lifetime of this value.
     /// </summary>
-    public ref struct RegExPinnedBytes
+    public readonly ref struct RegExPinnedBytes
 #pragma warning restore CS0660
     {
         private static Encoding? encodingLatin1; // ISO-8859-1 = GetEncoding(28591)
-        private nuint data;
-        private nuint size;
+        private readonly nuint data;
+        private readonly nuint size;
 
         private static Encoding EncodingLatin1
         {

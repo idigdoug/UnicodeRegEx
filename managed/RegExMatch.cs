@@ -26,6 +26,11 @@
         public RegExEncoding InputEncoding => (RegExEncoding)inner.InputEncoding;
 
         /// <summary>
+        /// Returns the text of the whole match (sub-match 0), decoded using the input encoding.
+        /// </summary>
+        public string Text => GetSubMatchText(0)!;
+
+        /// <summary>
         /// Returns the number of capture groups in this match.
         /// Should always return at least 1 (submatch 0 is "the whole match").
         /// </summary>
@@ -53,6 +58,25 @@
         public bool TryGetSubMatchBytes(int subMatchIndex, out RegExPinnedBytes subMatchBytes)
         {
             return GetSubMatch(subMatchIndex).TryGetBytes(input, out subMatchBytes);
+        }
+
+        /// <summary>
+        /// Returns the text of the specified sub-match, decoded using the input encoding, or
+        /// <c>null</c> if the sub-match did not participate in the match (e.g. an optional group).
+        /// A participating but zero-length sub-match returns the empty string (distinct from <c>null</c>).
+        /// Throws if subMatchIndex is out of range (based on SubMatchCount).
+        /// </summary>
+        /// <remarks>
+        /// Unlike <see cref="TryGetSubMatchBytes"/> (which must use the Try pattern because
+        /// <see cref="RegExPinnedBytes"/> is a ref struct and cannot be null), the text accessor can
+        /// signal "did not participate" with <c>null</c>, so no Try overload is needed.
+        /// </remarks>
+        public string? GetSubMatchText(int subMatchIndex)
+        {
+            var subMatch = GetSubMatch(subMatchIndex);
+            return subMatch.Matched
+                ? CopyInput(subMatch.Begin, checked((int)subMatch.Size))
+                : null;
         }
 
         /// <summary>

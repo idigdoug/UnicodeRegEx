@@ -60,7 +60,7 @@ namespace UnicodeRegEx.Tests
             var regex = RegEx.Create("b");
 
             // Exercises the implicit string -> RegExInput conversion.
-            var text = regex.Search("abc", default, "<none>", m => TestHelpers.WholeMatchText(m));
+            var text = regex.Search("abc", default, "<none>", m => m.Text);
 
             Assert.AreEqual("b", text);
         }

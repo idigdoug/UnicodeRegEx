@@ -4,7 +4,10 @@
     using System.Runtime.InteropServices;
 
     /// <summary>
-    /// Enumerates the matches in an input buffer. Supports <c>foreach</c>; must be disposed.
+    /// Iterator over the matches in an input buffer, obtained from
+    /// <see cref="RegExMatchEnumerable.GetEnumerator"/>. Owns the native cursor created
+    /// for it and releases it on <see cref="Dispose"/>; <c>foreach</c> disposes it
+    /// automatically.
     /// </summary>
     public readonly ref struct RegExMatchEnumerator
     {
@@ -17,22 +20,16 @@
             this.input = input;
         }
 
-        /// <summary>The current position of the enumeration (not-started, enumerating, or finished).</summary>
-        public RegExEnumerationState State => (RegExEnumerationState)inner.State;
-
         /// <summary>The current match. Throws if the enumeration is before the first or after the last match.</summary>
         public RegExMatch Current =>
             inner.State == Interop.RegExEnumerationState.RegExEnumerationState_enumerating
             ? new RegExMatch(inner, input)
             : throw new InvalidOperationException("Enumeration is before-begin or after-end.");
 
-        /// <summary>Returns this enumerator (enables <c>foreach</c>).</summary>
-        public RegExMatchEnumerator GetEnumerator() => this;
-
         /// <summary>Advances to the next match. Returns false when there are no more matches.</summary>
         public bool MoveNext() => inner.NextMatch();
 
-        /// <summary>Releases the underlying native enumerator.</summary>
+        /// <summary>Releases the native cursor owned by this enumerator.</summary>
         public void Dispose()
         {
             if (inner != null)

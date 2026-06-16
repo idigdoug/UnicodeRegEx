@@ -5,13 +5,14 @@
     using Debug = System.Diagnostics.Debug;
 
     /// <summary>
-    /// Enumerates the input as a sequence of <see cref="RegExSegment"/>s alternating between unmatched
-    /// text and matches, covering the whole input. Supports <c>foreach</c>; must be disposed.
+    /// Iterator over the matched and unmatched segments of an input buffer, obtained from
+    /// <see cref="RegExSegmentEnumerable.GetEnumerator"/>. Owns the native cursor created for it
+    /// and releases it on <see cref="Dispose"/>; <c>foreach</c> disposes it automatically.
     /// </summary>
     public ref struct RegExSegmentEnumerator
     {
-        private Interop.IRegExMatchEnumerator inner;   // readonly
-        private RegExPinnedBytes input;                // readonly
+        private readonly Interop.IRegExMatchEnumerator inner;
+        private readonly RegExPinnedBytes input;
         private nuint begin;
         private nuint end;
         private nuint matchEnd;
@@ -32,9 +33,6 @@
             state > State.BeforeBegin
             ? new RegExSegment(inner, input, begin, end, state == State.AtMatch)
             : throw new InvalidOperationException("Enumeration is before-begin or after-end.");
-
-        /// <summary>Returns this enumerator (enables <c>foreach</c>).</summary>
-        public RegExSegmentEnumerator GetEnumerator() => this;
 
         /// <summary>Advances to the next segment. Returns false when the whole input has been enumerated.</summary>
         public bool MoveNext()
@@ -105,7 +103,7 @@
             return state > State.BeforeBegin;
         }
 
-        /// <summary>Releases the underlying native enumerator.</summary>
+        /// <summary>Releases the native cursor owned by this enumerator.</summary>
         public void Dispose()
         {
             if (inner != null)

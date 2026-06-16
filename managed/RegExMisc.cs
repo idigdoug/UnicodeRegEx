@@ -64,16 +64,16 @@
     {
         private Interop.IRegExMemoryStream? inner;
 
-        internal RegExMemoryStream(Interop.IRegExMemoryStream? inner)
+        internal RegExMemoryStream(Interop.IRegExMemoryStream inner)
         {
             this.inner = inner;
         }
 
         /// <summary>
-        /// If this object has not yet been disposed, returns the underlying stream.
-        /// If this object has already been disposed, returns null.
+        /// The underlying stream. Throws <see cref="ObjectDisposedException"/> if this object has been disposed.
         /// </summary>
-        public Interop.IRegExMemoryStream? Value => inner;
+        public Interop.IRegExMemoryStream Value =>
+            inner ?? throw new ObjectDisposedException(nameof(RegExMemoryStream));
 
         /// <summary>
         /// If this object has not yet been disposed, calls FinalReleaseComObject.
@@ -95,16 +95,16 @@
     {
         private Interop.IRegExFileStream? inner;
 
-        internal RegExFileStream(Interop.IRegExFileStream? inner)
+        internal RegExFileStream(Interop.IRegExFileStream inner)
         {
             this.inner = inner;
         }
 
         /// <summary>
-        /// If this object has not yet been disposed, returns the underlying stream.
-        /// If this object has already been disposed, returns null.
+        /// The underlying stream. Throws <see cref="ObjectDisposedException"/> if this object has been disposed.
         /// </summary>
-        public Interop.IRegExFileStream? Value => inner;
+        public Interop.IRegExFileStream Value =>
+            inner ?? throw new ObjectDisposedException(nameof(RegExFileStream));
 
         /// <summary>
         /// If this object has not yet been disposed, calls FinalReleaseComObject.

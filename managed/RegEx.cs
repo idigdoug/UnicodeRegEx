@@ -7,11 +7,15 @@ namespace UnicodeRegEx
     /// A compiled regular expression that runs over byte buffers in various text encodings
     /// (Latin-1, UTF-8, UTF-16) without round-tripping through a <see cref="string"/>.
     /// Create instances with <see cref="Create"/>.
+    ///
+    /// Wraps a single underlying COM object, so copies of a <see cref="RegEx"/> share it:
+    /// <see cref="Dispose"/> releases that object for every copy, and any match results or
+    /// enumerables obtained from this regex must no longer be used afterward.
     /// </summary>
-    public struct RegEx
+    public readonly struct RegEx : IDisposable
     {
         private static Interop.IRegExLibrary? library;
-        private Interop.IRegEx inner;
+        private readonly Interop.IRegEx inner;
 
         /// <summary>Callback that receives a successful match.</summary>
         public delegate void MatchAction(RegExMatch match);
@@ -19,17 +23,17 @@ namespace UnicodeRegEx
         /// <summary>Callback that receives a successful match and returns a result.</summary>
         public delegate T MatchFunc<T>(RegExMatch match);
 
-        /// <summary>Callback that receives an enumerator over the matches in the input.</summary>
-        public delegate void EnumerateMatchesAction(RegExMatchEnumerator enumerator);
+        /// <summary>Callback that receives an enumerable over the matches in the input.</summary>
+        public delegate void EnumerateMatchesAction(RegExMatchEnumerable matches);
 
-        /// <summary>Callback that receives an enumerator over the matches in the input and returns a result.</summary>
-        public delegate T EnumerateMatchesFunc<T>(RegExMatchEnumerator enumerator);
+        /// <summary>Callback that receives an enumerable over the matches in the input and returns a result.</summary>
+        public delegate T EnumerateMatchesFunc<T>(RegExMatchEnumerable matches);
 
-        /// <summary>Callback that receives an enumerator over the matched and unmatched segments of the input.</summary>
-        public delegate void EnumerateSegmentsAction(RegExSegmentEnumerator enumerator);
+        /// <summary>Callback that receives an enumerable over the matched and unmatched segments of the input.</summary>
+        public delegate void EnumerateSegmentsAction(RegExSegmentEnumerable segments);
 
-        /// <summary>Callback that receives an enumerator over the matched and unmatched segments of the input and returns a result.</summary>
-        public delegate T EnumerateSegmentsFunc<T>(RegExSegmentEnumerator enumerator);
+        /// <summary>Callback that receives an enumerable over the matched and unmatched segments of the input and returns a result.</summary>
+        public delegate T EnumerateSegmentsFunc<T>(RegExSegmentEnumerable segments);
 
         // STATIC
 
@@ -216,6 +220,20 @@ namespace UnicodeRegEx
         public uint Lcid => inner.Lcid;
 
         /// <summary>
+        /// Releases the underlying compiled-regex COM object. Safe to call on a default-initialized
+        /// <see cref="RegEx"/> and safe to call more than once. Because copies of a <see cref="RegEx"/>
+        /// share the same underlying object, dispose only when no copy (and no match result or
+        /// enumerable obtained from it) is still in use.
+        /// </summary>
+        public void Dispose()
+        {
+            if (inner != null)
+            {
+                Marshal.FinalReleaseComObject(inner);
+            }
+        }
+
+        /// <summary>
         /// Anchored match against the input. If it matches, invokes <paramref name="matchCallback"/> with the result.
         /// </summary>
         public void Match(
@@ -330,7 +348,7 @@ namespace UnicodeRegEx
         }
 
         /// <summary>
-        /// Invokes <paramref name="enumerateCallback"/> with an enumerator over all matches in the input.
+        /// Invokes <paramref name="enumerateCallback"/> with an enumerable over all matches in the input.
         /// </summary>
         public void EnumerateMatches(
             RegExInput input,
@@ -340,8 +358,7 @@ namespace UnicodeRegEx
             RegExInput.PinScope pinScope = default;
             try
             {
-                using var enumerator = EnumerateMatches(input.Pin(ref pinScope), input.Encoding, options);
-                enumerateCallback(enumerator);
+                enumerateCallback(EnumerateMatches(input.Pin(ref pinScope), input.Encoding, options));
             }
             finally
             {
@@ -350,7 +367,7 @@ namespace UnicodeRegEx
         }
 
         /// <summary>
-        /// Invokes <paramref name="enumerateCallback"/> with an enumerator over all matches in the input and returns its result.
+        /// Invokes <paramref name="enumerateCallback"/> with an enumerable over all matches in the input and returns its result.
         /// </summary>
         public T EnumerateMatches<T>(
             RegExInput input,
@@ -360,8 +377,7 @@ namespace UnicodeRegEx
             RegExInput.PinScope pinScope = default;
             try
             {
-                using var enumerator = EnumerateMatches(input.Pin(ref pinScope), input.Encoding, options);
-                return enumerateCallback(enumerator);
+                return enumerateCallback(EnumerateMatches(input.Pin(ref pinScope), input.Encoding, options));
             }
             finally
             {
@@ -370,25 +386,19 @@ namespace UnicodeRegEx
         }
 
         /// <summary>
-        /// Creates an enumerator over all matches in the pre-pinned input bytes. The returned enumerator must be disposed.
+        /// Returns a re-enumerable view of all matches in the pre-pinned input bytes. The input must
+        /// stay pinned for the duration of each enumeration.
         /// </summary>
-        public RegExMatchEnumerator EnumerateMatches(
+        public RegExMatchEnumerable EnumerateMatches(
             RegExPinnedBytes inputBytes,
             RegExEncoding inputEncoding,
             RegExEnumerateOptions options = default)
         {
-            var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            var enumerator = inner.EnumerateMatches(bytes, (Interop.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags);
-            if (options.FormatTemplate != null)
-            {
-                enumerator.SetFormatTemplate(options.FormatTemplate, (Interop.RegExFormatFlags)options.FormatFlags);
-            }
-
-            return new RegExMatchEnumerator(enumerator, inputBytes);
+            return new RegExMatchEnumerable(inner, inputBytes, inputEncoding, options);
         }
 
         /// <summary>
-        /// Invokes <paramref name="enumerateCallback"/> with an enumerator over the input's matched and unmatched segments.
+        /// Invokes <paramref name="enumerateCallback"/> with an enumerable over the input's matched and unmatched segments.
         /// </summary>
         public void EnumerateSegments(
             RegExInput input,
@@ -398,8 +408,7 @@ namespace UnicodeRegEx
             RegExInput.PinScope pinScope = default;
             try
             {
-                using var enumerator = EnumerateSegments(input.Pin(ref pinScope), input.Encoding, options);
-                enumerateCallback(enumerator);
+                enumerateCallback(EnumerateSegments(input.Pin(ref pinScope), input.Encoding, options));
             }
             finally
             {
@@ -408,7 +417,7 @@ namespace UnicodeRegEx
         }
 
         /// <summary>
-        /// Invokes <paramref name="enumerateCallback"/> with an enumerator over the input's matched and unmatched
+        /// Invokes <paramref name="enumerateCallback"/> with an enumerable over the input's matched and unmatched
         /// segments and returns its result.
         /// </summary>
         public T EnumerateSegments<T>(
@@ -419,8 +428,7 @@ namespace UnicodeRegEx
             RegExInput.PinScope pinScope = default;
             try
             {
-                using var enumerator = EnumerateSegments(input.Pin(ref pinScope), input.Encoding, options);
-                return enumerateCallback(enumerator);
+                return enumerateCallback(EnumerateSegments(input.Pin(ref pinScope), input.Encoding, options));
             }
             finally
             {
@@ -429,22 +437,15 @@ namespace UnicodeRegEx
         }
 
         /// <summary>
-        /// Creates an enumerator over the matched and unmatched segments of the pre-pinned input bytes.
-        /// The returned enumerator must be disposed.
+        /// Returns a re-enumerable view of the matched and unmatched segments of the pre-pinned input
+        /// bytes. The input must stay pinned for the duration of each enumeration.
         /// </summary>
-        public RegExSegmentEnumerator EnumerateSegments(
+        public RegExSegmentEnumerable EnumerateSegments(
             RegExPinnedBytes inputBytes,
             RegExEncoding inputEncoding,
             RegExEnumerateOptions options = default)
         {
-            var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            var enumerator = inner.EnumerateMatches(bytes, (Interop.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags);
-            if (options.FormatTemplate != null)
-            {
-                enumerator.SetFormatTemplate(options.FormatTemplate, (Interop.RegExFormatFlags)options.FormatFlags);
-            }
-
-            return new RegExSegmentEnumerator(enumerator, inputBytes);
+            return new RegExSegmentEnumerable(inner, inputBytes, inputEncoding, options);
         }
 
         /// <summary>

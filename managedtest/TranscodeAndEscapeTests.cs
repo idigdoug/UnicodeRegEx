@@ -49,9 +49,9 @@ namespace UnicodeRegEx.Tests
         {
             using var stream = RegEx.CreateMemoryStream();
 
-            RegEx.TranscodeTo("caf\u00e9", stream.Value!, RegExEncoding.Utf8);
+            RegEx.TranscodeTo("caf\u00e9", stream.Value, RegExEncoding.Utf8);
 
-            var bytes = TestHelpers.ReadAllBytes(stream.Value!);
+            var bytes = TestHelpers.ReadAllBytes(stream.Value);
             CollectionAssert.AreEqual(TestHelpers.Encode("caf\u00e9", RegExEncoding.Utf8), bytes);
         }
 
@@ -71,7 +71,7 @@ namespace UnicodeRegEx.Tests
 
             var regex = RegEx.Create(escaped);
             var text = regex.Search("answer: 1+1=2 (really?) yes", default, "<none>",
-                m => TestHelpers.WholeMatchText(m));
+                m => m.Text);
 
             Assert.AreEqual(literal, text);
         }
