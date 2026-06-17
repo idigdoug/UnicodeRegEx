@@ -3,7 +3,7 @@
 #include "RegEx.h"
 #include "InputValidation.h"
 
-#include <utf.h>
+#include <TextEncoding.h>
 
 static constexpr RegExBytes
 MakeString(_In_reads_bytes_(size) void const* data, UINT_PTR size) noexcept
@@ -14,12 +14,32 @@ MakeString(_In_reads_bytes_(size) void const* data, UINT_PTR size) noexcept
     };
 }
 
+RegExMatchBase::VariantEnumerator
+RegExMatchBase::SelectEnumerator(
+    TextEncoding inputEncoding,
+    RegEx const& regex,
+    RegExMatchFlags flags,
+    void const* inputData,
+    size_t inputSize,
+    UINT_PTR startByteOffset)
+{
+    auto const matchFlags = static_cast<boost::regex_constants::match_flag_type>(flags);
+    return std::visit([&regex, matchFlags, inputData, inputSize, startByteOffset](auto encoding) {
+            using EncodingT = decltype(encoding);
+            return VariantEnumerator(
+                std::in_place_type<MatchEnumerator<EncodingT>>,
+                regex, matchFlags, inputData, inputSize, startByteOffset, encoding);
+        },
+        inputEncoding);
+
+}
+
 RegExMatchBase::~RegExMatchBase() = default;
 
 RegExMatchBase::RegExMatchBase(
     _In_ RegEx* regex,
     RegExBytes const& input,
-    RegExEncoding inputEncoding,
+    TextEncoding inputEncoding,
     UINT_PTR startByteOffset,
     RegExMatchFlags flags)
     : m_refCount(1)
@@ -28,36 +48,11 @@ RegExMatchBase::RegExMatchBase(
     , m_inputSize(static_cast<UINT_PTR>(input.size))
     , m_inputEncoding(inputEncoding)
     , m_state(RegExEnumerationState_not_started)
-    , m_variantEnumerator()
+    , m_variantEnumerator(SelectEnumerator(inputEncoding, *regex, flags, m_inputData, m_inputSize, startByteOffset))
     , m_outputSink()
     , m_formatTemplate()
     , m_formatFlags(boost::regex_constants::format_default)
 {
-    auto const matchFlags = static_cast<boost::regex_constants::match_flag_type>(flags);
-
-    // Validate the encoding parameter and construct the encoding-specific enumerator.
-    switch (m_inputEncoding)
-    {
-    case RegExEncoding_latin1:
-        m_variantEnumerator.emplace<EnumeratorLatin1>(*regex, matchFlags, m_inputData, m_inputSize, startByteOffset);
-        break;
-
-    case RegExEncoding_utf8:
-        m_variantEnumerator.emplace<EnumeratorUtf8>(*regex, matchFlags, m_inputData, m_inputSize, startByteOffset);
-        break;
-
-    case RegExEncoding_utf16le:
-        m_variantEnumerator.emplace<EnumeratorUtf16LE>(*regex, matchFlags, m_inputData, m_inputSize, startByteOffset);
-        break;
-
-    case RegExEncoding_utf16be:
-        m_variantEnumerator.emplace<EnumeratorUtf16BE>(*regex, matchFlags, m_inputData, m_inputSize, startByteOffset);
-        break;
-
-    default:
-        assert(false); // Should have been validated by caller.
-        THROW_HR(E_INVALIDARG);
-    }
 }
 
 bool
@@ -65,8 +60,9 @@ RegExMatchBase::DoInitialSearch(bool wholeStringMatch)
 {
     assert(m_state == RegExEnumerationState_not_started);
 
-    bool found = std::visit([this, wholeStringMatch](auto& enumerator)
-        { return VisitInitialSearch(enumerator, wholeStringMatch); },
+    bool found = std::visit([wholeStringMatch](auto& enumerator) {
+            return enumerator.InitialMatch(wholeStringMatch);
+        },
         m_variantEnumerator);
 
     if (found)
@@ -103,9 +99,12 @@ RegExMatchBase::get_Input(_Out_ RegExBytes* pInput) noexcept
 }
 
 HRESULT
-RegExMatchBase::get_InputEncoding(_Out_ RegExEncoding* pEncoding) noexcept
+RegExMatchBase::get_InputCodePage(_Out_ RegExCodePage* pCodePage) noexcept
 {
-    *pEncoding = m_inputEncoding;
+    *pCodePage = std::visit([](auto encoding) {
+            return static_cast<RegExCodePage>(encoding.CodePage());
+        },
+        m_inputEncoding);
     return S_OK;
 }
 
@@ -118,8 +117,9 @@ RegExMatchBase::get_SubMatchCount(_Out_ UINT32* pCount) noexcept
     }
     else
     {
-        *pCount = std::visit([this](auto& enumerator)
-            { return VisitGetSubMatchCount(enumerator); },
+        *pCount = std::visit([](auto& enumerator) {
+                return static_cast<UINT32>(enumerator.MatchResults().size());
+            },
             m_variantEnumerator);
     }
 
@@ -139,8 +139,32 @@ RegExMatchBase::GetSubMatch(UINT32 subMatchIndex, _Out_ RegExSubMatch* pSubMatch
     }
     else
     {
-        hr = std::visit([this, subMatchIndex, pSubMatch](auto& enumerator)
-            { return VisitGetSubMatch(enumerator, subMatchIndex, pSubMatch); },
+        hr = std::visit([this, subMatchIndex, pSubMatch](auto& enumerator) {
+                auto const& matchResults = enumerator.MatchResults();
+
+                if (subMatchIndex >= matchResults.size())
+                {
+                    return E_INVALIDARG;
+                }
+
+                auto const& submatch = matchResults[subMatchIndex];
+                if (!submatch.matched)
+                {
+                    pSubMatch->offset = 0;
+                    pSubMatch->size = 0;
+                    pSubMatch->matched = VARIANT_FALSE;
+                }
+                else
+                {
+                    auto const firstOffset = submatch.first.ByteOffset(m_inputData);
+                    auto const secondOffset = submatch.second.ByteOffset(m_inputData);
+                    pSubMatch->offset = static_cast<LONGLONG>(firstOffset);
+                    pSubMatch->size = static_cast<LONGLONG>(secondOffset - firstOffset);
+                    pSubMatch->matched = VARIANT_TRUE;
+                }
+
+                return S_OK;
+            },
             m_variantEnumerator);
     }
 
@@ -155,7 +179,7 @@ RegExMatchBase::SetFormatTemplate(BSTR formatTemplate, RegExFormatFlags formatFl
     try
     {
         static_assert(sizeof(formatTemplate[0]) == sizeof(char16_t), "BSTR must be UTF-16");
-        auto formatIterators = utf16le::CodePointIterator::FromSpan(std::span(
+        auto formatIterators = Utf16LE().MakeCodePointRange(std::span(
             reinterpret_cast<char16_t const*>(formatTemplate),
             SysStringLen(formatTemplate)));
         m_formatTemplate.assign(formatIterators.begin, formatIterators.end);
@@ -184,17 +208,19 @@ RegExMatchBase::Format(_Out_ BSTR* pOutputString) noexcept
     {
         try
         {
-            m_outputSink.ResetToVector(RegExEncoding_utf16le);
+            m_outputSink.ResetToVector(Utf16LE());
 
-            hr = std::visit([this](auto& enumerator)
-                { return VisitFormat(enumerator); },
+            std::visit([this](auto& enumerator) {
+                    enumerator.MatchResults().format(
+                        std::back_inserter(m_outputSink),
+                        m_formatTemplate,
+                        m_formatFlags,
+                        m_regex->GetRegex());
+                },
                 m_variantEnumerator);
 
-            if (SUCCEEDED(hr))
-            {
-                auto bytes = m_outputSink.FinishVector();
-                hr = AllocBStrFromUtf16Bytes(bytes, pOutputString);
-            }
+            auto bytes = m_outputSink.FinishVector();
+            hr = AllocBStrFromUtf16Bytes(bytes, pOutputString);
         }
         catch (...)
         {
@@ -208,15 +234,16 @@ RegExMatchBase::Format(_Out_ BSTR* pOutputString) noexcept
 HRESULT
 RegExMatchBase::FormatTo(
     _In_ ISequentialStream* outputStream,
-    RegExEncoding outputEncoding) noexcept
+    RegExCodePage outputCodePage) noexcept
 {
     HRESULT hr;
+    TextEncoding outputEncoding;
 
     if (outputStream == nullptr)
     {
         hr = E_POINTER;
     }
-    else if (!RegExEncodingIsValid(outputEncoding))
+    else if (!TextEncodingForCodePage(outputCodePage, &outputEncoding))
     {
         hr = E_INVALIDARG;
     }
@@ -230,14 +257,17 @@ RegExMatchBase::FormatTo(
         {
             m_outputSink.ResetToStream(outputEncoding, outputStream);
 
-            hr = std::visit([this](auto& enumerator)
-                { return VisitFormat(enumerator); },
+            std::visit([this](auto& enumerator) {
+                    enumerator.MatchResults().format(
+                        std::back_inserter(m_outputSink),
+                        m_formatTemplate,
+                        m_formatFlags,
+                        m_regex->GetRegex());
+                },
                 m_variantEnumerator);
 
-            if (SUCCEEDED(hr))
-            {
-                m_outputSink.FinishStream();
-            }
+            m_outputSink.FinishStream();
+            hr = S_OK;
         }
         catch (...)
         {
@@ -257,7 +287,7 @@ RegExMatchBase::CopyInput(
     *pOutputString = nullptr;
 
     if (!RangeIsInBounds(inputOffset, size, m_inputSize) ||
-        !OffsetAndSizeAreAlignedForEncoding(inputOffset, size, m_inputEncoding))
+        !InputIsAligned(m_inputEncoding, inputOffset | size))
     {
         return E_INVALIDARG;
     }
@@ -270,13 +300,13 @@ RegExMatchBase::CopyInput(
             static_cast<size_t>(size));
 
         std::span<BYTE const> output;
-        if (m_inputEncoding == RegExEncoding_utf16le)
+        if (std::holds_alternative<Utf16LE>(m_inputEncoding))
         {
             output = input;
         }
         else
         {
-            m_outputSink.ResetToVector(RegExEncoding_utf16le);
+            m_outputSink.ResetToVector(Utf16LE());
             m_outputSink.AppendBytes(input, m_inputEncoding);
             output = m_outputSink.FinishVector();
         }
@@ -296,16 +326,18 @@ RegExMatchBase::CopyInputTo(
     LONGLONG inputOffset,
     LONGLONG size,
     _In_ ISequentialStream* outputStream,
-    RegExEncoding outputEncoding) noexcept
+    RegExCodePage outputCodePage) noexcept
 {
+    TextEncoding outputEncoding;
+
     if (outputStream == nullptr)
     {
         return E_POINTER;
     }
     else if (
-        !RegExEncodingIsValid(outputEncoding) ||
+        !TextEncodingForCodePage(outputCodePage, &outputEncoding) ||
         !RangeIsInBounds(inputOffset, size, m_inputSize) ||
-        !OffsetAndSizeAreAlignedForEncoding(inputOffset, size, m_inputEncoding))
+        !InputIsAligned(m_inputEncoding, inputOffset | size))
     {
         return E_INVALIDARG;
     }
@@ -358,10 +390,29 @@ RegExMatchBase::NextMatch(_Out_ VARIANT_BOOL* pFound) noexcept
     {
         try
         {
-            hr = std::visit([this](auto& enumerator)
-                { return VisitNextMatch(enumerator); },
+            std::visit([this](auto& enumerator) {
+                    assert(m_state != RegExEnumerationState_finished);
+
+                    bool found;
+                    if (m_state == RegExEnumerationState_not_started)
+                    {
+                        m_state = RegExEnumerationState_enumerating;
+                        found = enumerator.InitialMatch(/*wholeStringMatch*/ false);
+                    }
+                    else
+                    {
+                        found = enumerator.AdvanceMatch();
+                    }
+
+                    if (!found)
+                    {
+                        m_state = RegExEnumerationState_finished;
+                    }
+                },
                 m_variantEnumerator);
+
             found = m_state == RegExEnumerationState_enumerating;
+            hr = S_OK;
         }
         catch (...)
         {
@@ -371,128 +422,4 @@ RegExMatchBase::NextMatch(_Out_ VARIANT_BOOL* pFound) noexcept
 
     *pFound = found ? VARIANT_TRUE : VARIANT_FALSE;
     return hr;
-}
-
-HRESULT
-RegExMatchBase::VisitNextMatch(std::monostate) noexcept
-{
-    assert(false);
-    return E_UNEXPECTED;
-}
-
-template<class IteratorT>
-HRESULT
-RegExMatchBase::VisitNextMatch(
-    MatchEnumerator<IteratorT>& enumerator) noexcept(false)
-{
-    assert(m_state != RegExEnumerationState_finished);
-
-    bool found;
-    if (m_state == RegExEnumerationState_not_started)
-    {
-        m_state = RegExEnumerationState_enumerating;
-        found = enumerator.InitialMatch(/*wholeStringMatch*/ false);
-    }
-    else
-    {
-        found = enumerator.AdvanceMatch();
-    }
-
-    if (!found)
-    {
-        m_state = RegExEnumerationState_finished;
-    }
-
-    return S_OK;
-}
-
-bool
-RegExMatchBase::VisitInitialSearch(std::monostate, bool) noexcept
-{
-    assert(false);
-    return false;
-}
-
-template<class IteratorT>
-bool
-RegExMatchBase::VisitInitialSearch(
-    MatchEnumerator<IteratorT>& enumerator,
-    bool wholeStringMatch) noexcept(false)
-{
-    return enumerator.InitialMatch(wholeStringMatch);
-}
-
-UINT32
-RegExMatchBase::VisitGetSubMatchCount(std::monostate) noexcept
-{
-    assert(false);
-    return 0;
-}
-
-template<class IteratorT>
-UINT32
-RegExMatchBase::VisitGetSubMatchCount(
-    MatchEnumerator<IteratorT>& enumerator) noexcept
-{
-    return static_cast<UINT32>(enumerator.MatchResults().size());
-}
-
-HRESULT
-RegExMatchBase::VisitGetSubMatch(std::monostate, UINT32, _Inout_ RegExSubMatch*) noexcept
-{
-    assert(false);
-    return E_UNEXPECTED;
-}
-
-template<class IteratorT>
-HRESULT
-RegExMatchBase::VisitGetSubMatch(
-    MatchEnumerator<IteratorT>& enumerator,
-    UINT32 subMatchIndex,
-    _Inout_ RegExSubMatch* pSubMatch) noexcept
-{
-    auto const& matchResults = enumerator.MatchResults();
-
-    if (subMatchIndex >= matchResults.size())
-    {
-        return E_INVALIDARG;
-    }
-
-    auto const& submatch = matchResults[subMatchIndex];
-    if (!submatch.matched)
-    {
-        pSubMatch->offset = 0;
-        pSubMatch->size = 0;
-        pSubMatch->matched = VARIANT_FALSE;
-    }
-    else
-    {
-        auto const firstOffset = submatch.first.ByteOffset(m_inputData);
-        auto const secondOffset = submatch.second.ByteOffset(m_inputData);
-        pSubMatch->offset = static_cast<LONGLONG>(firstOffset);
-        pSubMatch->size = static_cast<LONGLONG>(secondOffset - firstOffset);
-        pSubMatch->matched = VARIANT_TRUE;
-    }
-
-    return S_OK;
-}
-
-HRESULT
-RegExMatchBase::VisitFormat(std::monostate) noexcept
-{
-    assert(false);
-    return E_UNEXPECTED;
-}
-
-template<class IteratorT>
-HRESULT
-RegExMatchBase::VisitFormat(
-    MatchEnumerator<IteratorT>& enumerator) noexcept(false)
-{
-    enumerator.MatchResults().format(
-        std::back_inserter(m_outputSink),
-        m_formatTemplate,
-        m_formatFlags,
-        m_regex->GetRegex());
-    return S_OK;
 }

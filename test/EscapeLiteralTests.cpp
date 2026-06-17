@@ -137,7 +137,7 @@ namespace RegExTests
             };
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(S_OK,
-                regex->Match(inputStr, RegExEncoding_utf16le, 0, RegExMatchFlag_default, results.put()));
+                regex->Match(inputStr, RegExCodePage_utf16le, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
         }
 

@@ -6,7 +6,7 @@
 #include "OutputSink.h"
 #include "InputValidation.h"
 
-#include <utf.h>
+#include <TextEncoding.h>
 
 using namespace std::string_view_literals;
 
@@ -195,7 +195,7 @@ RegExLibrary::CreateRegEx(
     else try
     {
         static_assert(sizeof(pattern[0]) == sizeof(char16_t), "BSTR must be UTF-16");
-        auto patternIterators = utf16le::CodePointIterator::FromSpan(std::span(
+        auto patternIterators = Utf16LE().MakeCodePointRange(std::span(
             reinterpret_cast<char16_t const*>(pattern),
             SysStringLen(pattern)));
         pRegEx = std::make_unique<RegEx>(
@@ -402,13 +402,14 @@ RegExLibrary::GetEscapeFormatLiteralChars(
 HRESULT
 RegExLibrary::Transcode(
     RegExBytes input,
-    RegExEncoding inputEncoding,
+    RegExCodePage inputCodePage,
     _Out_ BSTR* pOutput) noexcept
 {
     *pOutput = nullptr;
 
+    TextEncoding inputEncoding;
     if (!InputIsValid(input) ||
-        !OffsetAndSizeAreAlignedForEncoding(input.data, input.size, inputEncoding))
+        !TextEncodingForCodePageIfAligned(inputCodePage, input.data | input.size, &inputEncoding))
     {
         return E_INVALIDARG;
     }
@@ -419,21 +420,17 @@ RegExLibrary::Transcode(
         std::span<BYTE const> inputBytes(
             reinterpret_cast<BYTE const*>(static_cast<UINT_PTR>(input.data)),
             static_cast<size_t>(input.size));
-
-        std::span<BYTE const> outputBytes;
-        OutputSink sink;
-        if (inputEncoding == RegExEncoding_utf16le)
+        if (std::holds_alternative<Utf16LE>(inputEncoding))
         {
-            outputBytes = inputBytes;
+            hr = AllocBStrFromUtf16Bytes(inputBytes, pOutput);
         }
         else
         {
-            sink.ResetToVector(RegExEncoding_utf16le);
+            OutputSink sink;
+            sink.ResetToVector(Utf16LE());
             sink.AppendBytes(inputBytes, inputEncoding);
-            outputBytes = sink.FinishVector();
+            hr = AllocBStrFromUtf16Bytes(sink.FinishVector(), pOutput);
         }
-
-        hr = AllocBStrFromUtf16Bytes(outputBytes, pOutput);
     }
     catch (...)
     {
@@ -446,18 +443,20 @@ RegExLibrary::Transcode(
 HRESULT
 RegExLibrary::TranscodeTo(
     RegExBytes input,
-    RegExEncoding inputEncoding,
+    RegExCodePage inputCodePage,
     _In_ ISequentialStream* outputStream,
-    RegExEncoding outputEncoding) noexcept
+    RegExCodePage outputCodePage) noexcept
 {
+    TextEncoding inputEncoding;
+    TextEncoding outputEncoding;
     if (outputStream == nullptr)
     {
         return E_POINTER;
     }
     else if (
-        !RegExEncodingIsValid(outputEncoding) ||
         !InputIsValid(input) ||
-        !OffsetAndSizeAreAlignedForEncoding(input.data, input.size, inputEncoding))
+        !TextEncodingForCodePageIfAligned(inputCodePage, input.data | input.size, &inputEncoding) ||
+        !TextEncodingForCodePage(outputCodePage, &outputEncoding))
     {
         return E_INVALIDARG;
     }
@@ -469,7 +468,7 @@ RegExLibrary::TranscodeTo(
             reinterpret_cast<BYTE const*>(static_cast<UINT_PTR>(input.data)),
             static_cast<size_t>(input.size));
 
-        if (inputEncoding == outputEncoding)
+        if (inputCodePage == outputCodePage)
         {
             hr = WriteAllBytesToStream(outputStream, inputBytes);
         }

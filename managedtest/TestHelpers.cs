@@ -32,26 +32,26 @@ namespace UnicodeRegEx.Tests
             Assert.Fail($"Expected {typeof(T).Name} to be thrown.");
         }
 
-        /// <summary>Returns the <see cref="Encoding"/> for a <see cref="RegExEncoding"/> code page.</summary>
-        public static Encoding GetEncoding(RegExEncoding encoding)
+        /// <summary>Returns the <see cref="Encoding"/> for a <see cref="RegExCodePage"/> code page.</summary>
+        public static Encoding GetEncoding(RegExCodePage codePage)
         {
-            switch (encoding)
+            switch (codePage)
             {
-                case RegExEncoding.Utf16LE: return Encoding.Unicode;
-                case RegExEncoding.Utf16BE: return Encoding.BigEndianUnicode;
-                case RegExEncoding.Latin1: return Encoding.GetEncoding(28591);
-                case RegExEncoding.Utf8: return Encoding.UTF8;
-                default: return Encoding.GetEncoding((int)encoding);
+                case RegExCodePage.Utf16LE: return Encoding.Unicode;
+                case RegExCodePage.Utf16BE: return Encoding.BigEndianUnicode;
+                case RegExCodePage.Latin1: return Encoding.GetEncoding(28591);
+                case RegExCodePage.Utf8: return Encoding.UTF8;
+                default: return Encoding.GetEncoding((int)codePage);
             }
         }
 
-        /// <summary>Encodes <paramref name="text"/> into bytes using the given encoding.</summary>
-        public static byte[] Encode(string text, RegExEncoding encoding)
-            => GetEncoding(encoding).GetBytes(text);
+        /// <summary>Encodes <paramref name="text"/> into bytes using the given codePage.</summary>
+        public static byte[] Encode(string text, RegExCodePage codePage)
+            => GetEncoding(codePage).GetBytes(text);
 
-        /// <summary>Decodes <paramref name="bytes"/> using the given encoding.</summary>
-        public static string Decode(byte[] bytes, RegExEncoding encoding)
-            => GetEncoding(encoding).GetString(bytes);
+        /// <summary>Decodes <paramref name="bytes"/> using the given codePage.</summary>
+        public static string Decode(byte[] bytes, RegExCodePage codePage)
+            => GetEncoding(codePage).GetString(bytes);
 
         /// <summary>Snapshots the bytes currently buffered in a memory stream.</summary>
         public static byte[] ReadAllBytes(Interop.IRegExMemoryStream stream)
@@ -68,11 +68,11 @@ namespace UnicodeRegEx.Tests
         }
 
         /// <summary>Reads and decodes all buffered bytes from a memory stream.</summary>
-        public static string ReadAllText(Interop.IRegExMemoryStream stream, RegExEncoding encoding)
-            => Decode(ReadAllBytes(stream), encoding);
+        public static string ReadAllText(Interop.IRegExMemoryStream stream, RegExCodePage codePage)
+            => Decode(ReadAllBytes(stream), codePage);
 
-        /// <summary>Returns the bytes of a segment as text, decoded with the input encoding.</summary>
+        /// <summary>Returns the bytes of a segment as text, decoded with the input code page.</summary>
         public static string SegmentText(RegExSegment segment)
-            => segment.Bytes.ToString((int)segment.InputEncoding);
+            => segment.Bytes.ToString((int)segment.InputCodePage);
     }
 }

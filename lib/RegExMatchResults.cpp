@@ -4,7 +4,7 @@
 RegExMatchResults::RegExMatchResults(
     _In_ RegEx* regex,
     RegExBytes const& input,
-    RegExEncoding inputEncoding,
+    TextEncoding inputEncoding,
     _In_ UINT_PTR startByteOffset,
     RegExMatchFlags flags)
     : RegExMatchBase(regex, input, inputEncoding, startByteOffset, flags)
@@ -15,7 +15,7 @@ HRESULT
 RegExMatchResults::Search(
     _In_ RegEx* regex,
     RegExBytes const& input,
-    RegExEncoding inputEncoding,
+    TextEncoding inputEncoding,
     _In_ UINT_PTR startByteOffset,
     RegExMatchFlags flags,
     bool wholeStringMatch,

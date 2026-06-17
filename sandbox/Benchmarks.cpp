@@ -1,9 +1,9 @@
 #include "pch.h"
 #include "Benchmarks.h"
 #include "WindowsChar32RegexTraits.h"
-#include <utf.h>
 #include "resource.h"
 
+#include <TextEncoding.h>
 #include <boost/regex/v5/unicode_iterator.hpp>
 
 #include <string>
@@ -60,12 +60,13 @@ static constexpr wchar_t const* TestPatterns[] = {
 };
 static constexpr size_t TestPatternCount = sizeof(TestPatterns) / sizeof(TestPatterns[0]);
 
-template<class IteratorT>
+template<class EncodingT>
 static void
 RunIteratorBenchmark(
     char const* label,
-    utf::CodePointRange<IteratorT> corpus)
+    typename EncodingT::CodePointRange corpus)
 {
+    using IteratorT = typename EncodingT::CodePointIterator;
     using regex_type = boost::basic_regex<char32_t, WindowsChar32RegexTraits>;
     using regex_iterator = boost::regex_iterator<IteratorT, char32_t, WindowsChar32RegexTraits>;
 
@@ -152,13 +153,13 @@ ConvertUtf8ToLatin1(std::string_view utf8Data)
     std::vector<char> result;
     result.reserve(utf8Data.size());
 
-    auto [begin, end] = utf8::CodePointIterator::FromSpan(
+    auto [begin, end] = Utf8().MakeCodePointRange(
         std::span(reinterpret_cast<char8_t const*>(utf8Data.data()), utf8Data.size()));
 
     for (auto it = begin; it != end; ++it)
     {
         char32_t cp = *it;
-        result.push_back(utf::IsLatin1(cp) ? static_cast<char>(cp) : '?');
+        result.push_back(CodePoint::IsLatin1(cp) ? static_cast<char>(cp) : '?');
     }
 
     return result;
@@ -170,13 +171,13 @@ ConvertUtf8ToUtf16LE(std::string_view utf8Data)
     std::vector<char16_t> result;
     result.reserve(utf8Data.size()); // rough estimate
 
-    auto [begin, end] = utf8::CodePointIterator::FromSpan(
+    auto [begin, end] = Utf8().MakeCodePointRange(
         std::span(reinterpret_cast<char8_t const*>(utf8Data.data()), utf8Data.size()));
 
     for (auto it = begin; it != end; ++it)
     {
         char16_t buf[2];
-        unsigned n = utf16le::Encode(buf, *it);
+        unsigned n = Utf16LE().Encode(buf, *it);
         result.insert(result.end(), buf, buf + n);
     }
 
@@ -189,13 +190,13 @@ ConvertUtf8ToUtf16BE(std::string_view utf8Data)
     std::vector<char16_t> result;
     result.reserve(utf8Data.size());
 
-    auto [begin, end] = utf8::CodePointIterator::FromSpan(
+    auto [begin, end] = Utf8().MakeCodePointRange(
         std::span(reinterpret_cast<char8_t const*>(utf8Data.data()), utf8Data.size()));
 
     for (auto it = begin; it != end; ++it)
     {
         char16_t buf[2];
-        unsigned n = utf16be::Encode(buf, *it);
+        unsigned n = Utf16BE().Encode(buf, *it);
         result.insert(result.end(), buf, buf + n);
     }
 
@@ -242,21 +243,28 @@ Benchmarks()
         u32_to_u8_it(u8end, u8begin, u8end)));
 #endif
 
-    RunIteratorBenchmark("UTF-8",
-        utf8::CodePointIterator::FromSpan({ u8begin, u8end }));
-
-#if 1
-    auto utf16leData = ConvertUtf8ToUtf16LE(mobyText);
-    RunIteratorBenchmark<utf16le::CodePointIterator>("UTF-16LE",
-        utf16le::CodePointIterator::FromSpan({ utf16leData.data(), utf16leData.size() }));
-
-    auto utf16beData = ConvertUtf8ToUtf16BE(mobyText);
-    RunIteratorBenchmark<utf16be::CodePointIterator>("UTF-16BE",
-        utf16be::CodePointIterator::FromSpan({ utf16beData.data(), utf16beData.size() }));
+    RunIteratorBenchmark<Utf8>("UTF-8",
+        Utf8().MakeCodePointRange({ u8begin, u8end }));
 
     auto latin1Data = ConvertUtf8ToLatin1(mobyText);
-    RunIteratorBenchmark<latin1::CodePointIterator>("Latin1-Rand",
-        latin1::CodePointIterator::FromSpan({ latin1Data.data(), latin1Data.size() }));
+    RunIteratorBenchmark<Latin1>("Latin1-Rand",
+        Latin1().MakeCodePointRange({ latin1Data.data(), latin1Data.size() }));
+
+    RunIteratorBenchmark<Sbcs>("cp1252-Rand",
+        Sbcs::TryFromCodePage(28591).value().MakeCodePointRange({latin1Data.data(), latin1Data.size()}));
+
+#if 0
+    auto utf16leData = ConvertUtf8ToUtf16LE(mobyText);
+    RunIteratorBenchmark<Utf16LE>("UTF-16LE",
+        Utf16LE().MakeCodePointRange({ utf16leData.data(), utf16leData.size() }));
+
+    auto utf16beData = ConvertUtf8ToUtf16BE(mobyText);
+    RunIteratorBenchmark<Utf16BE>("UTF-16BE",
+        Utf16BE().MakeCodePointRange({ utf16beData.data(), utf16beData.size() }));
+
+    auto latin1Data = ConvertUtf8ToLatin1(mobyText);
+    RunIteratorBenchmark<Latin1>("Latin1-Rand",
+        Latin1().MakeCodePointRange({ latin1Data.data(), latin1Data.size() }));
 #endif
 
     printf("---\nDone.\n");

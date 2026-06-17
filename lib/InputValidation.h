@@ -1,6 +1,8 @@
 #pragma once
 #include <UnicodeRegEx.h>
 
+#include <TextEncoding.h>
+
 // Returns true if a RegExBytes is a valid whole-input descriptor: size is
 // non-negative and a non-empty buffer has a non-null base. Used by the
 // public entry points that treat input.size as the buffer length (Match,
@@ -19,9 +21,13 @@ InputIsValid(RegExBytes input) noexcept;
 bool
 RangeIsInBounds(LONGLONG offset, LONGLONG size, size_t bufferSize) noexcept;
 
-// Returns true if size and offset are valid for the given encoding
-// (multiples of the encoding's element size). offset is checked separately
-// since some scenarios pass element-aligned offsets without sizes.
-// Returns false for invalid encoding.
+// Returns true if lowBits is valid for the given encoding
+// (multiple of the encoding's element size).
 bool
-OffsetAndSizeAreAlignedForEncoding(LONGLONG offset, LONGLONG size, RegExEncoding encoding) noexcept;
+InputIsAligned(TextEncoding encoding, LONGLONG lowBits) noexcept;
+
+// Returns true and sets encoding if codePage is valid and lowBits is valid for it
+// (multiple of the encoding's element size).
+_Success_(return)
+bool
+TextEncodingForCodePageIfAligned(unsigned codePage, LONGLONG lowBits, _Out_ TextEncoding* encoding) noexcept;

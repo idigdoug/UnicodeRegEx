@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "OutputSink.h"
 
-#include <utf.h>
+#include <TextEncoding.h>
 
 HRESULT
 WriteAllBytesToStream(
@@ -77,27 +77,27 @@ AllocBStrFromUtf16Bytes(
 
 OutputSink::OutputSink() noexcept
     : m_bufferPos(0)
-    , m_encoding(RegExEncoding_none)
+    , m_outputEncoding()
     , m_pStream(nullptr)
     , m_vector()
 {
 }
 
 void
-OutputSink::ResetToVector(RegExEncoding outputEncoding)
+OutputSink::ResetToVector(TextEncoding outputEncoding)
 {
     m_bufferPos = 0;
-    m_encoding = outputEncoding;
+    m_outputEncoding = outputEncoding;
     m_pStream = nullptr;
     m_vector.clear();
 }
 
 void
-OutputSink::ResetToStream(RegExEncoding outputEncoding, _In_ ISequentialStream* pStream) noexcept
+OutputSink::ResetToStream(TextEncoding outputEncoding, _In_ ISequentialStream* pStream) noexcept
 {
     assert(pStream != nullptr);
     m_bufferPos = 0;
-    m_encoding = outputEncoding;
+    m_outputEncoding = outputEncoding;
     m_pStream = pStream;
     m_vector.clear();
 }
@@ -118,58 +118,24 @@ OutputSink::push_back(char32_t codePoint)
 void
 OutputSink::AppendBytes(
     std::span<BYTE const> inputBytes,
-    RegExEncoding inputEncoding)
+    TextEncoding inputEncoding)
 {
     void const* const data = inputBytes.data();
     size_t const size = inputBytes.size();
 
-    switch (inputEncoding)
-    {
-    case RegExEncoding_latin1:
-    {
-        auto chars = std::span(static_cast<char const*>(data), size);
-        auto range = latin1::CodePointIterator::FromSpan(chars);
-        for (auto it = range.begin; it != range.end; ++it)
+    std::visit([&](auto encoding)
         {
-            push_back(*it);
-        }
-        break;
-    }
-    case RegExEncoding_utf8:
-    {
-        auto chars = std::span(static_cast<char8_t const*>(data), size);
-        auto range = utf8::CodePointIterator::FromSpan(chars);
-        for (auto it = range.begin; it != range.end; ++it)
-        {
-            push_back(*it);
-        }
-        break;
-    }
-    case RegExEncoding_utf16le:
-    {
-        assert((size & 1) == 0);
-        auto chars = std::span(static_cast<char16_t const*>(data), size / sizeof(char16_t));
-        auto range = utf16le::CodePointIterator::FromSpan(chars);
-        for (auto it = range.begin; it != range.end; ++it)
-        {
-            push_back(*it);
-        }
-        break;
-    }
-    case RegExEncoding_utf16be:
-    {
-        assert((size & 1) == 0);
-        auto chars = std::span(static_cast<char16_t const*>(data), size / sizeof(char16_t));
-        auto range = utf16be::CodePointIterator::FromSpan(chars);
-        for (auto it = range.begin; it != range.end; ++it)
-        {
-            push_back(*it);
-        }
-        break;
-    }
-    default:
-        THROW_HR(E_INVALIDARG);
-    }
+            using EncodingT = decltype(encoding);
+            using CharT = typename EncodingT::encoded_char;
+            assert((size & (sizeof(CharT) - 1)) == 0);
+            auto chars = std::span(static_cast<CharT const*>(data), size / sizeof(CharT));
+            auto range = encoding.MakeCodePointRange(chars);
+            for (auto it = range.begin; it != range.end; ++it)
+            {
+                push_back(*it);
+            }
+        },
+        inputEncoding);
 }
 
 void
@@ -199,6 +165,12 @@ OutputSink::AppendRawBytes(std::span<BYTE const> bytes)
     {
         THROW_IF_FAILED(WriteAllBytesToStream(m_pStream, bytes));
     }
+}
+
+TextEncoding
+OutputSink::OutputEncoding() const noexcept
+{
+    return m_outputEncoding;
 }
 
 std::span<BYTE const>
@@ -240,19 +212,11 @@ OutputSink::TranscodeBufferInPlace()
 {
     auto codePoints = std::span<char32_t>(m_buffer, m_bufferPos);
 
-    switch (m_encoding)
-    {
-    case RegExEncoding_latin1:
-        return latin1::ConvertInPlace(codePoints).size_bytes();
-    case RegExEncoding_utf8:
-        return utf8::ConvertInPlace(codePoints).size_bytes();
-    case RegExEncoding_utf16le:
-        return utf16le::ConvertInPlace(codePoints).size_bytes();
-    case RegExEncoding_utf16be:
-        return utf16be::ConvertInPlace(codePoints).size_bytes();
-    default:
-        THROW_HR(E_INVALIDARG);
-    }
+    return std::visit([&](auto encoding)
+        {
+            return encoding.ConvertInPlace(codePoints).size_bytes();
+        },
+        m_outputEncoding);
 }
 
 void

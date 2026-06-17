@@ -1,7 +1,7 @@
 ﻿#include "pch.h"
 #include <WindowsChar32RegexTraits.h>
-#include <utf.h>
 
+#include <TextEncoding.h>
 #include <regex>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -186,9 +186,9 @@ namespace WindowsChar32RegexTraitsTests
             // Use the regex over UTF-8 data via Char32Utf8_iterator.
             boost::basic_regex<char32_t, WindowsChar32RegexTraits> re(U"world");
             auto const data = u8"hello world"sv;
-            auto [begin, end] = utf8::CodePointIterator::FromSpan(data);
+            auto [begin, end] = Utf8().MakeCodePointRange(data);
 
-            boost::match_results<utf8::CodePointIterator> results;
+            boost::match_results<Utf8::CodePointIterator> results;
             Assert::IsTrue(boost::regex_search(begin, end, results, re));
             // "world" starts at byte offset 6.
             Assert::AreEqual(size_t(6), results[0].first.ByteOffset(data.data()));
@@ -198,9 +198,9 @@ namespace WindowsChar32RegexTraitsTests
         {
             boost::basic_regex<char32_t, WindowsChar32RegexTraits> re(U"world");
             auto const data = u"hello world"sv;
-            auto [begin, end] = utf16le::CodePointIterator::FromSpan(data);
+            auto [begin, end] = Utf16LE().MakeCodePointRange(data);
 
-            boost::match_results<utf16le::CodePointIterator> results;
+            boost::match_results<Utf16LE::CodePointIterator> results;
             Assert::IsTrue(boost::regex_search(begin, end, results, re));
             Assert::AreEqual(size_t(12), results[0].first.ByteOffset(data.data())); // 6 chars * 2 bytes
         }

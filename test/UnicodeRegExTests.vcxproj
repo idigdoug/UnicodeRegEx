@@ -261,7 +261,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="EncodingCoverageTests.cpp" />
+    <ClCompile Include="CodePageCoverageTests.cpp" />
+    <ClCompile Include="EncodingsTests.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -275,7 +276,6 @@
     <ClCompile Include="RegexTraitsCoverageTests.cpp" />
     <ClCompile Include="ReplaceTests.cpp" />
     <ClCompile Include="TranscodeTests.cpp" />
-    <ClCompile Include="UtfTests.cpp" />
     <ClCompile Include="WindowsChar32RegexTraitsTests.cpp" />
     <ClCompile Include="RegExCreateTests.cpp" />
     <ClCompile Include="MatchEnumeratorTests.cpp" />

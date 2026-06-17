@@ -47,7 +47,7 @@ namespace UnicodeRegEx.Tests
             var regex = RegEx.Create("a");
             using var stream = RegEx.CreateMemoryStream();
 
-            regex.ReplaceTo("banana", stream.Value, RegExEncoding.Utf16LE, "X");
+            regex.ReplaceTo("banana", stream.Value, RegExCodePage.Utf16LE, "X");
             Assert.AreNotEqual(0, TestHelpers.ReadAllBytes(stream.Value).Length);
 
             stream.Value.Reset();

@@ -150,8 +150,8 @@ namespace UnicodeRegEx.Tests
         {
             var regex = RegEx.Create("caf\u00e9"); // café
 
-            var bytes = TestHelpers.Encode("a caf\u00e9 here", RegExEncoding.Utf8);
-            var text = regex.Search(new RegExInput(bytes, RegExEncoding.Utf8), default, "<none>",
+            var bytes = TestHelpers.Encode("a caf\u00e9 here", RegExCodePage.Utf8);
+            var text = regex.Search(new RegExInput(bytes, RegExCodePage.Utf8), default, "<none>",
                 m => m.Text);
 
             Assert.AreEqual("caf\u00e9", text);
@@ -162,8 +162,8 @@ namespace UnicodeRegEx.Tests
         {
             var regex = RegEx.Create("[0-9]+");
 
-            var bytes = TestHelpers.Encode("abc12345xyz", RegExEncoding.Latin1);
-            var text = regex.Search(new RegExInput(bytes, RegExEncoding.Latin1), default, "<none>",
+            var bytes = TestHelpers.Encode("abc12345xyz", RegExCodePage.Latin1);
+            var text = regex.Search(new RegExInput(bytes, RegExCodePage.Latin1), default, "<none>",
                 m => m.Text);
 
             Assert.AreEqual("12345", text);

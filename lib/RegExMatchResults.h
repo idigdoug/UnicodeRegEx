@@ -8,7 +8,7 @@ class RegExMatchResults final : public RegExMatchBase
     RegExMatchResults(
         _In_ RegEx* regex,
         RegExBytes const& input,
-        RegExEncoding inputEncoding,
+        TextEncoding inputEncoding,
         _In_ UINT_PTR startByteOffset,
         RegExMatchFlags matchFlags);
 
@@ -22,7 +22,7 @@ public:
     Search(
         _In_ RegEx* regex,
         RegExBytes const& input,
-        RegExEncoding inputEncoding,
+        TextEncoding inputEncoding,
         _In_ UINT_PTR startByteOffset,
         RegExMatchFlags matchFlags,
         bool wholeStringMatch,

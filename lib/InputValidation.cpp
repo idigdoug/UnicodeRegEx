@@ -41,19 +41,23 @@ RangeIsInBounds(LONGLONG offset, LONGLONG size, size_t bufferSize) noexcept
 }
 
 bool
-OffsetAndSizeAreAlignedForEncoding(LONGLONG offset, LONGLONG size, RegExEncoding encoding) noexcept
+InputIsAligned(TextEncoding encoding, LONGLONG lowBits) noexcept
 {
-    switch (encoding)
-    {
-    case RegExEncoding_utf16le:
-    case RegExEncoding_utf16be:
-        return ((offset | size) & 1) == 0;
+    return std::visit([lowBits](auto enc)
+        {
+            using CharT = typename decltype(enc)::encoded_char;
+            return (lowBits & (sizeof(CharT) - 1)) == 0;
+        },
+        encoding);
+}
 
-    case RegExEncoding_latin1:
-    case RegExEncoding_utf8:
-        return true;
-
-    default:
-        return false;
-    }
+_Success_(return)
+bool
+TextEncodingForCodePageIfAligned(unsigned codePage, LONGLONG lowBits, _Out_ TextEncoding* encoding) noexcept
+{
+    return VisitEncodingForCodePage(codePage, [&](auto enc) {
+        using EncodingT = decltype(enc);
+        *encoding = enc;
+        return (lowBits & (sizeof(typename EncodingT::encoded_char) - 1)) == 0;
+        });
 }

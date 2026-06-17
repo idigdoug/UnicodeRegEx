@@ -16,7 +16,7 @@ namespace RegExTests
             wil::unique_bstr output;
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->Transcode(inputBytes, RegExEncoding_utf8, output.put()));
+                GetLibrary()->Transcode(inputBytes, RegExCodePage_utf8, output.put()));
             Assert::AreEqual(L"hello"sv, MakeView(output.get()));
         }
 
@@ -27,7 +27,7 @@ namespace RegExTests
             wil::unique_bstr output;
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->Transcode(inputBytes, RegExEncoding_utf16le, output.put()));
+                GetLibrary()->Transcode(inputBytes, RegExCodePage_utf16le, output.put()));
             Assert::AreEqual(L"hello"sv, MakeView(output.get()));
         }
 
@@ -43,7 +43,7 @@ namespace RegExTests
             wil::unique_bstr output;
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->Transcode(inputBytes, RegExEncoding_utf16be, output.put()));
+                GetLibrary()->Transcode(inputBytes, RegExCodePage_utf16be, output.put()));
             Assert::AreEqual(L"AB"sv, MakeView(output.get()));
         }
 
@@ -59,7 +59,7 @@ namespace RegExTests
             wil::unique_bstr output;
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->Transcode(inputBytes, RegExEncoding_latin1, output.put()));
+                GetLibrary()->Transcode(inputBytes, RegExCodePage_latin1, output.put()));
             Assert::AreEqual(L"a\u00E9z"sv, MakeView(output.get()));
         }
 
@@ -69,17 +69,17 @@ namespace RegExTests
             wil::unique_bstr output;
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->Transcode(inputBytes, RegExEncoding_utf8, output.put()));
+                GetLibrary()->Transcode(inputBytes, RegExCodePage_utf8, output.put()));
             Assert::AreEqual(L""sv, MakeView(output.get()));
         }
 
-        TEST_METHOD(Transcode_InvalidEncoding)
+        TEST_METHOD(Transcode_InvalidCodePage)
         {
             RegExBytes inputBytes = MakeString(u8"hello"sv);
             wil::unique_bstr output;
             Assert::AreEqual(
                 E_INVALIDARG,
-                GetLibrary()->Transcode(inputBytes, static_cast<RegExEncoding>(9999), output.put()));
+                GetLibrary()->Transcode(inputBytes, static_cast<RegExCodePage>(9999), output.put()));
             Assert::IsNull(output.get());
         }
 
@@ -91,7 +91,7 @@ namespace RegExTests
             wil::unique_bstr output;
             Assert::AreEqual(
                 E_INVALIDARG,
-                GetLibrary()->Transcode(bytes, RegExEncoding_utf16le, output.put()));
+                GetLibrary()->Transcode(bytes, RegExCodePage_utf16le, output.put()));
         }
 
         TEST_METHOD(TranscodeTo_Utf8ToUtf16le)
@@ -100,18 +100,18 @@ namespace RegExTests
             auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->TranscodeTo(inputBytes, RegExEncoding_utf8, stream.get(), RegExEncoding_utf16le));
+                GetLibrary()->TranscodeTo(inputBytes, RegExCodePage_utf8, stream.get(), RegExCodePage_utf16le));
             Assert::IsTrue(u"hello"sv == StreamView<char16_t>(stream.get()));
         }
 
-        TEST_METHOD(TranscodeTo_SameEncoding_FastPath)
+        TEST_METHOD(TranscodeTo_SameCodePage_FastPath)
         {
-            // Same encoding takes the fast path (direct byte copy).
+            // Same code page takes the fast path (direct byte copy).
             RegExBytes inputBytes = MakeString(u8"hello"sv);
             auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->TranscodeTo(inputBytes, RegExEncoding_utf8, stream.get(), RegExEncoding_utf8));
+                GetLibrary()->TranscodeTo(inputBytes, RegExCodePage_utf8, stream.get(), RegExCodePage_utf8));
             Assert::AreEqual("hello"sv, StreamView(stream.get()));
         }
 
@@ -121,7 +121,7 @@ namespace RegExTests
             auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->TranscodeTo(inputBytes, RegExEncoding_utf16le, stream.get(), RegExEncoding_utf8));
+                GetLibrary()->TranscodeTo(inputBytes, RegExCodePage_utf16le, stream.get(), RegExCodePage_utf8));
             Assert::AreEqual("hello"sv, StreamView(stream.get()));
         }
 
@@ -132,7 +132,7 @@ namespace RegExTests
             auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->TranscodeTo(inputBytes, RegExEncoding_utf8, stream.get(), RegExEncoding_latin1));
+                GetLibrary()->TranscodeTo(inputBytes, RegExCodePage_utf8, stream.get(), RegExCodePage_latin1));
 
             auto bytes = StreamBytes(stream.get());
             Assert::AreEqual(size_t(3), bytes.size());
@@ -147,7 +147,7 @@ namespace RegExTests
             auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->TranscodeTo(inputBytes, RegExEncoding_utf8, stream.get(), RegExEncoding_utf16le));
+                GetLibrary()->TranscodeTo(inputBytes, RegExCodePage_utf8, stream.get(), RegExCodePage_utf16le));
             Assert::AreEqual(size_t(0), StreamBytes(stream.get()).size());
         }
 
@@ -156,27 +156,27 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"hello"sv);
             Assert::AreEqual(
                 E_POINTER,
-                GetLibrary()->TranscodeTo(inputBytes, RegExEncoding_utf8, nullptr, RegExEncoding_utf16le));
+                GetLibrary()->TranscodeTo(inputBytes, RegExCodePage_utf8, nullptr, RegExCodePage_utf16le));
         }
 
-        TEST_METHOD(TranscodeTo_InvalidInputEncoding)
+        TEST_METHOD(TranscodeTo_InvalidInputCodePage)
         {
             RegExBytes inputBytes = MakeString(u8"hello"sv);
             auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 E_INVALIDARG,
                 GetLibrary()->TranscodeTo(
-                    inputBytes, static_cast<RegExEncoding>(9999), stream.get(), RegExEncoding_utf8));
+                    inputBytes, static_cast<RegExCodePage>(9999), stream.get(), RegExCodePage_utf8));
         }
 
-        TEST_METHOD(TranscodeTo_InvalidOutputEncoding)
+        TEST_METHOD(TranscodeTo_InvalidOutputCodePage)
         {
             RegExBytes inputBytes = MakeString(u8"hello"sv);
             auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 E_INVALIDARG,
                 GetLibrary()->TranscodeTo(
-                    inputBytes, RegExEncoding_utf8, stream.get(), static_cast<RegExEncoding>(9999)));
+                    inputBytes, RegExCodePage_utf8, stream.get(), static_cast<RegExCodePage>(9999)));
         }
 
         TEST_METHOD(TranscodeTo_OddSize_Utf16)
@@ -187,7 +187,7 @@ namespace RegExTests
             auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 E_INVALIDARG,
-                GetLibrary()->TranscodeTo(bytes, RegExEncoding_utf16le, stream.get(), RegExEncoding_utf8));
+                GetLibrary()->TranscodeTo(bytes, RegExCodePage_utf16le, stream.get(), RegExCodePage_utf8));
         }
 
         TEST_METHOD(TranscodeTo_LargeOutput_ExceedsBufferCapacity)
@@ -201,7 +201,7 @@ namespace RegExTests
             auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->TranscodeTo(inputBytes, RegExEncoding_utf8, stream.get(), RegExEncoding_utf16le));
+                GetLibrary()->TranscodeTo(inputBytes, RegExCodePage_utf8, stream.get(), RegExCodePage_utf16le));
 
             // Expect 1000 UTF-16 code units, each 2 bytes = 2000 bytes.
             auto bytes = StreamBytes(stream.get());
@@ -226,7 +226,7 @@ namespace RegExTests
             wil::unique_bstr output;
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->Transcode(inputBytes, RegExEncoding_utf8, output.put()));
+                GetLibrary()->Transcode(inputBytes, RegExCodePage_utf8, output.put()));
 
             auto view = MakeView(output.get());
             Assert::AreEqual(size_t(1000), view.size());
@@ -247,7 +247,7 @@ namespace RegExTests
             auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->TranscodeTo(inputBytes, RegExEncoding_utf8, stream.get(), RegExEncoding_latin1));
+                GetLibrary()->TranscodeTo(inputBytes, RegExCodePage_utf8, stream.get(), RegExCodePage_latin1));
 
             // Latin-1 stays 1 byte per char.
             auto bytes = StreamBytes(stream.get());
@@ -258,7 +258,7 @@ namespace RegExTests
 
         TEST_METHOD(TranscodeTo_Utf16beInputToLatin1)
         {
-            // Exercises AppendBytes utf16be input path with a large buffer that forces
+            // Exercises AppendBytes Utf16BE input path with a large buffer that forces
             // multiple flushes, while also using latin1 as the output (covers latin1
             // ConvertInPlace in TranscodeBufferInPlace).
             std::vector<char16_t> buf(1000, u'A');
@@ -271,7 +271,7 @@ namespace RegExTests
             auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->TranscodeTo(inputBytes, RegExEncoding_utf16be, stream.get(), RegExEncoding_latin1));
+                GetLibrary()->TranscodeTo(inputBytes, RegExCodePage_utf16be, stream.get(), RegExCodePage_latin1));
 
             auto bytes = StreamBytes(stream.get());
             Assert::AreEqual(size_t(1000), bytes.size());

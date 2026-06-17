@@ -25,7 +25,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Search(inputBytes, RegExEncoding_latin1, 0, RegExMatchFlag_default, results.put()));
+                regex->Search(inputBytes, RegExCodePage_latin1, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};
@@ -48,7 +48,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Search(inputBytes, RegExEncoding_latin1, 0, RegExMatchFlag_default, results.put()));
+                regex->Search(inputBytes, RegExCodePage_latin1, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};
@@ -66,7 +66,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Match(inputBytes, RegExEncoding_latin1, 0, RegExMatchFlag_default, results.put()));
+                regex->Match(inputBytes, RegExCodePage_latin1, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
         }
 
@@ -79,7 +79,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
             Assert::AreEqual(
                 S_OK,
-                regex->EnumerateMatches(inputBytes, RegExEncoding_latin1, 0, RegExMatchFlag_default, enumerator.put()));
+                regex->EnumerateMatches(inputBytes, RegExCodePage_latin1, 0, RegExMatchFlag_default, enumerator.put()));
 
             VARIANT_BOOL found = VARIANT_FALSE;
             int count = 0;
@@ -99,7 +99,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString("hello world"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            regex->EnumerateMatches(inputBytes, RegExEncoding_latin1, 0, RegExMatchFlag_default, enumerator.put());
+            regex->EnumerateMatches(inputBytes, RegExCodePage_latin1, 0, RegExMatchFlag_default, enumerator.put());
 
             VARIANT_BOOL found = VARIANT_FALSE;
             enumerator->NextMatch(&found);
@@ -120,24 +120,24 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString("hello"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(inputBytes, RegExEncoding_latin1, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExCodePage_latin1, 0, RegExMatchFlag_default, results.put());
 
             wil::unique_bstr output;
             Assert::AreEqual(S_OK, results->CopyInput(0, 5, output.put()));
             Assert::AreEqual(L"hello"sv, MakeView(output.get()));
         }
 
-        TEST_METHOD(CopyInputTo_SameEncoding_FastPath)
+        TEST_METHOD(CopyInputTo_SameCodePage_FastPath)
         {
             auto regex = MakeRegEx(L"h");
 
             RegExBytes inputBytes = MakeString("hello world"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(inputBytes, RegExEncoding_latin1, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExCodePage_latin1, 0, RegExMatchFlag_default, results.put());
 
             auto stream = MakeMemoryStream();
-            Assert::AreEqual(S_OK, results->CopyInputTo(6, 5, stream.get(), RegExEncoding_latin1));
+            Assert::AreEqual(S_OK, results->CopyInputTo(6, 5, stream.get(), RegExCodePage_latin1));
             Assert::AreEqual("world"sv, StreamView(stream.get()));
         }
 
@@ -148,25 +148,25 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString("hello"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(inputBytes, RegExEncoding_latin1, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExCodePage_latin1, 0, RegExMatchFlag_default, results.put());
 
             auto stream = MakeMemoryStream();
-            Assert::AreEqual(S_OK, results->CopyInputTo(0, 5, stream.get(), RegExEncoding_utf16le));
+            Assert::AreEqual(S_OK, results->CopyInputTo(0, 5, stream.get(), RegExCodePage_utf16le));
             Assert::IsTrue(u"hello"sv == StreamView<char16_t>(stream.get()));
         }
 
-        TEST_METHOD(InputEncoding_Property)
+        TEST_METHOD(InputCodePage_Property)
         {
             auto regex = MakeRegEx(L"h");
 
             RegExBytes inputBytes = MakeString("hello"sv);
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(inputBytes, RegExEncoding_latin1, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExCodePage_latin1, 0, RegExMatchFlag_default, results.put());
 
-            RegExEncoding encoding = RegExEncoding_none;
-            Assert::AreEqual(S_OK, results->get_InputEncoding(&encoding));
-            Assert::AreEqual((int)RegExEncoding_latin1, (int)encoding);
+            RegExCodePage codePage = RegExCodePage_none;
+            Assert::AreEqual(S_OK, results->get_InputCodePage(&codePage));
+            Assert::AreEqual((int)RegExCodePage_latin1, (int)codePage);
         }
 
         TEST_METHOD(Replace_Default)
@@ -181,7 +181,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_latin1,
+                    RegExCodePage_latin1,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -202,13 +202,13 @@ namespace RegExTests
                 S_OK,
                 regex->ReplaceTo(
                     inputBytes,
-                    RegExEncoding_latin1,
+                    RegExCodePage_latin1,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_perl,
                     stream.get(),
-                    RegExEncoding_latin1));
+                    RegExCodePage_latin1));
             Assert::AreEqual("a # b #"sv, StreamView(stream.get()));
         }
 
@@ -222,7 +222,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Search(inputBytes, RegExEncoding_latin1, 6, RegExMatchFlag_default, results.put()));
+                regex->Search(inputBytes, RegExCodePage_latin1, 6, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
         }
     };
@@ -245,7 +245,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Search(inputBytes, RegExEncoding_utf16be, 0, RegExMatchFlag_default, results.put()));
+                regex->Search(inputBytes, RegExCodePage_utf16be, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};
@@ -270,7 +270,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Search(inputBytes, RegExEncoding_utf16be, 0, RegExMatchFlag_default, results.put()));
+                regex->Search(inputBytes, RegExCodePage_utf16be, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
 
             RegExSubMatch sub = {};
@@ -294,7 +294,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(
                 S_OK,
-                regex->Match(inputBytes, RegExEncoding_utf16be, 0, RegExMatchFlag_default, results.put()));
+                regex->Match(inputBytes, RegExCodePage_utf16be, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
         }
 
@@ -313,7 +313,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
             Assert::AreEqual(
                 S_OK,
-                regex->EnumerateMatches(inputBytes, RegExEncoding_utf16be, 0, RegExMatchFlag_default, enumerator.put()));
+                regex->EnumerateMatches(inputBytes, RegExCodePage_utf16be, 0, RegExMatchFlag_default, enumerator.put()));
 
             VARIANT_BOOL found = VARIANT_FALSE;
             int matchCount = 0;
@@ -339,7 +339,7 @@ namespace RegExTests
             };
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            regex->EnumerateMatches(inputBytes, RegExEncoding_utf16be, 0, RegExMatchFlag_default, enumerator.put());
+            regex->EnumerateMatches(inputBytes, RegExCodePage_utf16be, 0, RegExMatchFlag_default, enumerator.put());
 
             VARIANT_BOOL found = VARIANT_FALSE;
             enumerator->NextMatch(&found);
@@ -365,14 +365,14 @@ namespace RegExTests
             };
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(inputBytes, RegExEncoding_utf16be, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExCodePage_utf16be, 0, RegExMatchFlag_default, results.put());
 
             wil::unique_bstr output;
             Assert::AreEqual(S_OK, results->CopyInput(0, 10, output.put()));
             Assert::AreEqual(L"hello"sv, MakeView(output.get()));
         }
 
-        TEST_METHOD(CopyInputTo_SameEncoding_FastPath)
+        TEST_METHOD(CopyInputTo_SameCodePage_FastPath)
         {
             auto regex = MakeRegEx(L"h");
 
@@ -385,11 +385,11 @@ namespace RegExTests
             };
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(inputBytes, RegExEncoding_utf16be, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExCodePage_utf16be, 0, RegExMatchFlag_default, results.put());
 
             auto stream = MakeMemoryStream();
-            // Copy bytes 12..22 = "world" in BE. Same encoding = byte-for-byte copy.
-            Assert::AreEqual(S_OK, results->CopyInputTo(12, 10, stream.get(), RegExEncoding_utf16be));
+            // Copy bytes 12..22 = "world" in BE. Same code page = byte-for-byte copy.
+            Assert::AreEqual(S_OK, results->CopyInputTo(12, 10, stream.get(), RegExCodePage_utf16be));
             // Verify bytes match the BE source.
             auto written = StreamBytes(stream.get());
             Assert::AreEqual(size_t(10), written.size());
@@ -413,14 +413,14 @@ namespace RegExTests
             };
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(inputBytes, RegExEncoding_utf16be, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExCodePage_utf16be, 0, RegExMatchFlag_default, results.put());
 
             auto stream = MakeMemoryStream();
-            Assert::AreEqual(S_OK, results->CopyInputTo(0, 10, stream.get(), RegExEncoding_utf8));
+            Assert::AreEqual(S_OK, results->CopyInputTo(0, 10, stream.get(), RegExCodePage_utf8));
             Assert::AreEqual("hello"sv, StreamView(stream.get()));
         }
 
-        TEST_METHOD(InputEncoding_Property)
+        TEST_METHOD(InputCodePage_Property)
         {
             auto regex = MakeRegEx(L"h");
 
@@ -433,11 +433,11 @@ namespace RegExTests
             };
 
             wil::com_ptr<IRegExMatchResults> results;
-            regex->Search(inputBytes, RegExEncoding_utf16be, 0, RegExMatchFlag_default, results.put());
+            regex->Search(inputBytes, RegExCodePage_utf16be, 0, RegExMatchFlag_default, results.put());
 
-            RegExEncoding encoding = RegExEncoding_none;
-            Assert::AreEqual(S_OK, results->get_InputEncoding(&encoding));
-            Assert::AreEqual((int)RegExEncoding_utf16be, (int)encoding);
+            RegExCodePage codePage = RegExCodePage_none;
+            Assert::AreEqual(S_OK, results->get_InputCodePage(&codePage));
+            Assert::AreEqual((int)RegExCodePage_utf16be, (int)codePage);
         }
 
         TEST_METHOD(Replace_Default)
@@ -458,7 +458,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf16be,
+                    RegExCodePage_utf16be,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -485,13 +485,13 @@ namespace RegExTests
                 S_OK,
                 regex->ReplaceTo(
                     inputBytes,
-                    RegExEncoding_utf16be,
+                    RegExCodePage_utf16be,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_perl,
                     stream.get(),
-                    RegExEncoding_utf8));
+                    RegExCodePage_utf8));
             Assert::AreEqual("a # b #"sv, StreamView(stream.get()));
         }
 
@@ -511,7 +511,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
             Assert::AreEqual(
                 E_INVALIDARG,
-                regex->EnumerateMatches(inputBytes, RegExEncoding_utf16be, 2, RegExMatchFlag_default, enumerator.put()));
+                regex->EnumerateMatches(inputBytes, RegExCodePage_utf16be, 2, RegExMatchFlag_default, enumerator.put()));
         }
 
         TEST_METHOD(Transcode_Utf16beToBstr)
@@ -527,14 +527,14 @@ namespace RegExTests
             wil::unique_bstr output;
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->Transcode(inputBytes, RegExEncoding_utf16be, output.put()));
+                GetLibrary()->Transcode(inputBytes, RegExCodePage_utf16be, output.put()));
             Assert::AreEqual(L"hello"sv, MakeView(output.get()));
         }
 
         TEST_METHOD(TranscodeTo_Utf16beToLatin1)
         {
-            // Pull in the utf16be ConvertInPlace via the OutputSink default-case path
-            // by selecting utf16be as the output encoding too.
+            // Pull in the Utf16BE ConvertInPlace via the OutputSink default-case path
+            // by selecting Utf16BE as the output code page too.
             char16_t buf[] = u"hi";
             auto const count = std::size(buf) - 1;
             ByteSwap16(std::span(buf, count));
@@ -546,7 +546,7 @@ namespace RegExTests
             auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->TranscodeTo(inputBytes, RegExEncoding_utf16be, stream.get(), RegExEncoding_utf16be));
+                GetLibrary()->TranscodeTo(inputBytes, RegExCodePage_utf16be, stream.get(), RegExCodePage_utf16be));
             // Fast-path: bytes are copied verbatim.
             auto written = StreamBytes(stream.get());
             Assert::AreEqual(size_t(4), written.size());
@@ -554,13 +554,13 @@ namespace RegExTests
 
         TEST_METHOD(TranscodeTo_Utf8ToUtf16be)
         {
-            // Exercises OutputSink's utf16be ConvertInPlace path.
+            // Exercises OutputSink's Utf16BE ConvertInPlace path.
             RegExBytes inputBytes = MakeString(u8"hi"sv);
 
             auto stream = MakeMemoryStream();
             Assert::AreEqual(
                 S_OK,
-                GetLibrary()->TranscodeTo(inputBytes, RegExEncoding_utf8, stream.get(), RegExEncoding_utf16be));
+                GetLibrary()->TranscodeTo(inputBytes, RegExCodePage_utf8, stream.get(), RegExCodePage_utf16be));
 
             // Expect BE bytes: 0x00 0x68 0x00 0x69 for "hi".
             auto bytes = StreamBytes(stream.get());

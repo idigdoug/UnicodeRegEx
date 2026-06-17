@@ -9,9 +9,6 @@
     <ClInclude Include="..\inc\WindowsChar32RegexTraits.h">
       <Filter>inc</Filter>
     </ClInclude>
-    <ClInclude Include="..\inc\utf.h">
-      <Filter>inc</Filter>
-    </ClInclude>
     <ClInclude Include="pch.h" />
     <ClInclude Include="RegEx.h" />
     <ClInclude Include="RegExFileStream.h" />
@@ -23,6 +20,9 @@
     <ClInclude Include="OutputSink.h" />
     <ClInclude Include="InputValidation.h" />
     <ClInclude Include="MatchEnumerator.h" />
+    <ClInclude Include="..\inc\TextEncoding.h">
+      <Filter>inc</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp" />
@@ -38,6 +38,7 @@
     <ClCompile Include="OutputSink.cpp" />
     <ClCompile Include="InputValidation.cpp" />
     <ClCompile Include="MatchEnumerator.cpp" />
+    <ClCompile Include="TextEncoding.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Midl Include="..\inc\UnicodeRegEx.idl">

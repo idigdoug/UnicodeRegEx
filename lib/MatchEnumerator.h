@@ -12,9 +12,11 @@ class RegEx;
 // Lifetime: the referenced RegEx must outlive this enumerator. The input
 // buffer (described by data/size) must remain valid for the lifetime of this
 // object as well.
-template<class IteratorT>
+template<class EncodingT>
 class MatchEnumerator
 {
+    using IteratorT = typename EncodingT::CodePointIterator;
+
     RegEx const& m_regex;
     boost::regex_constants::match_flag_type const m_matchFlags;
     IteratorT m_begin; // start of input (for regex_search base parameter / lookbehind context)
@@ -29,7 +31,8 @@ public:
         boost::regex_constants::match_flag_type matchFlags,
         _In_reads_bytes_(size) void const* data,
         size_t size,
-        size_t startByteOffset);
+        size_t startByteOffset,
+        EncodingT encoding);
 
     // First match. wholeStringMatch selects regex_match vs regex_search.
     // Returns true if a match was found. May throw.

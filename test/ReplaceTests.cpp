@@ -22,7 +22,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -44,7 +44,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -65,7 +65,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -87,7 +87,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -109,7 +109,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -130,7 +130,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -151,7 +151,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf16le,
+                    RegExCodePage_utf16le,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -174,7 +174,7 @@ namespace RegExTests
                 E_INVALIDARG,
                 regex->Replace(
                     bytes,
-                    RegExEncoding_utf16le,
+                    RegExCodePage_utf16le,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -194,7 +194,7 @@ namespace RegExTests
                 E_INVALIDARG,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     static_cast<RegExMatchFlags>(boost::regex_constants::match_prev_avail),
                     formatTemplate.get(),
@@ -214,13 +214,13 @@ namespace RegExTests
                 S_OK,
                 regex->ReplaceTo(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_perl,
                     stream.get(),
-                    RegExEncoding_utf8));
+                    RegExCodePage_utf8));
             Assert::AreEqual("a # b # c #"sv, StreamView(stream.get()));
         }
 
@@ -237,13 +237,13 @@ namespace RegExTests
                 S_OK,
                 regex->ReplaceTo(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_perl,
                     stream.get(),
-                    RegExEncoding_utf16le));
+                    RegExCodePage_utf16le));
             Assert::IsTrue(u"a # b #"sv == StreamView<char16_t>(stream.get()));
         }
 
@@ -259,17 +259,17 @@ namespace RegExTests
                 S_OK,
                 regex->ReplaceTo(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_first_only,
                     stream.get(),
-                    RegExEncoding_utf8));
+                    RegExCodePage_utf8));
             Assert::AreEqual("a # b 2"sv, StreamView(stream.get()));
         }
 
-        TEST_METHOD(ReplaceTo_SameEncoding_PreservesMalformedGapBytes)
+        TEST_METHOD(ReplaceTo_SameCodePage_PreservesMalformedGapBytes)
         {
             // The library's core promise: when input and output encodings match,
             // bytes outside matched regions are copied verbatim, including
@@ -287,13 +287,13 @@ namespace RegExTests
                 S_OK,
                 regex->ReplaceTo(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_perl,
                     stream.get(),
-                    RegExEncoding_utf8));
+                    RegExCodePage_utf8));
 
             BYTE const expected[] = { 'a', ' ', '#', ' ', 0xFF, ' ', '#' };
             auto bytes = StreamBytes(stream.get());
@@ -301,7 +301,7 @@ namespace RegExTests
             Assert::AreEqual(0, memcmp(expected, bytes.data(), sizeof(expected)));
         }
 
-        TEST_METHOD(ReplaceTo_SameEncoding_PreservesLoneSurrogateGapBytes)
+        TEST_METHOD(ReplaceTo_SameCodePage_PreservesLoneSurrogateGapBytes)
         {
             // Same verbatim guarantee for UTF-16LE: a lone high surrogate
             // (0xD800) in a non-matched gap must be copied byte-for-byte rather
@@ -317,13 +317,13 @@ namespace RegExTests
                 S_OK,
                 regex->ReplaceTo(
                     inputBytes,
-                    RegExEncoding_utf16le,
+                    RegExCodePage_utf16le,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_perl,
                     stream.get(),
-                    RegExEncoding_utf16le));
+                    RegExCodePage_utf16le));
 
             char16_t const expected[] = { u'a', u' ', u'#', u' ', 0xD800, u' ', u'#' };
             auto bytes = StreamBytes(stream.get());
@@ -342,16 +342,16 @@ namespace RegExTests
                 E_POINTER,
                 regex->ReplaceTo(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_perl,
                     nullptr,
-                    RegExEncoding_utf8));
+                    RegExCodePage_utf8));
         }
 
-        TEST_METHOD(ReplaceTo_InvalidOutputEncoding)
+        TEST_METHOD(ReplaceTo_InvalidOutputCodePage)
         {
             auto regex = MakeRegEx(L"x");
 
@@ -363,13 +363,13 @@ namespace RegExTests
                 E_INVALIDARG,
                 regex->ReplaceTo(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
                     RegExFormatFlag_perl,
                     stream.get(),
-                    static_cast<RegExEncoding>(9999)));
+                    static_cast<RegExCodePage>(9999)));
         }
 
         TEST_METHOD(ReplaceTo_RejectsMatchPrevAvail)
@@ -384,13 +384,13 @@ namespace RegExTests
                 E_INVALIDARG,
                 regex->ReplaceTo(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     static_cast<RegExMatchFlags>(boost::regex_constants::match_prev_avail),
                     formatTemplate.get(),
                     RegExFormatFlag_perl,
                     stream.get(),
-                    RegExEncoding_utf8));
+                    RegExCodePage_utf8));
         }
 
         // ----- Replacement transformations: \U, \L, \E -----
@@ -408,7 +408,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -429,7 +429,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -451,7 +451,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -475,7 +475,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -497,7 +497,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     0,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -523,7 +523,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     4,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -545,7 +545,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     4,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -568,7 +568,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     7,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -589,7 +589,7 @@ namespace RegExTests
                 E_INVALIDARG,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     4,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -612,7 +612,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     6,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -635,7 +635,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     4,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -658,7 +658,7 @@ namespace RegExTests
                 S_OK,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf16le,
+                    RegExCodePage_utf16le,
                     8,
                     RegExMatchFlag_default,
                     formatTemplate.get(),
@@ -680,7 +680,7 @@ namespace RegExTests
                 E_INVALIDARG,
                 regex->Replace(
                     inputBytes,
-                    RegExEncoding_utf8,
+                    RegExCodePage_utf8,
                     1,
                     RegExMatchFlag_default,
                     formatTemplate.get(),

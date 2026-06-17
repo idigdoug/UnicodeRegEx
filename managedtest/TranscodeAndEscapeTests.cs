@@ -9,9 +9,9 @@ namespace UnicodeRegEx.Tests
         [TestMethod]
         public void Transcode_Utf8ToString()
         {
-            var bytes = TestHelpers.Encode("caf\u00e9", RegExEncoding.Utf8);
+            var bytes = TestHelpers.Encode("caf\u00e9", RegExCodePage.Utf8);
 
-            var result = RegEx.Transcode(new RegExInput(bytes, RegExEncoding.Utf8));
+            var result = RegEx.Transcode(new RegExInput(bytes, RegExCodePage.Utf8));
 
             Assert.AreEqual("caf\u00e9", result);
         }
@@ -19,9 +19,9 @@ namespace UnicodeRegEx.Tests
         [TestMethod]
         public void Transcode_Latin1ToString()
         {
-            var bytes = TestHelpers.Encode("\u00e1\u00e9\u00ed", RegExEncoding.Latin1);
+            var bytes = TestHelpers.Encode("\u00e1\u00e9\u00ed", RegExCodePage.Latin1);
 
-            var result = RegEx.Transcode(new RegExInput(bytes, RegExEncoding.Latin1));
+            var result = RegEx.Transcode(new RegExInput(bytes, RegExCodePage.Latin1));
 
             Assert.AreEqual("\u00e1\u00e9\u00ed", result);
         }
@@ -29,9 +29,9 @@ namespace UnicodeRegEx.Tests
         [TestMethod]
         public void Transcode_Utf16BeToString()
         {
-            var bytes = TestHelpers.Encode("hello", RegExEncoding.Utf16BE);
+            var bytes = TestHelpers.Encode("hello", RegExCodePage.Utf16BE);
 
-            var result = RegEx.Transcode(new RegExInput(bytes, RegExEncoding.Utf16BE));
+            var result = RegEx.Transcode(new RegExInput(bytes, RegExCodePage.Utf16BE));
 
             Assert.AreEqual("hello", result);
         }
@@ -49,10 +49,10 @@ namespace UnicodeRegEx.Tests
         {
             using var stream = RegEx.CreateMemoryStream();
 
-            RegEx.TranscodeTo("caf\u00e9", stream.Value, RegExEncoding.Utf8);
+            RegEx.TranscodeTo("caf\u00e9", stream.Value, RegExCodePage.Utf8);
 
             var bytes = TestHelpers.ReadAllBytes(stream.Value);
-            CollectionAssert.AreEqual(TestHelpers.Encode("caf\u00e9", RegExEncoding.Utf8), bytes);
+            CollectionAssert.AreEqual(TestHelpers.Encode("caf\u00e9", RegExCodePage.Utf8), bytes);
         }
 
         [TestMethod]

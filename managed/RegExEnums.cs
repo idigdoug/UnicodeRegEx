@@ -177,13 +177,13 @@
         BadAlloc
     }
 
-    /// <summary>Text encoding (code page) of an input or output byte buffer.</summary>
-    public enum RegExEncoding
+    /// <summary>Text codePage (code page) of an input or output byte buffer.</summary>
+    public enum RegExCodePage
     {
-        /// <summary>No encoding specified.</summary>
+        /// <summary>No codePage specified.</summary>
         None = 0,
 
-        /// <summary>UTF-16 little-endian (Windows code page 1200); the in-memory encoding of .NET strings.</summary>
+        /// <summary>UTF-16 little-endian (Windows code page 1200); the in-memory codePage of .NET strings.</summary>
         Utf16LE = 1200,
 
         /// <summary>UTF-16 big-endian (Windows code page 1201).</summary>

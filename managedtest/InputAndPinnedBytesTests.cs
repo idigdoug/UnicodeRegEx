@@ -30,7 +30,7 @@ namespace UnicodeRegEx.Tests
             var input = new RegExInput("abcdef", 1, 3);
 
             Assert.AreEqual((nuint)6, input.Size); // 3 chars * 2 bytes
-            Assert.AreEqual(RegExEncoding.Utf16LE, input.Encoding);
+            Assert.AreEqual(RegExCodePage.Utf16LE, input.CodePage);
         }
 
         [TestMethod]
@@ -41,16 +41,16 @@ namespace UnicodeRegEx.Tests
             var handle = accessor.SafeMemoryMappedViewHandle;
 
             TestHelpers.AssertThrows<ArgumentOutOfRangeException>(
-                () => new RegExInput(handle, 8, (nuint)handle.ByteLength, RegExEncoding.Latin1));
+                () => new RegExInput(handle, 8, (nuint)handle.ByteLength, RegExCodePage.Latin1));
         }
 
         [TestMethod]
-        public void RegExInput_ByteArray_UsesGivenEncoding()
+        public void RegExInput_ByteArray_UsesGivenCodePage()
         {
-            var bytes = TestHelpers.Encode("hi", RegExEncoding.Utf8);
-            var input = new RegExInput(bytes, RegExEncoding.Utf8);
+            var bytes = TestHelpers.Encode("hi", RegExCodePage.Utf8);
+            var input = new RegExInput(bytes, RegExCodePage.Utf8);
 
-            Assert.AreEqual(RegExEncoding.Utf8, input.Encoding);
+            Assert.AreEqual(RegExCodePage.Utf8, input.CodePage);
             Assert.AreEqual((nuint)2, input.Size);
         }
 
@@ -135,7 +135,7 @@ namespace UnicodeRegEx.Tests
         [TestMethod]
         public unsafe void RegExPinnedBytes_CopyToAndToString()
         {
-            var data = TestHelpers.Encode("hello", RegExEncoding.Latin1);
+            var data = TestHelpers.Encode("hello", RegExCodePage.Latin1);
             fixed (byte* p = data)
             {
                 var bytes = new RegExPinnedBytes(p, (nuint)data.Length);

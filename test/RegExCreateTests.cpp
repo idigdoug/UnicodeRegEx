@@ -203,7 +203,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"x"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
+            regex->EnumerateMatches(inputBytes, RegExCodePage_utf8, 0, RegExMatchFlag_default, enumerator.put());
 
             wil::com_ptr<IUnknown> unk;
             Assert::AreEqual(S_OK, enumerator->QueryInterface(IID_PPV_ARGS(unk.put())));
@@ -216,7 +216,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"x"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
+            regex->EnumerateMatches(inputBytes, RegExCodePage_utf8, 0, RegExMatchFlag_default, enumerator.put());
 
             wil::com_ptr<IRegExMatchResults> results;
             Assert::AreEqual(S_OK, enumerator->QueryInterface(IID_PPV_ARGS(results.put())));
@@ -229,7 +229,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"x"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
+            regex->EnumerateMatches(inputBytes, RegExCodePage_utf8, 0, RegExMatchFlag_default, enumerator.put());
 
             wil::com_ptr<IRegExMatchEnumerator> enum2;
             Assert::AreEqual(S_OK, enumerator->QueryInterface(IID_PPV_ARGS(enum2.put())));
@@ -242,7 +242,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"x"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
+            regex->EnumerateMatches(inputBytes, RegExCodePage_utf8, 0, RegExMatchFlag_default, enumerator.put());
 
             wil::com_ptr<IDispatch> disp;
             HRESULT hr = enumerator->QueryInterface(IID_PPV_ARGS(disp.put()));
@@ -256,7 +256,7 @@ namespace RegExTests
             RegExBytes inputBytes = MakeString(u8"x"sv);
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
-            regex->EnumerateMatches(inputBytes, RegExEncoding_utf8, 0, RegExMatchFlag_default, enumerator.put());
+            regex->EnumerateMatches(inputBytes, RegExCodePage_utf8, 0, RegExMatchFlag_default, enumerator.put());
 
             Assert::AreEqual(E_POINTER, enumerator->QueryInterface(IID_IUnknown, nullptr));
         }

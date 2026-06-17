@@ -58,15 +58,15 @@ public:
     HRESULT STDMETHODCALLTYPE
     Transcode(
         RegExBytes input,
-        RegExEncoding inputEncoding,
+        RegExCodePage inputCodePage,
         _Out_ BSTR* pOutput) noexcept override;
 
     HRESULT STDMETHODCALLTYPE
     TranscodeTo(
         RegExBytes input,
-        RegExEncoding inputEncoding,
+        RegExCodePage inputCodePage,
         _In_ ISequentialStream* outputStream,
-        RegExEncoding outputEncoding) noexcept override;
+        RegExCodePage outputCodePage) noexcept override;
 
     HRESULT STDMETHODCALLTYPE
     CreateMemoryStream(

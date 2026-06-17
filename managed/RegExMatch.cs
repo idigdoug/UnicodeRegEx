@@ -21,12 +21,12 @@
         public RegExPinnedBytes Input => input;
 
         /// <summary>
-        /// Returns the encoding of the input.
+        /// Returns the code page of the input.
         /// </summary>
-        public RegExEncoding InputEncoding => (RegExEncoding)inner.InputEncoding;
+        public RegExCodePage InputCodePage => (RegExCodePage)inner.InputCodePage;
 
         /// <summary>
-        /// Returns the text of the whole match (sub-match 0), decoded using the input encoding.
+        /// Returns the text of the whole match (sub-match 0), decoded using the input code page.
         /// </summary>
         public string Text => GetSubMatchText(0)!;
 
@@ -61,7 +61,7 @@
         }
 
         /// <summary>
-        /// Returns the text of the specified sub-match, decoded using the input encoding, or
+        /// Returns the text of the specified sub-match, decoded using the input code page, or
         /// <c>null</c> if the sub-match did not participate in the match (e.g. an optional group).
         /// A participating but zero-length sub-match returns the empty string (distinct from <c>null</c>).
         /// Throws if subMatchIndex is out of range (based on SubMatchCount).
@@ -98,9 +98,9 @@
         /// <summary>
         /// Formats this match according to the previously set format template and returns the result.
         /// </summary>
-        public void FormatTo(Interop.ISequentialStream outputStream, RegExEncoding outputEncoding)
+        public void FormatTo(Interop.ISequentialStream outputStream, RegExCodePage outputCodePage)
         {
-            inner.FormatTo(outputStream, (Interop.RegExEncoding)outputEncoding);
+            inner.FormatTo(outputStream, (Interop.RegExCodePage)outputCodePage);
         }
 
         /// <summary>
@@ -112,11 +112,11 @@
         }
 
         /// <summary>
-        /// Converts the specified span of input to a string in the specified encoding and writes it to the specified output stream.
+        /// Converts the specified span of input to a string in the specified code page and writes it to the specified output stream.
         /// </summary>
-        public void CopyInputTo(nuint inputOffset, nuint size, Interop.ISequentialStream outputStream, RegExEncoding outputEncoding)
+        public void CopyInputTo(nuint inputOffset, nuint size, Interop.ISequentialStream outputStream, RegExCodePage outputCodePage)
         {
-            inner.CopyInputTo((long)inputOffset, (long)size, outputStream, (Interop.RegExEncoding)outputEncoding);
+            inner.CopyInputTo((long)inputOffset, (long)size, outputStream, (Interop.RegExCodePage)outputCodePage);
         }
     }
 }

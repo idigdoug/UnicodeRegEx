@@ -66,8 +66,8 @@ namespace UnicodeRegEx.Tests
         {
             var regex = RegEx.Create("[0-9]+");
 
-            var bytes = TestHelpers.Encode("id=42;", RegExEncoding.Latin1);
-            var result = regex.Replace(new RegExInput(bytes, RegExEncoding.Latin1), "N");
+            var bytes = TestHelpers.Encode("id=42;", RegExCodePage.Latin1);
+            var result = regex.Replace(new RegExInput(bytes, RegExCodePage.Latin1), "N");
 
             Assert.AreEqual("id=N;", result);
         }
@@ -78,22 +78,22 @@ namespace UnicodeRegEx.Tests
             var regex = RegEx.Create("a");
 
             using var stream = RegEx.CreateMemoryStream();
-            regex.ReplaceTo("banana", stream.Value, RegExEncoding.Utf16LE, "X");
+            regex.ReplaceTo("banana", stream.Value, RegExCodePage.Utf16LE, "X");
 
-            var text = TestHelpers.ReadAllText(stream.Value, RegExEncoding.Utf16LE);
+            var text = TestHelpers.ReadAllText(stream.Value, RegExCodePage.Utf16LE);
             Assert.AreEqual("bXnXnX", text);
         }
 
         [TestMethod]
-        public void ReplaceTo_TranscodesOutputEncoding()
+        public void ReplaceTo_TranscodesOutputCodePage()
         {
             var regex = RegEx.Create("a");
 
             using var stream = RegEx.CreateMemoryStream();
-            regex.ReplaceTo("banana", stream.Value, RegExEncoding.Utf8, "X");
+            regex.ReplaceTo("banana", stream.Value, RegExCodePage.Utf8, "X");
 
             var bytes = TestHelpers.ReadAllBytes(stream.Value);
-            Assert.AreEqual("bXnXnX", TestHelpers.Decode(bytes, RegExEncoding.Utf8));
+            Assert.AreEqual("bXnXnX", TestHelpers.Decode(bytes, RegExCodePage.Utf8));
         }
     }
 }

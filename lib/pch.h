@@ -10,8 +10,9 @@
 #include <wil/resource.h>
 
 #include <atomic>
-#include <span>
 #include <memory>
-#include <variant>
+#include <span>
 #include <string>
+#include <unordered_map>
+#include <variant>
 #include <vector>

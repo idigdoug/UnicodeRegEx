@@ -1,24 +1,9 @@
 #pragma once
 #include <UnicodeRegEx.h>
 #include <WindowsChar32RegexTraits.h>
-#include <utf.h>
+#include <TextEncoding.h>
 
 class OutputSink;
-
-constexpr bool
-RegExEncodingIsValid(RegExEncoding encoding)
-{
-    switch (encoding)
-    {
-    case RegExEncoding_utf8:
-    case RegExEncoding_utf16le:
-    case RegExEncoding_utf16be:
-    case RegExEncoding_latin1:
-        return true;
-    default:
-        return false;
-    }
-}
 
 class RegEx final : public IRegEx
 {
@@ -31,8 +16,8 @@ public:
     ~RegEx();
 
     RegEx(
-        utf16le::CodePointIterator begin,
-        utf16le::CodePointIterator end,
+        Utf16LE::CodePointIterator begin,
+        Utf16LE::CodePointIterator end,
         boost::regex_constants::syntax_option_type flags,
         UINT32 lcid);
 
@@ -64,7 +49,7 @@ public:
     HRESULT STDMETHODCALLTYPE
     Match(
         RegExBytes input,
-        RegExEncoding inputEncoding,
+        RegExCodePage inputCodePage,
         LONGLONG startOffset,
         RegExMatchFlags flags,
         _Outptr_result_maybenull_ IRegExMatchResults** ppResults) noexcept override;
@@ -72,7 +57,7 @@ public:
     HRESULT STDMETHODCALLTYPE
     Search(
         RegExBytes input,
-        RegExEncoding inputEncoding,
+        RegExCodePage inputCodePage,
         LONGLONG startOffset,
         RegExMatchFlags flags,
         _Outptr_result_maybenull_ IRegExMatchResults** ppResults) noexcept override;
@@ -80,7 +65,7 @@ public:
     HRESULT STDMETHODCALLTYPE
     EnumerateMatches(
         RegExBytes input,
-        RegExEncoding inputEncoding,
+        RegExCodePage inputCodePage,
         LONGLONG startOffset,
         RegExMatchFlags flags,
         _Outptr_ IRegExMatchEnumerator** ppEnumerator) noexcept override;
@@ -88,7 +73,7 @@ public:
     HRESULT STDMETHODCALLTYPE
     Replace(
         RegExBytes input,
-        RegExEncoding inputEncoding,
+        RegExCodePage inputCodePage,
         LONGLONG startByteOffset,
         RegExMatchFlags matchFlags,
         _In_ BSTR formatTemplate,
@@ -98,21 +83,21 @@ public:
     HRESULT STDMETHODCALLTYPE
     ReplaceTo(
         RegExBytes input,
-        RegExEncoding inputEncoding,
+        RegExCodePage inputCodePage,
         LONGLONG startByteOffset,
         RegExMatchFlags matchFlags,
         _In_ BSTR formatTemplate,
         RegExFormatFlags formatFlags,
         _In_ ISequentialStream* outputStream,
-        RegExEncoding outputEncoding) noexcept override;
+        RegExCodePage outputCodePage) noexcept override;
 
 private:
 
-    void
+    HRESULT
     ReplaceImpl(
         RegExBytes const& input,
-        RegExEncoding inputEncoding,
-        UINT_PTR startByteOffset,
+        RegExCodePage inputCodePage,
+        LONGLONG startByteOffset,
         _In_ BSTR formatTemplate,
         boost::regex_constants::match_flag_type flags,
         OutputSink& outputSink) const;
@@ -120,8 +105,8 @@ private:
     HRESULT
     SearchImpl(
         RegExBytes const& input,
-        RegExEncoding inputEncoding,
-        LONGLONG startOffset,
+        RegExCodePage inputCodePage,
+        LONGLONG startByteOffset,
         RegExMatchFlags flags,
         bool wholeStringMatch,
         _Outptr_result_maybenull_ IRegExMatchResults** ppResults) noexcept;

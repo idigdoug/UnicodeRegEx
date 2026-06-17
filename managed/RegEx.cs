@@ -4,7 +4,7 @@ namespace UnicodeRegEx
     using System.Runtime.InteropServices;
 
     /// <summary>
-    /// A compiled regular expression that runs over byte buffers in various text encodings
+    /// A compiled regular expression that runs over byte buffers in various text code pages
     /// (Latin-1, UTF-8, UTF-16) without round-tripping through a <see cref="string"/>.
     /// Create instances with <see cref="Create"/>.
     ///
@@ -135,7 +135,7 @@ namespace UnicodeRegEx
             RegExInput.PinScope pinScope = default;
             try
             {
-                return Transcode(input.Pin(ref pinScope), input.Encoding);
+                return Transcode(input.Pin(ref pinScope), input.CodePage);
             }
             finally
             {
@@ -144,23 +144,23 @@ namespace UnicodeRegEx
         }
 
         /// <summary>
-        /// Converts the pinned input bytes (interpreted with <paramref name="inputEncoding"/>) to a UTF-16 string.
+        /// Converts the pinned input bytes (interpreted with <paramref name="inputCodePage"/>) to a UTF-16 string.
         /// </summary>
-        public static string Transcode(RegExPinnedBytes inputBytes, RegExEncoding inputEncoding)
+        public static string Transcode(RegExPinnedBytes inputBytes, RegExCodePage inputCodePage)
         {
             var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            return Library.Transcode(bytes, (Interop.RegExEncoding)inputEncoding);
+            return Library.Transcode(bytes, (Interop.RegExCodePage)inputCodePage);
         }
 
         /// <summary>
-        /// Converts the input to <paramref name="outputEncoding"/> and writes it to <paramref name="output"/>.
+        /// Converts the input to <paramref name="outputCodePage"/> and writes it to <paramref name="output"/>.
         /// </summary>
-        public static void TranscodeTo(RegExInput input, Interop.ISequentialStream output, RegExEncoding outputEncoding)
+        public static void TranscodeTo(RegExInput input, Interop.ISequentialStream output, RegExCodePage outputCodePage)
         {
             RegExInput.PinScope pinScope = default;
             try
             {
-                TranscodeTo(input.Pin(ref pinScope), input.Encoding, output, outputEncoding);
+                TranscodeTo(input.Pin(ref pinScope), input.CodePage, output, outputCodePage);
             }
             finally
             {
@@ -169,13 +169,13 @@ namespace UnicodeRegEx
         }
 
         /// <summary>
-        /// Converts the pinned input bytes (interpreted with <paramref name="inputEncoding"/>) to
-        /// <paramref name="outputEncoding"/> and writes them to <paramref name="output"/>.
+        /// Converts the pinned input bytes (interpreted with <paramref name="inputCodePage"/>) to
+        /// <paramref name="outputCodePage"/> and writes them to <paramref name="output"/>.
         /// </summary>
-        public static void TranscodeTo(RegExPinnedBytes inputBytes, RegExEncoding inputEncoding, Interop.ISequentialStream output, RegExEncoding outputEncoding)
+        public static void TranscodeTo(RegExPinnedBytes inputBytes, RegExCodePage inputCodePage, Interop.ISequentialStream output, RegExCodePage outputCodePage)
         {
             var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            Library.TranscodeTo(bytes, (Interop.RegExEncoding)inputEncoding, output, (Interop.RegExEncoding)outputEncoding);
+            Library.TranscodeTo(bytes, (Interop.RegExCodePage)inputCodePage, output, (Interop.RegExCodePage)outputCodePage);
         }
 
         /// <summary>
@@ -244,7 +244,7 @@ namespace UnicodeRegEx
             RegExInput.PinScope pinScope = default;
             try
             {
-                using var result = Match(input.Pin(ref pinScope), input.Encoding, options);
+                using var result = Match(input.Pin(ref pinScope), input.CodePage, options);
                 if (result.IsMatch)
                 {
                     matchCallback(result.Match);
@@ -269,7 +269,7 @@ namespace UnicodeRegEx
             RegExInput.PinScope pinScope = default;
             try
             {
-                using var result = Match(input.Pin(ref pinScope), input.Encoding, options);
+                using var result = Match(input.Pin(ref pinScope), input.CodePage, options);
                 return result.IsMatch ? matchCallback(result.Match) : noMatchReturnValue;
             }
             finally
@@ -283,11 +283,11 @@ namespace UnicodeRegEx
         /// </summary>
         public RegExMatchResult Match(
             RegExPinnedBytes inputBytes,
-            RegExEncoding inputEncoding,
+            RegExCodePage inputCodePage,
             RegExMatchOptions options = default)
         {
             var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            return new RegExMatchResult(inner.Match(bytes, (Interop.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags), inputBytes);
+            return new RegExMatchResult(inner.Match(bytes, (Interop.RegExCodePage)inputCodePage, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags), inputBytes);
         }
 
         /// <summary>
@@ -301,7 +301,7 @@ namespace UnicodeRegEx
             RegExInput.PinScope pinScope = default;
             try
             {
-                using var result = Search(input.Pin(ref pinScope), input.Encoding, options);
+                using var result = Search(input.Pin(ref pinScope), input.CodePage, options);
                 if (result.IsMatch)
                 {
                     matchCallback(result.Match);
@@ -326,7 +326,7 @@ namespace UnicodeRegEx
             RegExInput.PinScope pinScope = default;
             try
             {
-                using var result = Search(input.Pin(ref pinScope), input.Encoding, options);
+                using var result = Search(input.Pin(ref pinScope), input.CodePage, options);
                 return result.IsMatch ? matchCallback(result.Match) : noMatchReturnValue;
             }
             finally
@@ -340,11 +340,11 @@ namespace UnicodeRegEx
         /// </summary>
         public RegExMatchResult Search(
             RegExPinnedBytes inputBytes,
-            RegExEncoding inputEncoding,
+            RegExCodePage inputCodePage,
             RegExMatchOptions options = default)
         {
             var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            return new RegExMatchResult(inner.Search(bytes, (Interop.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags), inputBytes);
+            return new RegExMatchResult(inner.Search(bytes, (Interop.RegExCodePage)inputCodePage, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags), inputBytes);
         }
 
         /// <summary>
@@ -358,7 +358,7 @@ namespace UnicodeRegEx
             RegExInput.PinScope pinScope = default;
             try
             {
-                enumerateCallback(EnumerateMatches(input.Pin(ref pinScope), input.Encoding, options));
+                enumerateCallback(EnumerateMatches(input.Pin(ref pinScope), input.CodePage, options));
             }
             finally
             {
@@ -377,7 +377,7 @@ namespace UnicodeRegEx
             RegExInput.PinScope pinScope = default;
             try
             {
-                return enumerateCallback(EnumerateMatches(input.Pin(ref pinScope), input.Encoding, options));
+                return enumerateCallback(EnumerateMatches(input.Pin(ref pinScope), input.CodePage, options));
             }
             finally
             {
@@ -391,10 +391,10 @@ namespace UnicodeRegEx
         /// </summary>
         public RegExMatchEnumerable EnumerateMatches(
             RegExPinnedBytes inputBytes,
-            RegExEncoding inputEncoding,
+            RegExCodePage inputCodePage,
             RegExEnumerateOptions options = default)
         {
-            return new RegExMatchEnumerable(inner, inputBytes, inputEncoding, options);
+            return new RegExMatchEnumerable(inner, inputBytes, inputCodePage, options);
         }
 
         /// <summary>
@@ -408,7 +408,7 @@ namespace UnicodeRegEx
             RegExInput.PinScope pinScope = default;
             try
             {
-                enumerateCallback(EnumerateSegments(input.Pin(ref pinScope), input.Encoding, options));
+                enumerateCallback(EnumerateSegments(input.Pin(ref pinScope), input.CodePage, options));
             }
             finally
             {
@@ -428,7 +428,7 @@ namespace UnicodeRegEx
             RegExInput.PinScope pinScope = default;
             try
             {
-                return enumerateCallback(EnumerateSegments(input.Pin(ref pinScope), input.Encoding, options));
+                return enumerateCallback(EnumerateSegments(input.Pin(ref pinScope), input.CodePage, options));
             }
             finally
             {
@@ -442,10 +442,10 @@ namespace UnicodeRegEx
         /// </summary>
         public RegExSegmentEnumerable EnumerateSegments(
             RegExPinnedBytes inputBytes,
-            RegExEncoding inputEncoding,
+            RegExCodePage inputCodePage,
             RegExEnumerateOptions options = default)
         {
-            return new RegExSegmentEnumerable(inner, inputBytes, inputEncoding, options);
+            return new RegExSegmentEnumerable(inner, inputBytes, inputCodePage, options);
         }
 
         /// <summary>
@@ -459,7 +459,7 @@ namespace UnicodeRegEx
             RegExInput.PinScope pinScope = default;
             try
             {
-                return Replace(input.Pin(ref pinScope), input.Encoding, formatTemplate, options);
+                return Replace(input.Pin(ref pinScope), input.CodePage, formatTemplate, options);
             }
             finally
             {
@@ -473,29 +473,29 @@ namespace UnicodeRegEx
         /// </summary>
         public string Replace(
             RegExPinnedBytes inputBytes,
-            RegExEncoding inputEncoding,
+            RegExCodePage inputCodePage,
             string formatTemplate,
             RegExReplaceOptions options = default)
         {
             var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            return inner.Replace(bytes, (Interop.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags, formatTemplate, (Interop.RegExFormatFlags)options.FormatFlags);
+            return inner.Replace(bytes, (Interop.RegExCodePage)inputCodePage, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags, formatTemplate, (Interop.RegExFormatFlags)options.FormatFlags);
         }
 
         /// <summary>
         /// Replaces matches in the input using <paramref name="formatTemplate"/> and writes the result to
-        /// <paramref name="outputStream"/> in <paramref name="outputEncoding"/>.
+        /// <paramref name="outputStream"/> in <paramref name="outputCodePage"/>.
         /// </summary>
         public void ReplaceTo(
             RegExInput input,
             Interop.ISequentialStream outputStream,
-            RegExEncoding outputEncoding,
+            RegExCodePage outputCodePage,
             string formatTemplate,
             RegExReplaceOptions options = default)
         {
             RegExInput.PinScope pinScope = default;
             try
             {
-                ReplaceTo(input.Pin(ref pinScope), input.Encoding, outputStream, outputEncoding, formatTemplate, options);
+                ReplaceTo(input.Pin(ref pinScope), input.CodePage, outputStream, outputCodePage, formatTemplate, options);
             }
             finally
             {
@@ -505,18 +505,18 @@ namespace UnicodeRegEx
 
         /// <summary>
         /// Replaces matches in the pre-pinned input bytes using <paramref name="formatTemplate"/> and writes the
-        /// result to <paramref name="outputStream"/> in <paramref name="outputEncoding"/>.
+        /// result to <paramref name="outputStream"/> in <paramref name="outputCodePage"/>.
         /// </summary>
         public void ReplaceTo(
             RegExPinnedBytes inputBytes,
-            RegExEncoding inputEncoding,
+            RegExCodePage inputCodePage,
             Interop.ISequentialStream outputStream,
-            RegExEncoding outputEncoding,
+            RegExCodePage outputCodePage,
             string formatTemplate,
             RegExReplaceOptions options = default)
         {
             var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            inner.ReplaceTo(bytes, (Interop.RegExEncoding)inputEncoding, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags, formatTemplate, (Interop.RegExFormatFlags)options.FormatFlags, outputStream, (Interop.RegExEncoding)outputEncoding);
+            inner.ReplaceTo(bytes, (Interop.RegExCodePage)inputCodePage, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags, formatTemplate, (Interop.RegExFormatFlags)options.FormatFlags, outputStream, (Interop.RegExCodePage)outputCodePage);
         }
 
         // PRIVATE

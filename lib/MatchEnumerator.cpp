@@ -2,15 +2,16 @@
 #include "MatchEnumerator.h"
 #include "RegEx.h"
 
-#include <utf.h>
+#include <TextEncoding.h>
 
-template<class IteratorT>
-MatchEnumerator<IteratorT>::MatchEnumerator(
+template<class EncodingT>
+MatchEnumerator<EncodingT>::MatchEnumerator(
     RegEx const& regex,
     boost::regex_constants::match_flag_type matchFlags,
     _In_reads_bytes_(size) void const* data,
     size_t size,
-    size_t startByteOffset)
+    size_t startByteOffset,
+    EncodingT encoding)
     : m_regex(regex)
     , m_matchFlags(matchFlags)
     , m_begin()
@@ -18,13 +19,14 @@ MatchEnumerator<IteratorT>::MatchEnumerator(
     , m_end()
     , m_matchResults()
 {
-    using CharT = typename IteratorT::input_type;
-    if (0 != ((reinterpret_cast<size_t>(data) | size) & (sizeof(CharT) - 1)))
-    {
-        THROW_HR(E_INVALIDARG);
-    }
+    using IteratorT = typename EncodingT::CodePointIterator;
 
-    auto rangeAndPos = IteratorT::FromSpanAndByteOffset(
+    using CharT = typename IteratorT::encoded_char;
+
+    // Should be checked by caller.
+    assert(0 == ((reinterpret_cast<size_t>(data) | size | startByteOffset) & (sizeof(CharT) - 1)));
+
+    auto rangeAndPos = encoding.MakeCodePointRangeAndPos(
         std::span(static_cast<CharT const*>(data), size / sizeof(CharT)),
         startByteOffset);
     if (rangeAndPos.pos == IteratorT())
@@ -38,9 +40,9 @@ MatchEnumerator<IteratorT>::MatchEnumerator(
     m_end = rangeAndPos.end;
 }
 
-template<class IteratorT>
+template<class EncodingT>
 bool
-MatchEnumerator<IteratorT>::InitialMatch(bool wholeStringMatch)
+MatchEnumerator<EncodingT>::InitialMatch(bool wholeStringMatch)
 {
     if (wholeStringMatch)
     {
@@ -75,9 +77,9 @@ MatchEnumerator<IteratorT>::InitialMatch(bool wholeStringMatch)
     }
 }
 
-template<class IteratorT>
+template<class EncodingT>
 bool
-MatchEnumerator<IteratorT>::AdvanceMatch()
+MatchEnumerator<EncodingT>::AdvanceMatch()
 {
     // Behaves like regex_iterator::operator++ (C++ standard [re.regiter.incr]).
 
@@ -128,7 +130,8 @@ MatchEnumerator<IteratorT>::AdvanceMatch()
 
 // Explicit instantiations for the four supported input encodings.
 // Adding a new encoding requires adding the corresponding instantiation here.
-template class MatchEnumerator<latin1::CodePointIterator>;
-template class MatchEnumerator<utf8::CodePointIterator>;
-template class MatchEnumerator<utf16le::CodePointIterator>;
-template class MatchEnumerator<utf16be::CodePointIterator>;
+template class MatchEnumerator<Latin1>;
+template class MatchEnumerator<Utf8>;
+template class MatchEnumerator<Utf16LE>;
+template class MatchEnumerator<Utf16BE>;
+template class MatchEnumerator<Sbcs>;

@@ -34,9 +34,9 @@
         public RegExPinnedBytes Input => input;
 
         /// <summary>
-        /// Returns the encoding of the input.
+        /// Returns the codePage of the input.
         /// </summary>
-        public RegExEncoding InputEncoding => (RegExEncoding)inner.InputEncoding;
+        public RegExCodePage InputCodePage => (RegExCodePage)inner.InputCodePage;
 
         /// <summary>The input bytes that make up this segment.</summary>
         public RegExPinnedBytes Bytes => input[begin, end];
@@ -70,11 +70,11 @@
         }
 
         /// <summary>
-        /// Converts the specified span of input to a string in the specified encoding and writes it to the specified output stream.
+        /// Converts the specified span of input to a string in the specified codePage and writes it to the specified output stream.
         /// </summary>
-        public void CopyInputTo(nuint inputOffset, nuint size, Interop.ISequentialStream outputStream, RegExEncoding outputEncoding)
+        public void CopyInputTo(nuint inputOffset, nuint size, Interop.ISequentialStream outputStream, RegExCodePage outputCodePage)
         {
-            inner.CopyInputTo((long)inputOffset, (long)size, outputStream, (Interop.RegExEncoding)outputEncoding);
+            inner.CopyInputTo((long)inputOffset, (long)size, outputStream, (Interop.RegExCodePage)outputCodePage);
         }
     }
 }

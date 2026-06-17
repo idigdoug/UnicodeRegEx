@@ -2,7 +2,7 @@
 #include <WindowsChar32RegexTraits.h>
 #include <string_view>
 
-#include <utf.h>
+#include <TextEncoding.h>
 
 using namespace std::string_view_literals;
 
@@ -385,7 +385,7 @@ WindowsChar32RegexTraits::GetCharClass(char32_t ch, char_class_type filter) noex
 {
     char_class_type type = 0;
 
-    if (utf::IsBmp(ch))
+    if (CodePoint::IsBmp(ch))
     {
         char_class_type type1 = 0;
         wchar_t ch16 = static_cast<wchar_t>(ch);
@@ -431,7 +431,7 @@ WindowsChar32RegexTraits::GetCharClass(char32_t ch, char_class_type filter) noex
 
         type = type1 | typeExtended | typeSpecial;
     }
-    else if (utf::IsCodePoint(ch))
+    else if (CodePoint::IsCodePoint(ch))
     {
         type = C1_DEFINED | C1x_EXTENDED;
     }
@@ -499,7 +499,7 @@ WindowsChar32RegexTraits::TransformImpl(
     for (char_type ch : input32)
     {
         char16_t utf16buffer[2];
-        auto const cch = utf16le::Encode(utf16buffer, ch);
+        auto const cch = Utf16LE().Encode(utf16buffer, ch);
         input16.append(utf16buffer, cch);
     }
 
@@ -548,7 +548,7 @@ WindowsChar32RegexTraits::ToUpperLowerImpl(char_type ch, unsigned mapFlags) cons
     wchar_t src[2];
     wchar_t dst[2];
 
-    if (utf::IsBmp(ch))
+    if (CodePoint::IsBmp(ch))
     {
         src[0] = static_cast<wchar_t>(ch);
         auto const cch = LCMapStringW(m_lcid, mapFlags, src, 1, dst, 1);
@@ -556,9 +556,9 @@ WindowsChar32RegexTraits::ToUpperLowerImpl(char_type ch, unsigned mapFlags) cons
     }
     else
     {
-        utf16le::EncodeNonBmp(reinterpret_cast<char16_t*>(src), ch);
+        Utf16LE().EncodeNonBmp(reinterpret_cast<char16_t*>(src), ch);
         auto const cch = LCMapStringW(m_lcid, mapFlags, src, 2, dst, 2);
-        return cch == 2 ? utf::FromSurrogatePair(dst[0], dst[1]) : ch;
+        return cch == 2 ? CodePoint::FromSurrogatePair(dst[0], dst[1]) : ch;
     }
 }
 

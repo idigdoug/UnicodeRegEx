@@ -1,5 +1,6 @@
 #pragma once
 #include <UnicodeRegEx.h>
+#include <TextEncoding.h>
 
 HRESULT
 WriteAllBytesToStream(
@@ -52,7 +53,7 @@ class OutputSink
 
     char32_t m_buffer[BufferCapacity];
     size_t m_bufferPos;
-    RegExEncoding m_encoding;
+    TextEncoding m_outputEncoding;
     ISequentialStream* m_pStream; // non-owning; nullptr means flush to vector.
     std::vector<BYTE> m_vector;
 
@@ -72,13 +73,13 @@ public:
     // Clears any previously buffered data.
     // Vector is limited to UINT_MAX bytes so that the result can fit in a BSTR.
     void
-    ResetToVector(RegExEncoding outputEncoding);
+    ResetToVector(TextEncoding outputEncoding);
 
     // Reset to forward transcoded bytes to the given stream.
     // The sink does NOT take a reference on the stream; the caller must keep it
     // alive until Finish() returns (Finish() clears the stored pointer).
     void
-    ResetToStream(RegExEncoding outputEncoding, _In_ ISequentialStream* pStream) noexcept;
+    ResetToStream(TextEncoding outputEncoding, _In_ ISequentialStream* pStream) noexcept;
 
     // Append a code point. When the internal buffer fills, the contents are
     // transcoded and either appended to the vector or written to the stream.
@@ -88,7 +89,7 @@ public:
 
     // Append bytes. May throw (bad_alloc, or HRESULT wrapped by THROW_HR on stream write failure).
     void
-    AppendBytes(std::span<BYTE const> inputBytes, RegExEncoding inputEncoding);
+    AppendBytes(std::span<BYTE const> inputBytes, TextEncoding inputEncoding);
 
     // Append bytes that are ALREADY in this sink's configured output encoding.
     // Copies them verbatim (no decode/re-encode round-trip through char32_t), so
@@ -99,11 +100,8 @@ public:
     AppendRawBytes(std::span<BYTE const> bytes);
 
     // The output encoding configured by the most recent ResetTo* call.
-    RegExEncoding
-    Encoding() const noexcept
-    {
-        return m_encoding;
-    }
+    TextEncoding
+    OutputEncoding() const noexcept;
 
     // Flush any buffered code points and return the accumulated bytes.
     // Must only be called after ResetToVector.

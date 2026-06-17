@@ -9,7 +9,7 @@ public:
     RegExMatchEnumerator(
         _In_ RegEx* regex,
         RegExBytes const& input,
-        RegExEncoding inputEncoding,
+        TextEncoding inputEncoding,
         _In_ UINT_PTR startByteOffset,
         RegExMatchFlags matchFlags);
 

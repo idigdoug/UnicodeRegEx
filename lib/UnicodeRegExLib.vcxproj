@@ -900,7 +900,7 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\inc\utf.h" />
+    <ClInclude Include="..\inc\TextEncoding.h" />
     <ClInclude Include="..\inc\WindowsChar32RegexTraits.h" />
     <ClInclude Include="InputValidation.h" />
     <ClInclude Include="MatchEnumerator.h" />
@@ -934,6 +934,7 @@
     <ClCompile Include="RegExMatchEnumerator.cpp" />
     <ClCompile Include="RegExMatchResults.cpp" />
     <ClCompile Include="RegExCheck.cpp" />
+    <ClCompile Include="TextEncoding.cpp" />
     <ClCompile Include="WindowsChar32RegexTraits.cpp" />
   </ItemGroup>
   <ItemGroup>

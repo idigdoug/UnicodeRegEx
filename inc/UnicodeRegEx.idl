@@ -212,14 +212,14 @@ typedef [v1_enum] enum RegExErrorCode
     RegExErrorCode_bad_alloc = 22,
 } RegExErrorCode;
 
-typedef [v1_enum] enum RegExEncoding
+typedef [v1_enum] enum RegExCodePage
 {
-    RegExEncoding_none = 0,
-    RegExEncoding_utf16le = 1200,
-    RegExEncoding_utf16be = 1201,
-    RegExEncoding_latin1 = 28591,
-    RegExEncoding_utf8 = 65001,
-} RegExEncoding;
+    RegExCodePage_none = 0,
+    RegExCodePage_utf16le = 1200,
+    RegExCodePage_utf16be = 1201,
+    RegExCodePage_latin1 = 28591,
+    RegExCodePage_utf8 = 65001,
+} RegExCodePage;
 
 typedef [v1_enum] enum RegExEnumerationState
 {
@@ -286,7 +286,7 @@ interface IRegExMatchResults : IUnknown
     Input([out, retval] RegExBytes* pValue);
 
     [propget] HRESULT
-    InputEncoding([out, retval] RegExEncoding* pValue);
+    InputCodePage([out, retval] RegExCodePage* pValue);
 
     // Number of sub-matches (including 0 = entire match).
     // Returns 0 if called before first match or after enumeration finished.
@@ -318,7 +318,7 @@ interface IRegExMatchResults : IUnknown
     HRESULT
     FormatTo(
         [in] ISequentialStream* outputStream,
-        RegExEncoding outputEncoding);
+        RegExCodePage outputCodePage);
 
     // Converts the specified portion of the input to a BSTR and returns it.
     // Typically used with offsets returned by GetSubMatch.
@@ -336,7 +336,7 @@ interface IRegExMatchResults : IUnknown
         LONGLONG inputOffset,
         LONGLONG size,
         [in] ISequentialStream* outputStream,
-        RegExEncoding outputEncoding);
+        RegExCodePage outputCodePage);
 };
 
 [
@@ -378,7 +378,7 @@ interface IRegEx : IUnknown
     HRESULT
     Match(
         RegExBytes input,
-        RegExEncoding inputEncoding,
+        RegExCodePage inputCodePage,
         LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string.
         RegExMatchFlags matchFlags,
         [out, retval] IRegExMatchResults** ppMatchResults);
@@ -388,7 +388,7 @@ interface IRegEx : IUnknown
     HRESULT
     Search(
         RegExBytes input,
-        RegExEncoding inputEncoding,
+        RegExCodePage inputCodePage,
         LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string.
         RegExMatchFlags matchFlags,
         [out, retval] IRegExMatchResults** ppMatchResults);
@@ -398,7 +398,7 @@ interface IRegEx : IUnknown
     HRESULT
     EnumerateMatches(
         RegExBytes input,
-        RegExEncoding inputEncoding,
+        RegExCodePage inputCodePage,
         LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string.
         RegExMatchFlags matchFlags,
         [out, retval] IRegExMatchEnumerator** ppEnumerator);
@@ -406,7 +406,7 @@ interface IRegEx : IUnknown
     HRESULT
     Replace(
         RegExBytes input,
-        RegExEncoding inputEncoding,
+        RegExCodePage inputCodePage,
         LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string. Bytes before the offset are copied to output unchanged.
         RegExMatchFlags matchFlags,
         [in] BSTR formatTemplate,
@@ -416,13 +416,13 @@ interface IRegEx : IUnknown
     HRESULT
     ReplaceTo(
         RegExBytes input,
-        RegExEncoding inputEncoding,
+        RegExCodePage inputCodePage,
         LONGLONG startByteOffset, // offset within input to start searching from, or 0 for whole string. Bytes before the offset are copied to output unchanged.
         RegExMatchFlags matchFlags,
         [in] BSTR formatTemplate,
         RegExFormatFlags formatFlags,
         [in] ISequentialStream* outputStream,
-        RegExEncoding outputEncoding);
+        RegExCodePage outputCodePage);
 }
 
 [
@@ -588,15 +588,15 @@ interface IRegExLibrary : IUnknown
     HRESULT
     Transcode(
         RegExBytes input,
-        RegExEncoding inputEncoding,
+        RegExCodePage inputCodePage,
         [out, retval] BSTR* pOutput);
 
     HRESULT
     TranscodeTo(
         RegExBytes input,
-        RegExEncoding inputEncoding,
+        RegExCodePage inputCodePage,
         [in] ISequentialStream* outputStream,
-        RegExEncoding outputEncoding);
+        RegExCodePage outputCodePage);
 
     // Create an in-memory stream. The returned object is apartment-threaded.
     // initialCapacity is a hint for the initial buffer size; pass 0 for the
@@ -645,7 +645,7 @@ library UnicodeRegEx
     enum RegExMatchFlags;
     enum RegExFormatFlags;
     enum RegExErrorCode;
-    enum RegExEncoding;
+    enum RegExCodePage;
     enum RegExEnumerationState;
     enum RegExStreamCancelStatus;
     enum RegExFileStreamFlags;
