@@ -64,20 +64,21 @@ Sbcs::TryFromCodePage(unsigned codePage) noexcept
 std::span<Sbcs::encoded_char>
 Sbcs::ConvertInPlace(std::span<char32_t> codePoints) const noexcept
 {
-    auto const pWide = reinterpret_cast<wchar_t*>(codePoints.data());
-    auto const pSbcs = reinterpret_cast<encoded_char*>(pWide + codePoints.size());
+    // pWide starts at second half of buffer.
+    auto const pWide = reinterpret_cast<wchar_t*>(codePoints.data()) + codePoints.size();
+    auto const pSbcs = reinterpret_cast<encoded_char*>(codePoints.data());
 
-    // Convert utf-32 in whole buffer to utf-16 in first half of buffer.
+    // Convert utf-32 buffer to utf-16 in second half of buffer (walk backwards).
     // SBCS is always BMP, so reject non-BMP. Surrogates are always errors.
-    for (size_t i = 0; i != codePoints.size(); i += 1)
+    for (size_t i = codePoints.size(); i != 0; i -= 1)
     {
-        auto const ch = codePoints[i];
-        pWide[i] = CodePoint::IsScalarBmp(ch)
+        auto const ch = codePoints[i - 1];
+        pWide[i - 1] = CodePoint::IsScalarBmp(ch)
             ? static_cast<wchar_t>(ch)
             : static_cast<wchar_t>(CodePoint::ReplacementChar);
     }
 
-    // Convert utf-16 in first half of buffer to SBCS in second half of buffer.
+    // Convert utf-16 in second half of buffer to SBCS in first quarter of buffer.
     for (size_t pos = 0; pos != codePoints.size();)
     {
         auto const BatchMax = 0x10000000; // Hard limit is INT_MAX.

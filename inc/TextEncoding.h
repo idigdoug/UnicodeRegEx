@@ -1228,7 +1228,9 @@ using Utf16LE = Utf16<false>;
 using Utf16BE = Utf16<true>;
 
 using TextEncoding = std::variant<
+#ifdef TEXTENCODING_ENABLE_LATIN1
     Latin1,
+#endif
     Utf8,
     Utf16LE,
     Utf16BE,
@@ -1243,8 +1245,10 @@ VisitEncodingForCodePage(unsigned codePage, FuncT&& func)
 {
     switch (codePage)
     {
+#ifdef TEXTENCODING_ENABLE_LATIN1
     case Latin1::CodePage():
         return func(Latin1{});
+#endif
     case Utf8::CodePage():
         return func(Utf8{});
     case Utf16LE::CodePage():

@@ -17,7 +17,9 @@ class RegEx;
 class RegExMatchBase : public IRegExMatchEnumerator
 {
     using VariantEnumerator = std::variant<
+#ifdef TEXTENCODING_ENABLE_LATIN1
         MatchEnumerator<Latin1>,
+#endif
         MatchEnumerator<Utf8>,
         MatchEnumerator<Utf16LE>,
         MatchEnumerator<Utf16BE>,
