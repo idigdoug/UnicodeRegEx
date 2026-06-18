@@ -23,7 +23,7 @@
         /// <summary>
         /// Returns the code page of the input.
         /// </summary>
-        public RegExCodePage InputCodePage => (RegExCodePage)inner.InputCodePage;
+        public int InputCodePage => (int)inner.InputCodePage;
 
         /// <summary>
         /// Returns the text of the whole match (sub-match 0), decoded using the input code page.
@@ -98,9 +98,9 @@
         /// <summary>
         /// Formats this match according to the previously set format template and returns the result.
         /// </summary>
-        public void FormatTo(Interop.ISequentialStream outputStream, RegExCodePage outputCodePage)
+        public void FormatTo(Interop.ISequentialStream outputStream, int outputCodePage)
         {
-            inner.FormatTo(outputStream, (Interop.RegExCodePage)outputCodePage);
+            inner.FormatTo(outputStream, (uint)outputCodePage);
         }
 
         /// <summary>
@@ -114,9 +114,9 @@
         /// <summary>
         /// Converts the specified span of input to a string in the specified code page and writes it to the specified output stream.
         /// </summary>
-        public void CopyInputTo(nuint inputOffset, nuint size, Interop.ISequentialStream outputStream, RegExCodePage outputCodePage)
+        public void CopyInputTo(nuint inputOffset, nuint size, Interop.ISequentialStream outputStream, int outputCodePage)
         {
-            inner.CopyInputTo((long)inputOffset, (long)size, outputStream, (Interop.RegExCodePage)outputCodePage);
+            inner.CopyInputTo((long)inputOffset, (long)size, outputStream, (uint)outputCodePage);
         }
     }
 }

@@ -99,10 +99,10 @@ RegExMatchBase::get_Input(_Out_ RegExBytes* pInput) noexcept
 }
 
 HRESULT
-RegExMatchBase::get_InputCodePage(_Out_ RegExCodePage* pCodePage) noexcept
+RegExMatchBase::get_InputCodePage(_Out_ UINT32* pCodePage) noexcept
 {
     *pCodePage = std::visit([](auto encoding) {
-            return static_cast<RegExCodePage>(encoding.CodePage());
+            return encoding.CodePage();
         },
         m_inputEncoding);
     return S_OK;
@@ -234,7 +234,7 @@ RegExMatchBase::Format(_Out_ BSTR* pOutputString) noexcept
 HRESULT
 RegExMatchBase::FormatTo(
     _In_ ISequentialStream* outputStream,
-    RegExCodePage outputCodePage) noexcept
+    UINT32 outputCodePage) noexcept
 {
     HRESULT hr;
     TextEncoding outputEncoding;
@@ -326,7 +326,7 @@ RegExMatchBase::CopyInputTo(
     LONGLONG inputOffset,
     LONGLONG size,
     _In_ ISequentialStream* outputStream,
-    RegExCodePage outputCodePage) noexcept
+    UINT32 outputCodePage) noexcept
 {
     TextEncoding outputEncoding;
 

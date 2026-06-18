@@ -15,7 +15,7 @@
         private readonly object? value; // string | char[] | byte[] | SafeBuffer | null (pre-pinned)
         private readonly nuint data;    // PinnedBytes: base pointer. GC-pinned sources: byte offset into the object. SafeBuffer: byte offset within the buffer.
         private readonly nuint size;    // size in bytes of the input region
-        private readonly RegExCodePage codePage;
+        private readonly int codePage;
         private readonly PinMethod pinMethod;
 
         private enum PinMethod
@@ -26,7 +26,7 @@
         }
 
         // Canonical constructor: stores the already-resolved internal representation.
-        private RegExInput(object? value, nuint data, nuint size, RegExCodePage codePage, PinMethod pinMethod)
+        private RegExInput(object? value, nuint data, nuint size, int codePage, PinMethod pinMethod)
         {
             this.value = value;
             this.data = data;
@@ -97,7 +97,7 @@
         // ---- Byte sources
 
         /// <summary>Wraps an entire byte array, interpreted with the given codePage, as input.</summary>
-        public RegExInput(byte[] value, RegExCodePage codePage)
+        public RegExInput(byte[] value, int codePage)
             : this(
                 value ?? throw new ArgumentNullException(nameof(value)),
                 0,
@@ -108,7 +108,7 @@
         }
 
         /// <summary>Wraps a segment of a byte array, interpreted with the given codePage, as input.</summary>
-        public RegExInput(ArraySegment<byte> value, RegExCodePage codePage)
+        public RegExInput(ArraySegment<byte> value, int codePage)
             : this(
                 value.Array ?? throw new ArgumentNullException(nameof(value)),
                 (nuint)value.Offset,
@@ -124,7 +124,7 @@
         /// Wraps a region of a <see cref="SafeBuffer"/> (e.g. a memory-mapped view's
         /// <c>SafeMemoryMappedViewHandle</c>) interpreted with the given codePage.
         /// </summary>
-        public RegExInput(SafeBuffer buffer, nuint byteOffset, nuint byteCount, RegExCodePage codePage)
+        public RegExInput(SafeBuffer buffer, nuint byteOffset, nuint byteCount, int codePage)
             : this(
                 buffer ?? throw new ArgumentNullException(nameof(buffer)),
                 byteOffset,
@@ -150,7 +150,7 @@
         /// keeping the memory pinned for the duration of any operation that uses
         /// this input.
         /// </summary>
-        public RegExInput(RegExPinnedBytes bytes, RegExCodePage codePage)
+        public RegExInput(RegExPinnedBytes bytes, int codePage)
             : this(null, bytes.Data, bytes.Size, codePage, PinMethod.PinnedBytes)
         {
         }
@@ -165,7 +165,7 @@
         public static implicit operator RegExInput(ArraySegment<char> value) => new RegExInput(value);
 
         /// <summary>The codePage of the input bytes.</summary>
-        public RegExCodePage CodePage => codePage;
+        public int CodePage => codePage;
 
         /// <summary>The size (in bytes) of the input region.</summary>
         public nuint Size => size;

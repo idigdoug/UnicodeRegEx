@@ -4,6 +4,11 @@
 std::optional<Sbcs>
 Sbcs::TryFromCodePage(unsigned codePage) noexcept
 {
+    if (codePage <= CP_THREAD_ACP)
+    {
+        return std::nullopt;
+    }
+
     static std::unordered_map<unsigned, Table> tables;
     static wil::srwlock tablesMutex;
 

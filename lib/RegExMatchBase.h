@@ -69,7 +69,7 @@ public:
     get_Input(_Out_ RegExBytes* pInput) noexcept override;
 
     HRESULT STDMETHODCALLTYPE
-    get_InputCodePage(_Out_ RegExCodePage* pCodePage) noexcept override;
+    get_InputCodePage(_Out_ UINT32* pCodePage) noexcept override;
 
     HRESULT STDMETHODCALLTYPE
     get_SubMatchCount(_Out_ UINT32* pCount) noexcept override;
@@ -86,7 +86,7 @@ public:
     HRESULT STDMETHODCALLTYPE
     FormatTo(
         _In_ ISequentialStream* outputStream,
-        RegExCodePage outputCodePage) noexcept override;
+        UINT32 outputCodePage) noexcept override;
 
     HRESULT STDMETHODCALLTYPE
     CopyInput(
@@ -99,7 +99,7 @@ public:
         LONGLONG inputOffset,
         LONGLONG size,
         _In_ ISequentialStream* outputStream,
-        RegExCodePage outputCodePage) noexcept override;
+        UINT32 outputCodePage) noexcept override;
 
     // IRegExMatchEnumerator
 

@@ -33,7 +33,7 @@ namespace UnicodeRegEx.Tests
         }
 
         /// <summary>Returns the <see cref="Encoding"/> for a <see cref="RegExCodePage"/> code page.</summary>
-        public static Encoding GetEncoding(RegExCodePage codePage)
+        public static Encoding GetEncoding(int codePage)
         {
             switch (codePage)
             {
@@ -46,11 +46,11 @@ namespace UnicodeRegEx.Tests
         }
 
         /// <summary>Encodes <paramref name="text"/> into bytes using the given codePage.</summary>
-        public static byte[] Encode(string text, RegExCodePage codePage)
+        public static byte[] Encode(string text, int codePage)
             => GetEncoding(codePage).GetBytes(text);
 
         /// <summary>Decodes <paramref name="bytes"/> using the given codePage.</summary>
-        public static string Decode(byte[] bytes, RegExCodePage codePage)
+        public static string Decode(byte[] bytes, int codePage)
             => GetEncoding(codePage).GetString(bytes);
 
         /// <summary>Snapshots the bytes currently buffered in a memory stream.</summary>
@@ -68,7 +68,7 @@ namespace UnicodeRegEx.Tests
         }
 
         /// <summary>Reads and decodes all buffered bytes from a memory stream.</summary>
-        public static string ReadAllText(Interop.IRegExMemoryStream stream, RegExCodePage codePage)
+        public static string ReadAllText(Interop.IRegExMemoryStream stream, int codePage)
             => Decode(ReadAllBytes(stream), codePage);
 
         /// <summary>Returns the bytes of a segment as text, decoded with the input code page.</summary>

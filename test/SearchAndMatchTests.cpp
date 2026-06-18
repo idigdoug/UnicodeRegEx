@@ -350,7 +350,7 @@ namespace RegExTests
                 regex->Search(inputBytes, RegExCodePage_utf16le, 0, RegExMatchFlag_default, results.put()));
             Assert::IsNotNull(results.get());
 
-            RegExCodePage codePage = RegExCodePage_none;
+            UINT32 codePage = RegExCodePage_none;
             Assert::AreEqual(S_OK, results->get_InputCodePage(&codePage));
             Assert::AreEqual((int)RegExCodePage_utf16le, (int)codePage);
         }
@@ -468,7 +468,7 @@ namespace RegExTests
             results->SetFormatTemplate(formatTemplate.get(), RegExFormatFlag_perl);
 
             auto stream = MakeMemoryStream();
-            Assert::AreEqual(E_INVALIDARG, results->FormatTo(stream.get(), static_cast<RegExCodePage>(9999)));
+            Assert::AreEqual(E_INVALIDARG, results->FormatTo(stream.get(), 9999));
         }
 
         TEST_METHOD(CopyInput_Utf8Input)

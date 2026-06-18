@@ -55,6 +55,69 @@ namespace UnicodeRegEx.Tests
             CollectionAssert.AreEqual(TestHelpers.Encode("caf\u00e9", RegExCodePage.Utf8), bytes);
         }
 
+        // windows-1252 maps 0x80 -> U+20AC (EURO SIGN), which differs from Latin-1's
+        // identity mapping, so these exercise the SBCS table lookup (not a pass-through).
+        private const int Windows1252 = 1252;
+
+        // windows-1251 (Cyrillic): high bytes map to the Unicode Cyrillic block.
+        private const int Windows1251 = 1251;
+
+        [TestMethod]
+        public void Transcode_Windows1252ToString()
+        {
+            var bytes = new byte[] { 0x41, 0x80, 0xE9 }; // "A", U+20AC, U+00E9
+
+            var result = RegEx.Transcode(new RegExInput(bytes, Windows1252));
+
+            Assert.AreEqual("A\u20AC\u00E9", result);
+        }
+
+        [TestMethod]
+        public void TranscodeTo_StringToWindows1252()
+        {
+            using var stream = RegEx.CreateMemoryStream();
+
+            RegEx.TranscodeTo("A\u20AC\u00E9", stream.Value, Windows1252);
+
+            var bytes = TestHelpers.ReadAllBytes(stream.Value);
+            CollectionAssert.AreEqual(new byte[] { 0x41, 0x80, 0xE9 }, bytes);
+        }
+
+        [TestMethod]
+        public void Transcode_Windows1251ToString()
+        {
+            var bytes = new byte[] { 0xCF, 0xF0, 0xE8, 0xE2, 0xE5, 0xF2 }; // "Привет"
+
+            var result = RegEx.Transcode(new RegExInput(bytes, Windows1251));
+
+            Assert.AreEqual("\u041F\u0440\u0438\u0432\u0435\u0442", result);
+        }
+
+        [TestMethod]
+        public void TranscodeTo_StringToWindows1251()
+        {
+            using var stream = RegEx.CreateMemoryStream();
+
+            RegEx.TranscodeTo("\u041F\u0440\u0438\u0432\u0435\u0442", stream.Value, Windows1251);
+
+            var bytes = TestHelpers.ReadAllBytes(stream.Value);
+            CollectionAssert.AreEqual(new byte[] { 0xCF, 0xF0, 0xE8, 0xE2, 0xE5, 0xF2 }, bytes);
+        }
+
+        [TestMethod]
+        public void Transcode_Windows1252RoundTrips()
+        {
+            // Decode SBCS -> string, then encode string -> SBCS and confirm the bytes survive.
+            var original = new byte[] { 0x41, 0x80, 0x93, 0x94, 0xE9 }; // "A", U+20AC, U+201C, U+201D, U+00E9
+
+            var text = RegEx.Transcode(new RegExInput(original, Windows1252));
+
+            using var stream = RegEx.CreateMemoryStream();
+            RegEx.TranscodeTo(text, stream.Value, Windows1252);
+
+            CollectionAssert.AreEqual(original, TestHelpers.ReadAllBytes(stream.Value));
+        }
+
         [TestMethod]
         public void EscapePatternLiteral_EscapesMetacharacters_Perl()
         {

@@ -402,7 +402,7 @@ RegExLibrary::GetEscapeFormatLiteralChars(
 HRESULT
 RegExLibrary::Transcode(
     RegExBytes input,
-    RegExCodePage inputCodePage,
+    UINT32 inputCodePage,
     _Out_ BSTR* pOutput) noexcept
 {
     *pOutput = nullptr;
@@ -443,9 +443,9 @@ RegExLibrary::Transcode(
 HRESULT
 RegExLibrary::TranscodeTo(
     RegExBytes input,
-    RegExCodePage inputCodePage,
+    UINT32 inputCodePage,
     _In_ ISequentialStream* outputStream,
-    RegExCodePage outputCodePage) noexcept
+    UINT32 outputCodePage) noexcept
 {
     TextEncoding inputEncoding;
     TextEncoding outputEncoding;

@@ -135,7 +135,7 @@ RegEx::get_Lcid(
 HRESULT
 RegEx::Match(
     RegExBytes input,
-    RegExCodePage inputCodePage,
+    UINT32 inputCodePage,
     LONGLONG startByteOffset,
     RegExMatchFlags flags,
     _Outptr_result_maybenull_ IRegExMatchResults** ppResults) noexcept
@@ -146,7 +146,7 @@ RegEx::Match(
 HRESULT
 RegEx::Search(
     RegExBytes input,
-    RegExCodePage inputCodePage,
+    UINT32 inputCodePage,
     LONGLONG startByteOffset,
     RegExMatchFlags flags,
     _Outptr_result_maybenull_ IRegExMatchResults** ppResults) noexcept
@@ -157,7 +157,7 @@ RegEx::Search(
 HRESULT
 RegEx::EnumerateMatches(
     RegExBytes input,
-    RegExCodePage inputCodePage,
+    UINT32 inputCodePage,
     LONGLONG startByteOffset,
     RegExMatchFlags flags,
     _Outptr_ IRegExMatchEnumerator** ppEnumerator) noexcept
@@ -191,7 +191,7 @@ RegEx::EnumerateMatches(
 HRESULT
 RegEx::Replace(
     RegExBytes input,
-    RegExCodePage inputCodePage,
+    UINT32 inputCodePage,
     LONGLONG startByteOffset,
     RegExMatchFlags matchFlags,
     _In_ BSTR formatTemplate,
@@ -226,13 +226,13 @@ RegEx::Replace(
 HRESULT
 RegEx::ReplaceTo(
     RegExBytes input,
-    RegExCodePage inputCodePage,
+    UINT32 inputCodePage,
     LONGLONG startByteOffset,
     RegExMatchFlags matchFlags,
     _In_ BSTR formatTemplate,
     RegExFormatFlags formatFlags,
     _In_ ISequentialStream* outputStream,
-    RegExCodePage outputCodePage) noexcept
+    UINT32 outputCodePage) noexcept
 {
     if (outputStream == nullptr)
     {
@@ -270,7 +270,7 @@ RegEx::ReplaceTo(
 HRESULT
 RegEx::ReplaceImpl(
     RegExBytes const& input,
-    RegExCodePage inputCodePage,
+    UINT32 inputCodePage,
     LONGLONG startByteOffset,
     _In_ BSTR formatTemplate,
     boost::regex_constants::match_flag_type flags,
@@ -371,7 +371,7 @@ RegEx::ReplaceImpl(
 HRESULT
 RegEx::SearchImpl(
     RegExBytes const& input,
-    RegExCodePage inputCodePage,
+    UINT32 inputCodePage,
     LONGLONG startByteOffset,
     RegExMatchFlags flags,
     bool wholeStringMatch,

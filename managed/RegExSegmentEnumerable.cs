@@ -14,13 +14,13 @@ namespace UnicodeRegEx
     {
         private readonly Interop.IRegEx regex;
         private readonly RegExPinnedBytes input;
-        private readonly RegExCodePage inputCodePage;
+        private readonly int inputCodePage;
         private readonly RegExEnumerateOptions options;
 
         internal RegExSegmentEnumerable(
             Interop.IRegEx regex,
             RegExPinnedBytes input,
-            RegExCodePage inputCodePage,
+            int inputCodePage,
             RegExEnumerateOptions options)
         {
             this.regex = regex;
@@ -36,7 +36,7 @@ namespace UnicodeRegEx
         public RegExSegmentEnumerator GetEnumerator()
         {
             var bytes = new Interop.RegExBytes { data = (nint)input.Data, size = (nint)input.Size };
-            var cursor = regex.EnumerateMatches(bytes, (Interop.RegExCodePage)inputCodePage, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags);
+            var cursor = regex.EnumerateMatches(bytes, (uint)inputCodePage, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags);
             if (options.FormatTemplate != null)
             {
                 cursor.SetFormatTemplate(options.FormatTemplate, (Interop.RegExFormatFlags)options.FormatFlags);

@@ -12,24 +12,8 @@
     public readonly ref struct RegExPinnedBytes
 #pragma warning restore CS0660
     {
-        private static Encoding? encodingLatin1; // ISO-8859-1 = GetEncoding(28591)
         private readonly nuint data;
         private readonly nuint size;
-
-        private static Encoding EncodingLatin1
-        {
-            get
-            {
-                var enc = encodingLatin1;
-                if (enc == null)
-                {
-                    enc = Encoding.GetEncoding(28591);
-                    encodingLatin1 = enc;
-                }
-
-                return enc;
-            }
-        }
 
         /// <summary>Creates a descriptor for <paramref name="size"/> bytes starting at <paramref name="data"/>.</summary>
         public RegExPinnedBytes(nuint data, nuint size)
@@ -212,7 +196,7 @@
                     encoding = Encoding.BigEndianUnicode;
                     break;
                 case 28591:
-                    encoding = EncodingLatin1;
+                    encoding = RegExEncoding.Latin1;
                     break;
                 case 65001:
                     encoding = Encoding.UTF8;

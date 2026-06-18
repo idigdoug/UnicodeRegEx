@@ -1,6 +1,15 @@
 #pragma once
 #include <UnicodeRegEx.h>
 
+enum RegExCodePage
+{
+    RegExCodePage_none = 0,
+    RegExCodePage_utf16le = 1200,
+    RegExCodePage_utf16be = 1201,
+    RegExCodePage_latin1 = 28591,
+    RegExCodePage_utf8 = 65001,
+};
+
 template<class CharT>
 constexpr RegExBytes
 MakeString(std::basic_string_view<CharT> sv)

@@ -49,7 +49,7 @@ public:
     HRESULT STDMETHODCALLTYPE
     Match(
         RegExBytes input,
-        RegExCodePage inputCodePage,
+        UINT32 inputCodePage,
         LONGLONG startOffset,
         RegExMatchFlags flags,
         _Outptr_result_maybenull_ IRegExMatchResults** ppResults) noexcept override;
@@ -57,7 +57,7 @@ public:
     HRESULT STDMETHODCALLTYPE
     Search(
         RegExBytes input,
-        RegExCodePage inputCodePage,
+        UINT32 inputCodePage,
         LONGLONG startOffset,
         RegExMatchFlags flags,
         _Outptr_result_maybenull_ IRegExMatchResults** ppResults) noexcept override;
@@ -65,7 +65,7 @@ public:
     HRESULT STDMETHODCALLTYPE
     EnumerateMatches(
         RegExBytes input,
-        RegExCodePage inputCodePage,
+        UINT32 inputCodePage,
         LONGLONG startOffset,
         RegExMatchFlags flags,
         _Outptr_ IRegExMatchEnumerator** ppEnumerator) noexcept override;
@@ -73,7 +73,7 @@ public:
     HRESULT STDMETHODCALLTYPE
     Replace(
         RegExBytes input,
-        RegExCodePage inputCodePage,
+        UINT32 inputCodePage,
         LONGLONG startByteOffset,
         RegExMatchFlags matchFlags,
         _In_ BSTR formatTemplate,
@@ -83,20 +83,20 @@ public:
     HRESULT STDMETHODCALLTYPE
     ReplaceTo(
         RegExBytes input,
-        RegExCodePage inputCodePage,
+        UINT32 inputCodePage,
         LONGLONG startByteOffset,
         RegExMatchFlags matchFlags,
         _In_ BSTR formatTemplate,
         RegExFormatFlags formatFlags,
         _In_ ISequentialStream* outputStream,
-        RegExCodePage outputCodePage) noexcept override;
+        UINT32 outputCodePage) noexcept override;
 
 private:
 
     HRESULT
     ReplaceImpl(
         RegExBytes const& input,
-        RegExCodePage inputCodePage,
+        UINT32 inputCodePage,
         LONGLONG startByteOffset,
         _In_ BSTR formatTemplate,
         boost::regex_constants::match_flag_type flags,
@@ -105,7 +105,7 @@ private:
     HRESULT
     SearchImpl(
         RegExBytes const& input,
-        RegExCodePage inputCodePage,
+        UINT32 inputCodePage,
         LONGLONG startByteOffset,
         RegExMatchFlags flags,
         bool wholeStringMatch,

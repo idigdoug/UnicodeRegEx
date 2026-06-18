@@ -4,8 +4,8 @@
     using System.Runtime.InteropServices;
 
     /// <summary>
-    /// The outcome of a single <see cref="RegEx.Match(RegExPinnedBytes, RegExCodePage, RegExMatchOptions)"/> or
-    /// <see cref="RegEx.Search(RegExPinnedBytes, RegExCodePage, RegExMatchOptions)"/> call. Must be disposed.
+    /// The outcome of a single <see cref="RegEx.Match(RegExPinnedBytes, int, RegExMatchOptions)"/> or
+    /// <see cref="RegEx.Search(RegExPinnedBytes, int, RegExMatchOptions)"/> call. Must be disposed.
     /// </summary>
     public readonly ref struct RegExMatchResult
     {

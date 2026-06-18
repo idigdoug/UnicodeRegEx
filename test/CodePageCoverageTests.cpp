@@ -164,7 +164,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             regex->Search(inputBytes, RegExCodePage_latin1, 0, RegExMatchFlag_default, results.put());
 
-            RegExCodePage codePage = RegExCodePage_none;
+            UINT32 codePage = RegExCodePage_none;
             Assert::AreEqual(S_OK, results->get_InputCodePage(&codePage));
             Assert::AreEqual((int)RegExCodePage_latin1, (int)codePage);
         }
@@ -435,7 +435,7 @@ namespace RegExTests
             wil::com_ptr<IRegExMatchResults> results;
             regex->Search(inputBytes, RegExCodePage_utf16be, 0, RegExMatchFlag_default, results.put());
 
-            RegExCodePage codePage = RegExCodePage_none;
+            UINT32 codePage = RegExCodePage_none;
             Assert::AreEqual(S_OK, results->get_InputCodePage(&codePage));
             Assert::AreEqual((int)RegExCodePage_utf16be, (int)codePage);
         }

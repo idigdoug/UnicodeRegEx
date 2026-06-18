@@ -178,22 +178,19 @@
     }
 
     /// <summary>Text codePage (code page) of an input or output byte buffer.</summary>
-    public enum RegExCodePage
+    public static class RegExCodePage
     {
-        /// <summary>No codePage specified.</summary>
-        None = 0,
-
-        /// <summary>UTF-16 little-endian (Windows code page 1200); the in-memory codePage of .NET strings.</summary>
-        Utf16LE = 1200,
+        /// <summary>UTF-16 little-endian (Windows code page 1200).</summary>
+        public const int Utf16LE = 1200;
 
         /// <summary>UTF-16 big-endian (Windows code page 1201).</summary>
-        Utf16BE = 1201,
+        public const int Utf16BE = 1201;
 
         /// <summary>ISO-8859-1 / Latin-1 (Windows code page 28591).</summary>
-        Latin1 = 28591,
+        public const int Latin1 = 28591;
 
         /// <summary>UTF-8 (Windows code page 65001).</summary>
-        Utf8 = 65001
+        public const int Utf8 = 65001;
     }
 
     /// <summary>Position of a match or segment enumeration.</summary>

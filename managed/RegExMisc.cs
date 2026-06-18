@@ -2,6 +2,7 @@
 {
     using System;
     using System.Runtime.InteropServices;
+    using System.Text;
     using System.Threading;
 
     /// <summary>Extension helpers for the regex wrapper types.</summary>
@@ -115,6 +116,41 @@
             if (old != null)
             {
                 Marshal.FinalReleaseComObject(old);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Encoding helpers.
+    /// </summary>
+    public sealed class RegExEncoding
+    {
+        private static Encoding? latin1;
+
+        /// <summary>
+        /// Cached instance of Encoding.GetEncoding(28591).
+        /// </summary>
+        public static Encoding Latin1 => latin1 ??= Encoding.GetEncoding(RegExCodePage.Latin1);
+
+        /// <summary>
+        /// Returns an <see cref="Encoding"/> for the given code page, resolving well-known code pages
+        /// (those defined in <see cref="RegExCodePage"/>) to a cached instance. Other code pages are
+        /// resolved by calling <see cref="Encoding.GetEncoding(int)"/>.
+        /// </summary>
+        public static Encoding FromCodePage(int codePage)
+        {
+            switch (codePage)
+            {
+                case RegExCodePage.Utf8:
+                    return Encoding.UTF8;
+                case RegExCodePage.Utf16LE:
+                    return Encoding.Unicode;
+                case RegExCodePage.Utf16BE:
+                    return Encoding.BigEndianUnicode;
+                case RegExCodePage.Latin1:
+                    return Latin1;
+                default:
+                    return Encoding.GetEncoding(codePage);
             }
         }
     }
