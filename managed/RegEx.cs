@@ -128,6 +128,17 @@ namespace UnicodeRegEx
         }
 
         /// <summary>
+        /// Returns true if the native library can encode and decode the specified text code page
+        /// (UTF-8, UTF-16LE, UTF-16BE, or an installed single-byte code page). Special code page
+        /// values such as CP_ACP (0) are not resolved; resolve them (for example with GetACP)
+        /// before calling.
+        /// </summary>
+        public static bool IsCodePageSupported(int codePage)
+        {
+            return Library.IsCodePageSupported((uint)codePage);
+        }
+
+        /// <summary>
         /// Converts the input to a UTF-16 string.
         /// </summary>
         public static string Transcode(RegExInput input)

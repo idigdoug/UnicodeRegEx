@@ -625,3 +625,19 @@ RegExLibrary::CreateReplacementFileStream(
     *ppStream = stream.detach();
     return hr;
 }
+
+HRESULT STDMETHODCALLTYPE
+RegExLibrary::IsCodePageSupported(
+    UINT32 codePage,
+    _Out_ VARIANT_BOOL* pSupported) noexcept
+{
+    if (pSupported == nullptr)
+    {
+        return E_POINTER;
+    }
+
+    *pSupported = VisitEncodingForCodePage(codePage, [](auto&&) noexcept { return true; })
+        ? VARIANT_TRUE
+        : VARIANT_FALSE;
+    return S_OK;
+}

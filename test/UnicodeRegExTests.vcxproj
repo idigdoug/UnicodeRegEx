@@ -32,7 +32,7 @@
     <ProjectGuid>{E3A1B2C4-D5F6-4789-ABCD-EF0123456789}</ProjectGuid>
     <RootNamespace>UnicodeRegExTests</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>UnicodeRegExTests</ProjectName>
+    <ProjectName>UnicodeRegExLibTests</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">

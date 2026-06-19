@@ -617,6 +617,15 @@ interface IRegExLibrary : IUnknown
     CreateReplacementFileStream(
         [in] BSTR finalPath,
         [out, retval] IRegExFileStream** ppStream);
+
+    // Returns pSupported = VARIANT_TRUE if the library can encode and decode the
+    // specified text code page (utf-8, utf-16le, utf-16be, or an installed single-byte
+    // code page), VARIANT_FALSE otherwise. Special code page values such as CP_ACP (0)
+    // are not resolved; resolve them (e.g. via GetACP) before calling.
+    HRESULT
+    IsCodePageSupported(
+        [in] UINT32 codePage,
+        [out, retval] VARIANT_BOOL* pSupported);
 }
 
 cpp_quote("// Constructor for IRegExLibrary factory class. Returned object is free-threaded.")

@@ -83,4 +83,9 @@ public:
     CreateReplacementFileStream(
         _In_ BSTR finalPath,
         _Outptr_ IRegExFileStream** ppStream) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    IsCodePageSupported(
+        UINT32 codePage,
+        _Out_ VARIANT_BOOL* pSupported) noexcept override;
 };
