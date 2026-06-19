@@ -22,6 +22,9 @@ Baseline:
 ---
 */
 
+#pragma warning(disable: 4189) // local variable is initialized but not referenced
+#pragma warning(disable: 4505) // unreferenced local function has been removed
+
 static constexpr unsigned ExpectedMatches = 25840;
 
 #ifdef NDEBUG
@@ -144,6 +147,143 @@ RunIteratorBenchmark(
 }
 
 // ============================================================================
+// Microbenchmark harnesses (no regex)
+//
+// These isolate the encoding layer from regex overhead so the Latin1 vs SBCS
+// difference is visible directly. Reports min/median/stddev (in kilocycles)
+// plus cycles-per-code-point derived from the min (min is the cleanest
+// estimator since timing noise is one-sided).
+// ============================================================================
+
+// Volatile sink to keep accumulated results observable so the optimizer cannot
+// eliminate or hoist the measured loops.
+static volatile uint64_t g_benchmarkSink;
+
+static void
+ReportSamples(char const* label, uint64_t* samples, unsigned count, uint64_t elements)
+{
+    std::sort(samples, samples + count);
+    uint64_t cyclesMedian = samples[count / 2];
+    uint64_t cyclesMin = samples[0];
+
+    double cyclesAvg = 0;
+    for (unsigned i = 0; i < count; ++i)
+        cyclesAvg += static_cast<double>(samples[i]);
+    cyclesAvg /= count;
+
+    double variance = 0;
+    for (unsigned i = 0; i < count; ++i)
+    {
+        double diff = static_cast<double>(samples[i]) - cyclesAvg;
+        variance += diff * diff;
+    }
+    uint64_t cyclesStdDev = static_cast<uint64_t>(std::sqrt(variance / count));
+
+    double cyclesPerCp = elements
+        ? static_cast<double>(cyclesMin) / static_cast<double>(elements)
+        : 0.0;
+
+    printf("  %-14s: min: %8llu Kc, median: %8llu Kc, stddev: %6llu Kc, %.3f c/cp\n",
+        label, cyclesMin / 1000, cyclesMedian / 1000, cyclesStdDev / 1000, cyclesPerCp);
+}
+
+// Measures raw decode iteration (encoded char -> char32_t) with no regex.
+// The inner sum loop may auto-vectorize for Latin1's identity mapping but not
+// for SBCS's table lookup, so this can show a larger gap than the amortized
+// regex scenario.
+template<class EncodingT>
+static void
+RunRawIterationBenchmark(
+    char const* label,
+    typename EncodingT::CodePointRange corpus,
+    size_t codePointCount)
+{
+    // Warm-up passes (discarded).
+    for (unsigned warmup = 0; warmup < 2; ++warmup)
+    {
+        char32_t sum = 0;
+        for (auto it = corpus.begin; it != corpus.end; ++it)
+            sum += *it;
+        g_benchmarkSink = sum;
+    }
+
+    unsigned const GroupCount = 15;
+    uint64_t samples[GroupCount];
+
+    for (unsigned group = 0; group != GroupCount; group += 1)
+    {
+        ULONG64 startCycles, endCycles;
+        QueryThreadCycleTime(GetCurrentThread(), &startCycles);
+        for (unsigned iter = 0; iter < BenchmarkIterations; ++iter)
+        {
+            char32_t sum = 0;
+            for (auto it = corpus.begin; it != corpus.end; ++it)
+                sum += *it;
+            g_benchmarkSink = sum; // Observable each pass: prevents hoisting.
+        }
+        QueryThreadCycleTime(GetCurrentThread(), &endCycles);
+
+        samples[group] = endCycles - startCycles;
+    }
+
+    ReportSamples(label, samples, GroupCount,
+        static_cast<uint64_t>(codePointCount) * BenchmarkIterations);
+}
+
+// Measures the encode path (char32_t -> encoded char) via ConvertInPlace.
+// ConvertInPlace overwrites its input, so the source buffer is restored before
+// each conversion; the restore is excluded from the timed region.
+template<class EncodingT>
+static void
+RunConvertInPlaceBenchmark(
+    char const* label,
+    EncodingT enc,
+    std::vector<char32_t> const& source)
+{
+    std::vector<char32_t> work(source.size());
+
+    // Warm-up + sanity check (discarded from timing).
+    for (unsigned warmup = 0; warmup < 2; ++warmup)
+    {
+        std::copy(source.begin(), source.end(), work.begin());
+        auto encoded = enc.ConvertInPlace(work);
+        if (encoded.size() != source.size())
+        {
+            fprintf(stderr, "ERROR: %s - ConvertInPlace returned %zu bytes, expected %zu\n",
+                label, encoded.size(), source.size());
+            return;
+        }
+        g_benchmarkSink = encoded.empty() ? 0u : static_cast<unsigned char>(encoded.back());
+    }
+
+    unsigned const GroupCount = 15;
+    uint64_t samples[GroupCount];
+
+    for (unsigned group = 0; group != GroupCount; group += 1)
+    {
+        uint64_t groupCycles = 0;
+        for (unsigned iter = 0; iter < BenchmarkIterations; ++iter)
+        {
+            // Restore the destructive input buffer (excluded from timing).
+            std::copy(source.begin(), source.end(), work.begin());
+
+            ULONG64 startCycles, endCycles;
+            QueryThreadCycleTime(GetCurrentThread(), &startCycles);
+            auto encoded = enc.ConvertInPlace(work);
+            QueryThreadCycleTime(GetCurrentThread(), &endCycles);
+
+            groupCycles += endCycles - startCycles;
+            g_benchmarkSink = encoded.empty() ? 0u : static_cast<unsigned char>(encoded.back());
+        }
+
+        samples[group] = groupCycles;
+    }
+
+    ReportSamples(label, samples, GroupCount,
+        static_cast<uint64_t>(source.size()) * BenchmarkIterations);
+}
+
+// ============================================================================
 // Corpus conversion helpers
 // ============================================================================
 
@@ -160,6 +300,25 @@ ConvertUtf8ToLatin1(std::string_view utf8Data)
     {
         char32_t cp = *it;
         result.push_back(CodePoint::IsLatin1(cp) ? static_cast<char>(cp) : '?');
+    }
+
+    return result;
+}
+
+// Decodes UTF-8 into a vector of code points (used as the source for the
+// ConvertInPlace encode benchmarks).
+static std::vector<char32_t>
+ConvertUtf8ToCodePoints(std::string_view utf8Data)
+{
+    std::vector<char32_t> result;
+    result.reserve(utf8Data.size());
+
+    auto [begin, end] = Utf8().MakeCodePointRange(
+        std::span(reinterpret_cast<char8_t const*>(utf8Data.data()), utf8Data.size()));
+
+    for (auto it = begin; it != end; ++it)
+    {
+        result.push_back(*it);
     }
 
     return result;
@@ -221,6 +380,8 @@ Benchmarks()
     printf("Patterns: %zu\n", TestPatternCount);
     printf("---\n");
 
+    auto latin1Data = ConvertUtf8ToLatin1(mobyText);
+
     auto const u8begin = reinterpret_cast<char8_t const*>(mobyText.data());
     auto const u8end = u8begin + mobyText.size();
 
@@ -241,20 +402,52 @@ Benchmarks()
     RunIteratorBenchmark("UTF-8-Boost", std::pair(
         u32_to_u8_it(u8begin, u8begin, u8end),
         u32_to_u8_it(u8end, u8begin, u8end)));
-#endif
-
     RunIteratorBenchmark<Utf8>("UTF-8",
         Utf8().MakeCodePointRange({ u8begin, u8end }));
 
-    auto latin1Data = ConvertUtf8ToLatin1(mobyText);
-    RunIteratorBenchmark<Latin1>("Latin1-Rand",
-        Latin1().MakeCodePointRange({ latin1Data.data(), latin1Data.size() }));
-
-    RunIteratorBenchmark<Sbcs>("cp1252-Rand",
-        Sbcs::TryFromCodePage(28591).value().MakeCodePointRange({latin1Data.data(), latin1Data.size()}));
+#endif
 
 #if 0
-    auto utf16leData = ConvertUtf8ToUtf16LE(mobyText);
+    for (unsigned pass = 0; pass != 3; pass += 1)
+    {
+        RunIteratorBenchmark<Latin1>("Latin1-Rand",
+            Latin1().MakeCodePointRange({ latin1Data.data(), latin1Data.size() }));
+
+        RunIteratorBenchmark<Sbcs>("cp28591-Rand",
+            Sbcs::TryFromCodePage(28591).value().MakeCodePointRange({ latin1Data.data(), latin1Data.size() }));
+    }
+#endif
+
+#if 1
+    // Microbenchmarks isolating the encoding layer from regex overhead, so the
+    // Latin1 (identity) vs SBCS (table lookup) difference is directly visible.
+    {
+        auto codePoints = ConvertUtf8ToCodePoints(mobyText);
+        size_t const cpCount = codePoints.size();
+        auto sbcs28591 = Sbcs::TryFromCodePage(28591).value();
+
+        // Decode path: encoded char -> char32_t, no regex. Interleaved pairs so
+        // each Latin1/SBCS comparison runs back-to-back under like conditions.
+        printf("--- Raw decode iteration (char -> char32_t, no regex) ---\n");
+        for (unsigned pass = 0; pass < 3; ++pass)
+        {
+            RunRawIterationBenchmark<Latin1>("Latin1-Decode",
+                Latin1().MakeCodePointRange({ latin1Data.data(), latin1Data.size() }), cpCount);
+            RunRawIterationBenchmark<Sbcs>("cp28591-Decode",
+                sbcs28591.MakeCodePointRange({ latin1Data.data(), latin1Data.size() }), cpCount);
+        }
+
+        // Encode path: char32_t -> encoded char via ConvertInPlace.
+        printf("--- ConvertInPlace encode (char32_t -> char) ---\n");
+        for (unsigned pass = 0; pass < 3; ++pass)
+        {
+            RunConvertInPlaceBenchmark<Latin1>("Latin1-Encode", Latin1(), codePoints);
+            RunConvertInPlaceBenchmark<Sbcs>("cp28591-Encode", sbcs28591, codePoints);
+        }
+    }
+#endif
+
+#if 0
     RunIteratorBenchmark<Utf16LE>("UTF-16LE",
         Utf16LE().MakeCodePointRange({ utf16leData.data(), utf16leData.size() }));
 
