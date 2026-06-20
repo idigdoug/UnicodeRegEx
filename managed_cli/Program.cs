@@ -6,60 +6,86 @@ namespace UnicodeRegEx.Cli
     using System.IO.MemoryMappedFiles;
     using System.Runtime.InteropServices;
     using UnicodeRegEx;
+    using UnicodeRegEx.CommandLine;
+    using UnicodeRegEx.Tools;
 
-    /// <summary>
-    /// A minimal grep-style search over files, used to break ground on the CLI. Each file is
-    /// memory-mapped and searched in its own text code page (detected from a byte-order mark,
-    /// otherwise the default selected with --encoding) without decoding it to a managed string.
-    /// </summary>
     internal static class Program
     {
-        // Code page used when --encoding is omitted, unknown, or names a page the native
-        // library can't handle. UTF-8 covers most source files and is always supported.
-        private const int FallbackCodePage = RegExCodePage.Utf8;
-
         private static volatile bool cancelled;
-
-        [DllImport("kernel32.dll")]
-        private static extern uint GetACP();
 
         private static int Main(string[] args)
         {
-            Console.CancelKeyPress += (_, e) =>
-            {
-                e.Cancel = true;
-                cancelled = true;
-            };
-
-            if (!TryParseArgs(args, out var pattern, out var paths, out var ignoreCase, out var encodingSpec))
-            {
-                Console.Error.WriteLine("Usage: UnicodeRegExCli <pattern> [path]... [-i|--ignore-case] [-e|--encoding utf8|acp|<codepage>]");
-                return 2;
-            }
-
-            RegEx regex;
             try
             {
-                var syntaxFlags = RegExSyntaxFlags.ECMAScript;
-                if (ignoreCase)
+                Console.CancelKeyPress += (_, e) =>
                 {
-                    syntaxFlags |= RegExSyntaxFlags.ICase;
+                    e.Cancel = true;
+                    cancelled = true;
+                };
+
+                const string usage = "Usage: UnicodeRegExCli [options] <pattern> [path]...";
+
+                // Precedence: built-in defaults < .config (<appSettings>) < command line.
+                var options = new SearchSettings();
+                var configErrors = new List<string>();
+                AppConfigSettings.Apply(options, configErrors);
+
+                var parsed = CommandLineParser.Parse(options, args);
+
+                if (parsed.Status == ParseStatus.HelpRequested)
+                {
+                    Console.Out.WriteLine(HelpFormatter.Format(usage, options));
+                    return 0;
                 }
 
-                regex = RegEx.Create(pattern, syntaxFlags);
-            }
-            catch (RegExException ex)
-            {
-                Console.Error.WriteLine($"Invalid pattern '{pattern}': {ex.Message}");
-                return 2;
-            }
+                if (configErrors.Count > 0 || parsed.Status == ParseStatus.Error)
+                {
+                    foreach (var error in configErrors)
+                    {
+                        Console.Error.WriteLine($"error: {error}");
+                    }
 
-            var defaultCodePage = ResolveDefaultCodePage(encodingSpec);
+                    foreach (var error in parsed.Errors)
+                    {
+                        Console.Error.WriteLine($"error: {error}");
+                    }
 
-            var anyMatch = false;
-            var errors = 0;
-            try
-            {
+                    Console.Error.WriteLine(usage);
+                    return 2;
+                }
+
+                if (parsed.Positionals.Count == 0)
+                {
+                    Console.Error.WriteLine("error: missing <pattern>");
+                    Console.Error.WriteLine(usage);
+                    return 2;
+                }
+
+                var pattern = parsed.Positionals[0];
+                var paths = parsed.Positionals.GetRange(1, parsed.Positionals.Count - 1);
+                if (paths.Count == 0)
+                {
+                    paths.Add(".");
+                }
+
+                var template = options.Replace.Value;
+                var apply = options.Apply.Value;
+                if (apply && template == null)
+                {
+                    Console.Error.WriteLine("error: --apply requires --replace");
+                    Console.Error.WriteLine(usage);
+                    return 2;
+                }
+
+                var syntaxFlags = options.IgnoreCase.Value
+                    ? RegExSyntaxFlags.ECMAScript | RegExSyntaxFlags.ICase
+                    : RegExSyntaxFlags.ECMAScript;
+                using var regex = RegEx.Create(pattern, syntaxFlags);
+
+                var defaultCodePage = ResolveDefaultCodePage(options.Encoding.Value);
+
+                var anyMatch = false;
+                var errors = 0;
                 foreach (var file in EnumerateFiles(paths))
                 {
                     if (cancelled)
@@ -69,7 +95,9 @@ namespace UnicodeRegEx.Cli
 
                     try
                     {
-                        anyMatch |= GrepFile(regex, file, defaultCodePage);
+                        anyMatch |= apply
+                            ? ApplyReplaceFile(regex, file, defaultCodePage, template!)
+                            : MatchFile(regex, file, defaultCodePage, template);
                     }
                     catch (Exception ex)
                     {
@@ -77,21 +105,22 @@ namespace UnicodeRegEx.Cli
                         Console.Error.WriteLine($"{file}: {ex.Message}");
                     }
                 }
-            }
-            finally
-            {
-                regex.Dispose();
-            }
 
-            if (errors > 0)
+                if (errors > 0)
+                {
+                    return 2;
+                }
+
+                return anyMatch ? 0 : 1;
+            }
+            catch (Exception ex)
             {
+                Console.Error.WriteLine($"error: {ex.Message}");
                 return 2;
             }
-
-            return anyMatch ? 0 : 1;
         }
 
-        private static unsafe bool GrepFile(RegEx regex, string path, int defaultCodePage)
+        private static unsafe bool MatchFile(RegEx regex, string path, int defaultCodePage, string? replaceTemplate)
         {
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             var length = stream.Length;
@@ -124,9 +153,13 @@ namespace UnicodeRegEx.Cli
                 // Lambdas can't capture pointers, so pass the view's base address as an IntPtr.
                 var dataAddress = (IntPtr)data;
 
+                var enumerateOptions = replaceTemplate == null
+                    ? default
+                    : new RegExEnumerateOptions { FormatTemplate = replaceTemplate };
+
                 return regex.EnumerateMatches(
                     new RegExInput(handle, (nuint)view.PointerOffset, (nuint)length, codePage),
-                    default,
+                    enumerateOptions,
                     matches =>
                     {
                         var bytes = (byte*)dataAddress;
@@ -152,7 +185,15 @@ namespace UnicodeRegEx.Cli
                                 scan += unit;
                             }
 
-                            // Print each matching line at most once, like grep.
+                            // In replace-preview mode, show each match's replacement and move on.
+                            if (replaceTemplate != null)
+                            {
+                                Console.Out.WriteLine($"{path}:{line}: {match.Text} => {match.Format()}");
+                                matched = true;
+                                continue;
+                            }
+
+                            // Grep mode: print each matching line at most once.
                             if (curLineStart == lastPrintedLineStart)
                             {
                                 continue;
@@ -176,7 +217,7 @@ namespace UnicodeRegEx.Cli
                             var size = lineEnd > displayStart ? checked((int)(lineEnd - displayStart)) : 0;
                             var text = size > 0 ? match.CopyInput((nuint)displayStart, size) : string.Empty;
 
-                            Console.WriteLine($"{path}:{line}: {text}");
+                            Console.Out.WriteLine($"{path}:{line}: {text}");
                             matched = true;
                         }
 
@@ -189,102 +230,99 @@ namespace UnicodeRegEx.Cli
             }
         }
 
-        private static bool TryParseArgs(
-            string[] args,
-            out string pattern,
-            out List<string> paths,
-            out bool ignoreCase,
-            out string? encodingSpec)
+        // Single-pass replace: rewrites the file atomically if (and only if) it contains a match,
+        // so files without matches are left untouched.
+        private static unsafe bool ApplyReplaceFile(RegEx regex, string path, int defaultCodePage, string template)
         {
-            pattern = string.Empty;
-            paths = new List<string>();
-            ignoreCase = false;
-            encodingSpec = null;
+            string replaced;
+            int codePage;
 
-            var havePattern = false;
-            for (var i = 0; i < args.Length; i++)
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
             {
-                var arg = args[i];
-                if (arg == "-i" || arg == "--ignore-case")
+                var length = stream.Length;
+                if (length == 0)
                 {
-                    ignoreCase = true;
+                    return false;
                 }
-                else if (arg == "-e" || arg == "--encoding")
+
+                using var mmf = MemoryMappedFile.CreateFromFile(
+                    stream, null, 0, MemoryMappedFileAccess.Read, null, HandleInheritability.None, leaveOpen: true);
+                using var view = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
+                var handle = view.SafeMemoryMappedViewHandle;
+
+                byte* basePtr = null;
+                handle.AcquirePointer(ref basePtr);
+                try
                 {
-                    if (i + 1 >= args.Length)
+                    var data = basePtr + view.PointerOffset;
+
+                    codePage = DetectCodePage(data, length, defaultCodePage, out _);
+                    if (codePage != RegExCodePage.Utf16LE &&
+                        codePage != RegExCodePage.Utf16BE &&
+                        LooksBinary(data, length))
                     {
-                        Console.Error.WriteLine($"{arg}: missing code page value");
                         return false;
                     }
 
-                    encodingSpec = args[++i];
+                    var input = new RegExInput(handle, (nuint)view.PointerOffset, (nuint)length, codePage);
+                    if (!regex.Search(input, default, false, _ => true))
+                    {
+                        return false;
+                    }
+
+                    replaced = regex.Replace(input, template);
                 }
-                else if (arg.StartsWith("--encoding=", StringComparison.Ordinal))
+                finally
                 {
-                    encodingSpec = arg.Substring("--encoding=".Length);
-                }
-                else if (!havePattern)
-                {
-                    pattern = arg;
-                    havePattern = true;
-                }
-                else
-                {
-                    paths.Add(arg);
+                    handle.ReleasePointer();
                 }
             }
 
-            if (!havePattern)
-            {
-                return false;
-            }
-
-            if (paths.Count == 0)
-            {
-                paths.Add(".");
-            }
-
+            // The file is unmapped now; rewrite it atomically in its original code page.
+            var bytes = RegExEncoding.FromCodePage(codePage).GetBytes(replaced);
+            WriteAllBytesAtomic(path, bytes);
+            Console.Out.WriteLine($"{path}: updated");
             return true;
         }
 
-        // Resolves the --encoding value (utf8 | acp | <codepage>) to a code page the native
-        // library can handle, falling back to UTF-8 (with a warning) when it can't.
-        private static int ResolveDefaultCodePage(string? encodingSpec)
+        private static void WriteAllBytesAtomic(string path, byte[] bytes)
         {
-            if (string.IsNullOrEmpty(encodingSpec))
+            var full = Path.GetFullPath(path);
+            var directory = Path.GetDirectoryName(full)!;
+            var temp = Path.Combine(directory, $".{Path.GetFileName(full)}.{Guid.NewGuid():N}.tmp");
+            File.WriteAllBytes(temp, bytes);
+            try
             {
-                return FallbackCodePage;
+                File.Replace(temp, full, null);
             }
-
-            var spec = encodingSpec!;
-            int codePage;
-            switch (spec.ToLowerInvariant())
+            catch
             {
-                case "utf8":
-                case "utf-8":
-                    return RegExCodePage.Utf8;
-                case "acp":
-                case "ansi":
-                    codePage = (int)GetACP();
-                    break;
-                case "latin1":
-                case "iso-8859-1":
-                    codePage = RegExCodePage.Latin1;
-                    break;
-                default:
-                    if (!int.TryParse(spec, out codePage))
-                    {
-                        Console.Error.WriteLine($"Unknown encoding '{spec}', using UTF-8.");
-                        return FallbackCodePage;
-                    }
+                try
+                {
+                    File.Delete(temp);
+                }
+                catch
+                {
+                    // Best-effort cleanup.
+                }
 
-                    break;
+                throw;
+            }
+        }
+
+        // Resolves the parsed default code page: turns the CP_ACP sentinel into the real ANSI code
+        // page, then falls back to UTF-8 (with a warning) if the engine can't handle the result.
+        private static int ResolveDefaultCodePage(int codePage)
+        {
+            if (codePage == RegExCodePage.SystemDefault)
+            {
+                codePage = NativeMethods.GetACP();
             }
 
             if (!RegEx.IsCodePageSupported(codePage))
             {
-                Console.Error.WriteLine($"Code page {codePage} is not supported, using UTF-8.");
-                return FallbackCodePage;
+                Console.Error.WriteLine($"Code page {RegExCodePage.GetName(codePage)} is not supported, using UTF-8.");
+                return RegExCodePage.Utf8;
             }
 
             return codePage;
@@ -404,6 +442,12 @@ namespace UnicodeRegEx.Cli
             }
 
             return data[index] == value;
+        }
+
+        private static class NativeMethods
+        {
+            [DllImport("kernel32.dll")]
+            internal static extern int GetACP();
         }
     }
 }

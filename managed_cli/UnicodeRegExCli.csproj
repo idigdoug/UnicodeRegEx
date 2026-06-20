@@ -24,6 +24,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Reference Include="System.Configuration" />
     <ProjectReference Include="..\managed\UnicodeRegExManaged.csproj" />
   </ItemGroup>
 

@@ -180,6 +180,12 @@
     /// <summary>Text codePage (code page) of an input or output byte buffer.</summary>
     public static class RegExCodePage
     {
+        /// <summary>
+        /// The system default ANSI code page (CP_ACP, value 0). A placeholder that must be resolved
+        /// to a concrete code page (e.g. via GetACP) before use; the engine does not accept it.
+        /// </summary>
+        public const int SystemDefault = 0;
+
         /// <summary>UTF-16 little-endian (Windows code page 1200).</summary>
         public const int Utf16LE = 1200;
 
@@ -191,6 +197,62 @@
 
         /// <summary>UTF-8 (Windows code page 65001).</summary>
         public const int Utf8 = 65001;
+
+        /// <summary>
+        /// Parses a code-page specifier — a canonical alias (utf8, utf-16le, latin1, acp, ...) or a
+        /// non-negative number — into a code page. Aliases are case-insensitive; "acp"/"ansi" map to
+        /// <see cref="SystemDefault"/> (resolve it before use). Returns false otherwise. This is the
+        /// single, front-end-neutral alias vocabulary shared by the CLI and GUI.
+        /// </summary>
+        public static bool TryParse(string spec, out int codePage)
+        {
+            var normalized = (spec ?? string.Empty).Trim();
+            switch (normalized.ToLowerInvariant())
+            {
+                case "acp":
+                case "ansi":
+                    codePage = SystemDefault;
+                    return true;
+                case "utf8":
+                case "utf-8":
+                    codePage = Utf8;
+                    return true;
+                case "utf16":
+                case "utf-16":
+                case "utf16le":
+                case "utf-16le":
+                    codePage = Utf16LE;
+                    return true;
+                case "utf16be":
+                case "utf-16be":
+                    codePage = Utf16BE;
+                    return true;
+                case "latin1":
+                case "iso-8859-1":
+                case "iso8859-1":
+                    codePage = Latin1;
+                    return true;
+                default:
+                    return int.TryParse(normalized, out codePage) && codePage >= 0;
+            }
+        }
+
+        /// <summary>
+        /// Returns a short, human-readable name for a code page — its canonical alias when known,
+        /// otherwise the number. Useful for help text and UI display.
+        /// </summary>
+        public static string GetName(int codePage)
+        {
+            switch (codePage)
+            {
+                case SystemDefault: return "acp";
+                case Utf8: return "utf8";
+                case Utf16LE: return "utf16le";
+                case Utf16BE: return "utf16be";
+                case Latin1: return "latin1";
+                default: return codePage.ToString();
+            }
+        }
     }
 
     /// <summary>Position of a match or segment enumeration.</summary>
