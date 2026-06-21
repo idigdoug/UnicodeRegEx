@@ -1,6 +1,6 @@
 namespace UnicodeRegEx.Tools
 {
-    using System;
+    using System.Runtime.InteropServices;
     using UnicodeRegEx;
 
     /// <summary>
@@ -67,43 +67,23 @@ namespace UnicodeRegEx.Tools
         }
 
         /// <summary>
-        /// Resolves a requested default code page to a concrete, engine-supported page: the CP_ACP
-        /// sentinel (<see cref="RegExCodePage.SystemDefault"/>) becomes the real ANSI code page via
-        /// <paramref name="getAnsiCodePage"/>, then an unsupported result falls back to UTF-8. The
-        /// decision is shared; <see cref="CodePageResolution.UsedFallback"/> lets each front-end
-        /// render the fallback in its own idiom. <paramref name="getAnsiCodePage"/> is injected so
-        /// this layer stays platform-clean and testable.
+        /// Resolves the CP_ACP sentinel (<see cref="RegExCodePage.SystemDefault"/>) to the real
+        /// ANSI code page; any other value is returned unchanged. This is only sentinel resolution,
+        /// not a support check — call <see cref="IsSupported"/> to validate the result.
         /// </summary>
-        public static CodePageResolution ResolveDefault(int codePage, Func<int> getAnsiCodePage)
+        public static int ResolveDefault(int codePage) =>
+            codePage == RegExCodePage.SystemDefault ? NativeMethods.GetACP() : codePage;
+
+        /// <summary>
+        /// Returns true if the engine can decode the given (already-resolved) code page. The CP_ACP
+        /// sentinel is not resolved here; resolve it with <see cref="ResolveDefault"/> first.
+        /// </summary>
+        public static bool IsSupported(int codePage) => RegEx.IsCodePageSupported(codePage);
+
+        private static class NativeMethods
         {
-            if (codePage == RegExCodePage.SystemDefault)
-            {
-                codePage = getAnsiCodePage();
-            }
-
-            return RegEx.IsCodePageSupported(codePage)
-                ? new CodePageResolution(codePage, codePage, usedFallback: false)
-                : new CodePageResolution(RegExCodePage.Utf8, codePage, usedFallback: true);
+            [DllImport("kernel32.dll")]
+            public static extern int GetACP();
         }
-    }
-
-    /// <summary>The outcome of <see cref="CodePages.ResolveDefault"/>.</summary>
-    public readonly struct CodePageResolution
-    {
-        public CodePageResolution(int codePage, int requested, bool usedFallback)
-        {
-            CodePage = codePage;
-            Requested = requested;
-            UsedFallback = usedFallback;
-        }
-
-        /// <summary>The concrete, engine-supported code page to use.</summary>
-        public int CodePage { get; }
-
-        /// <summary>The requested page (after resolving the CP_ACP sentinel), for messaging.</summary>
-        public int Requested { get; }
-
-        /// <summary>True when <see cref="Requested"/> was unsupported and UTF-8 was substituted.</summary>
-        public bool UsedFallback { get; }
     }
 }

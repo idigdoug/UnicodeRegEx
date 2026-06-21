@@ -5,43 +5,34 @@ namespace UnicodeRegEx.Tools
     using System.Text;
     using UnicodeRegEx.Tools.Settings;
 
-    public enum ParseStatus
+    public sealed class CommandLineParseResult
     {
-        Success,
-        HelpRequested,
-        Error,
-    }
-
-    public sealed class ParseResult
-    {
-        public ParseResult(ParseStatus status, List<string> positionals, List<string> errors)
+        public CommandLineParseResult(bool helpRequested, List<string> positionals)
         {
-            Status = status;
+            HelpRequested = helpRequested;
             Positionals = positionals;
-            Errors = errors;
         }
 
-        public ParseStatus Status { get; }
+        public bool HelpRequested { get; }
 
         /// <summary>Arguments that are not options (e.g. the pattern and paths).</summary>
         public List<string> Positionals { get; }
-
-        public List<string> Errors { get; }
     }
 
     /// <summary>
     /// A small command-line parser over a <see cref="SettingGroup"/>. Supports --long, --long value,
     /// --long=value, -s, -s value, -svalue, "--" to end option processing, and -h/--help/-?.
-    /// Options may be interleaved with positionals. Application-agnostic.
+    /// Options may be interleaved with positionals. Application-agnostic. Errors (unknown options,
+    /// bad values) are appended to the caller's <c>errors</c> list rather than thrown, matching
+    /// <see cref="AppConfigSource.Apply"/> so a single list collects problems across all sources.
     /// </summary>
-    public static class CommandLineParser
+    public static class CommandLine
     {
-        public static ParseResult Parse(SettingGroup settingGroup, string[] args)
+        public static CommandLineParseResult Parse(string[] args, SettingGroup settingGroup, List<string> errors)
         {
             var positionals = new List<string>();
-            var errors = new List<string>();
 
-            var byLong = new Dictionary<string, Setting>(StringComparer.Ordinal);
+            var byLong = new Dictionary<string, Setting>(StringComparer.OrdinalIgnoreCase);
             var byShort = new Dictionary<char, Setting>();
             foreach (var option in settingGroup.Settings)
             {
@@ -71,7 +62,7 @@ namespace UnicodeRegEx.Tools
 
                 if (arg == "--help" || arg == "-h" || arg == "-?")
                 {
-                    return new ParseResult(ParseStatus.HelpRequested, positionals, errors);
+                    return new CommandLineParseResult(true, positionals);
                 }
 
                 Setting? option;
@@ -110,8 +101,7 @@ namespace UnicodeRegEx.Tools
                 Apply(option, inlineValue, args, ref i, errors);
             }
 
-            var status = errors.Count > 0 ? ParseStatus.Error : ParseStatus.Success;
-            return new ParseResult(status, positionals, errors);
+            return new CommandLineParseResult(false, positionals);
         }
 
         private static void Apply(Setting option, string? inlineValue, string[] args, ref int i, List<string> errors)

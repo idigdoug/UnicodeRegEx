@@ -25,11 +25,29 @@ namespace UnicodeRegEx.Tools
         public bool IgnoreCase { get; set; }
 
         /// <summary>
-        /// Code page for files without a byte-order mark, as requested — may be
-        /// <see cref="RegExCodePage.SystemDefault"/>; resolve via <see cref="CodePages.ResolveDefault"/>
-        /// before handing a concrete page to the engine.
+        /// Code page for files without a byte-order mark, as requested — may be the CP_ACP sentinel
+        /// <see cref="RegExCodePage.SystemDefault"/>. Setting this resolves the sentinel once into
+        /// <see cref="ResolvedDefaultCodePage"/>, which is what callers (and the engine) should use.
         /// </summary>
-        public int DefaultCodePage { get; set; } = RegExCodePage.Utf8;
+        public int DefaultCodePage
+        {
+            get => defaultCodePage;
+            set
+            {
+                defaultCodePage = value;
+                ResolvedDefaultCodePage = CodePages.ResolveDefault(value);
+            }
+        }
+
+        private int defaultCodePage = RegExCodePage.Utf8;
+
+        /// <summary>
+        /// <see cref="DefaultCodePage"/> with the CP_ACP sentinel resolved to the real ANSI code page
+        /// (kept in sync by the <see cref="DefaultCodePage"/> setter). This is the concrete page the
+        /// engine decodes with; <see cref="Validate"/> reports it via
+        /// <see cref="SearchRequestProblem.UnsupportedCodePage"/> if the engine cannot decode it.
+        /// </summary>
+        public int ResolvedDefaultCodePage { get; private set; } = RegExCodePage.Utf8;
 
         /// <summary>Replacement template, or null for search-only (no replacement).</summary>
         public string? ReplaceTemplate { get; set; }
@@ -40,7 +58,7 @@ namespace UnicodeRegEx.Tools
         /// </summary>
         public bool Apply { get; set; }
 
-        /// <summary>True when this request performs replacement (preview or in place).</summary>
+        /// <summary> True when this request performs replacement (preview or in place).</summary>
         public bool IsReplace => ReplaceTemplate != null;
 
         /// <summary>Syntax/option flags compiled from the editable options (e.g. <see cref="IgnoreCase"/>).</summary>
@@ -50,6 +68,40 @@ namespace UnicodeRegEx.Tools
                 : RegExSyntaxFlags.ECMAScript;
 
         /// <summary>
+        /// Copies the named, overridable settings (case sensitivity, encoding, replacement) from a
+        /// resolved <see cref="SearchSettings"/> onto this request.
+        /// </summary>
+        public void ApplySettings(SearchSettings settings)
+        {
+            IgnoreCase = settings.IgnoreCase.Value;
+            DefaultCodePage = settings.Encoding.Value;
+            ReplaceTemplate = settings.Replace.Value;
+            Apply = settings.Apply.Value;
+        }
+
+        /// <summary>
+        /// Populates <see cref="Pattern"/> and <see cref="Paths"/> from parsed positional arguments:
+        /// the first positional is the pattern and the rest are paths. Missing inputs are not filled
+        /// in here — an empty list leaves <see cref="Pattern"/> empty and <see cref="Paths"/> empty,
+        /// which <see cref="Validate"/> reports as <see cref="SearchRequestProblem.PatternRequired"/>
+        /// and <see cref="SearchRequestProblem.PathRequired"/>. Defaulting (e.g. searching the current
+        /// directory) is a front-end policy, not part of this shared "command line to request" mapping.
+        /// </summary>
+        public void ApplyPositionals(IReadOnlyList<string> positionals)
+        {
+            if (positionals.Count > 0)
+            {
+                Pattern = positionals[0];
+            }
+
+            Paths.Clear();
+            for (var i = 1; i < positionals.Count; i++)
+            {
+                Paths.Add(positionals[i]);
+            }
+        }
+
+        /// <summary>
         /// Returns the ways in which this request is invalid (empty when valid). A separate query
         /// rather than a constructor guard, so a front-end can bind to the model while it is being
         /// edited and surface problems in its own idiom.
@@ -57,19 +109,69 @@ namespace UnicodeRegEx.Tools
         public IReadOnlyList<SearchRequestProblem> Validate()
         {
             var problems = new List<SearchRequestProblem>();
+            if (Pattern.Length == 0)
+            {
+                problems.Add(SearchRequestProblem.PatternRequired);
+            }
+
+            if (Paths.Count == 0)
+            {
+                problems.Add(SearchRequestProblem.PathRequired);
+            }
+
             if (Apply && ReplaceTemplate == null)
             {
                 problems.Add(SearchRequestProblem.ApplyRequiresTemplate);
             }
 
+            if (!CodePages.IsSupported(ResolvedDefaultCodePage))
+            {
+                problems.Add(SearchRequestProblem.UnsupportedCodePage);
+            }
+
             return problems;
         }
+
+        /// <summary>
+        /// Renders one <see cref="SearchRequestProblem"/> (from <see cref="Validate"/>) into the
+        /// command line's vocabulary (flag names, terse phrasing). An instance method so it can name
+        /// the offending value — e.g. the unsupported <see cref="ResolvedDefaultCodePage"/>. Kept next
+        /// to <see cref="Validate"/> and the enum so a new problem and its message are added together.
+        /// Producing front-end vocabulary here is acceptable because the argument names already live in
+        /// this shared library (<see cref="SearchSettings"/>); a front-end that renders problems
+        /// differently (e.g. a GUI) keeps the structured <see cref="SearchRequestProblem"/> codes and
+        /// simply does not call this.
+        /// </summary>
+        // The switch is exhaustive over the *named* members with no default arm, so adding a
+        // SearchRequestProblem triggers CS8509 here and forces this text to be updated. CS8524 (the
+        // synthetic, out-of-range/unnamed enum value) is suppressed because it would otherwise fire on
+        // every build without indicating a real gap; an out-of-range value throws at runtime.
+#pragma warning disable CS8524
+        public string DescribeProblemForCommandLine(SearchRequestProblem problem) =>
+            problem switch
+            {
+                SearchRequestProblem.PatternRequired => "no pattern given",
+                SearchRequestProblem.PathRequired => "no paths given",
+                SearchRequestProblem.ApplyRequiresTemplate => "--apply requires --replace",
+                SearchRequestProblem.UnsupportedCodePage =>
+                    $"unsupported encoding '{CodePages.GetName(ResolvedDefaultCodePage)}'",
+            };
+#pragma warning restore CS8524
     }
 
     /// <summary>A way in which a <see cref="SearchRequest"/> can be invalid.</summary>
     public enum SearchRequestProblem
     {
+        /// <summary>No <see cref="SearchRequest.Pattern"/> was given.</summary>
+        PatternRequired,
+
+        /// <summary>No <see cref="SearchRequest.Paths"/> were given.</summary>
+        PathRequired,
+
         /// <summary><see cref="SearchRequest.Apply"/> is set but no replacement template was given.</summary>
         ApplyRequiresTemplate,
+
+        /// <summary><see cref="SearchRequest.ResolvedDefaultCodePage"/> is not one the engine can decode.</summary>
+        UnsupportedCodePage,
     }
 }

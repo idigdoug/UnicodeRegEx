@@ -6,10 +6,8 @@ namespace UnicodeRegEx.Tools
 
     /// <summary>
     /// Settings shared by every front-end of the search/replace tool: each has a sensible default,
-    /// can be overridden (command line today; config/env later), and is enumerable via
-    /// <see cref="SettingGroup"/> for help text and, eventually, GUI binding. Front-end concerns (help
-    /// rendering, control binding) live above this; this type is meant to move into the shared core
-    /// unchanged. Add a setting by adding one field.
+    /// can be overridden, and is enumerable via <see cref="SettingGroup"/> for help text. Add a
+    /// setting by adding a field.
     /// </summary>
     public sealed class SearchSettings : SettingGroup
     {
