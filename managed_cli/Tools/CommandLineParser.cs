@@ -1,8 +1,9 @@
-namespace UnicodeRegEx.CommandLine
+namespace UnicodeRegEx.Tools
 {
     using System;
     using System.Collections.Generic;
     using System.Text;
+    using UnicodeRegEx.Tools.Settings;
 
     public enum ParseStatus
     {
@@ -29,20 +30,20 @@ namespace UnicodeRegEx.CommandLine
     }
 
     /// <summary>
-    /// A small command-line parser over an <see cref="OptionSet"/>. Supports --long, --long value,
+    /// A small command-line parser over a <see cref="SettingGroup"/>. Supports --long, --long value,
     /// --long=value, -s, -s value, -svalue, "--" to end option processing, and -h/--help/-?.
     /// Options may be interleaved with positionals. Application-agnostic.
     /// </summary>
     public static class CommandLineParser
     {
-        public static ParseResult Parse(OptionSet optionSet, string[] args)
+        public static ParseResult Parse(SettingGroup settingGroup, string[] args)
         {
             var positionals = new List<string>();
             var errors = new List<string>();
 
-            var byLong = new Dictionary<string, CommandLineOption>(StringComparer.Ordinal);
-            var byShort = new Dictionary<char, CommandLineOption>();
-            foreach (var option in optionSet.Options)
+            var byLong = new Dictionary<string, Setting>(StringComparer.Ordinal);
+            var byShort = new Dictionary<char, Setting>();
+            foreach (var option in settingGroup.Settings)
             {
                 byLong[option.LongName] = option;
                 if (option.ShortName is char shortName)
@@ -73,7 +74,7 @@ namespace UnicodeRegEx.CommandLine
                     return new ParseResult(ParseStatus.HelpRequested, positionals, errors);
                 }
 
-                CommandLineOption? option;
+                Setting? option;
                 string? inlineValue;
                 if (arg.StartsWith("--", StringComparison.Ordinal))
                 {
@@ -113,7 +114,7 @@ namespace UnicodeRegEx.CommandLine
             return new ParseResult(status, positionals, errors);
         }
 
-        private static void Apply(CommandLineOption option, string? inlineValue, string[] args, ref int i, List<string> errors)
+        private static void Apply(Setting option, string? inlineValue, string[] args, ref int i, List<string> errors)
         {
             var value = inlineValue;
             if (option.TakesValue && value == null)
@@ -140,19 +141,19 @@ namespace UnicodeRegEx.CommandLine
         }
     }
 
-    /// <summary>Renders --help text by enumerating an <see cref="OptionSet"/>.</summary>
+    /// <summary>Renders --help text by enumerating a <see cref="SettingGroup"/>.</summary>
     public static class HelpFormatter
     {
         private const int LeftColumnWidth = 28;
 
-        public static string Format(string usage, OptionSet optionSet)
+        public static string Format(string usage, SettingGroup settingGroup)
         {
             var sb = new StringBuilder();
             sb.AppendLine(usage);
             sb.AppendLine();
             sb.AppendLine("Options:");
 
-            foreach (var option in optionSet.Options)
+            foreach (var option in settingGroup.Settings)
             {
                 sb.AppendLine(FormatOption(option.ShortName, option.LongName, option.ValueName, option.Description, option.DefaultText));
             }

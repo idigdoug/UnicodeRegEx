@@ -6,8 +6,8 @@ namespace UnicodeRegEx.Cli
     using System.IO.MemoryMappedFiles;
     using System.Runtime.InteropServices;
     using UnicodeRegEx;
-    using UnicodeRegEx.CommandLine;
     using UnicodeRegEx.Tools;
+    using UnicodeRegEx.Tools.Settings;
 
     internal static class Program
     {
@@ -28,7 +28,7 @@ namespace UnicodeRegEx.Cli
                 // Precedence: built-in defaults < .config (<appSettings>) < command line.
                 var options = new SearchSettings();
                 var configErrors = new List<string>();
-                AppConfigSettings.Apply(options, configErrors);
+                AppConfigSource.Apply(options, configErrors);
 
                 var parsed = CommandLineParser.Parse(options, args);
 
@@ -68,25 +68,39 @@ namespace UnicodeRegEx.Cli
                     paths.Add(".");
                 }
 
-                var template = options.Replace.Value;
-                var apply = options.Apply.Value;
-                if (apply && template == null)
+                var request = new SearchRequest
                 {
-                    Console.Error.WriteLine("error: --apply requires --replace");
+                    Pattern = pattern,
+                    IgnoreCase = options.IgnoreCase.Value,
+                    DefaultCodePage = options.Encoding.Value,
+                    ReplaceTemplate = options.Replace.Value,
+                    Apply = options.Apply.Value,
+                };
+                request.Paths.AddRange(paths);
+
+                if (request.Validate().Count > 0)
+                {
+                    foreach (var problem in request.Validate())
+                    {
+                        Console.Error.WriteLine($"error: {DescribeProblem(problem)}");
+                    }
+
                     Console.Error.WriteLine(usage);
                     return 2;
                 }
 
-                var syntaxFlags = options.IgnoreCase.Value
-                    ? RegExSyntaxFlags.ECMAScript | RegExSyntaxFlags.ICase
-                    : RegExSyntaxFlags.ECMAScript;
-                using var regex = RegEx.Create(pattern, syntaxFlags);
+                var resolution = CodePages.ResolveDefault(request.DefaultCodePage, NativeMethods.GetACP);
+                if (resolution.UsedFallback)
+                {
+                    Console.Error.WriteLine($"Code page {CodePages.GetName(resolution.Requested)} is not supported, using UTF-8.");
+                }
 
-                var defaultCodePage = ResolveDefaultCodePage(options.Encoding.Value);
+                var defaultCodePage = resolution.CodePage;
+                using var regex = RegEx.Create(request.Pattern, request.SyntaxFlags);
 
                 var anyMatch = false;
                 var errors = 0;
-                foreach (var file in EnumerateFiles(paths))
+                foreach (var file in EnumerateFiles(request.Paths))
                 {
                     if (cancelled)
                     {
@@ -95,9 +109,9 @@ namespace UnicodeRegEx.Cli
 
                     try
                     {
-                        anyMatch |= apply
-                            ? ApplyReplaceFile(regex, file, defaultCodePage, template!)
-                            : MatchFile(regex, file, defaultCodePage, template);
+                        anyMatch |= request.Apply
+                            ? ApplyReplaceFile(regex, file, request, defaultCodePage)
+                            : MatchFile(regex, file, request, defaultCodePage);
                     }
                     catch (Exception ex)
                     {
@@ -120,7 +134,7 @@ namespace UnicodeRegEx.Cli
             }
         }
 
-        private static unsafe bool MatchFile(RegEx regex, string path, int defaultCodePage, string? replaceTemplate)
+        private static unsafe bool MatchFile(RegEx regex, string path, SearchRequest request, int defaultCodePage)
         {
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             var length = stream.Length;
@@ -135,9 +149,9 @@ namespace UnicodeRegEx.Cli
             var handle = view.SafeMemoryMappedViewHandle;
 
             byte* basePtr = null;
-            handle.AcquirePointer(ref basePtr);
             try
             {
+                handle.AcquirePointer(ref basePtr);
                 var data = basePtr + view.PointerOffset;
 
                 var codePage = DetectCodePage(data, length, defaultCodePage, out var bomLength);
@@ -153,6 +167,7 @@ namespace UnicodeRegEx.Cli
                 // Lambdas can't capture pointers, so pass the view's base address as an IntPtr.
                 var dataAddress = (IntPtr)data;
 
+                var replaceTemplate = request.ReplaceTemplate;
                 var enumerateOptions = replaceTemplate == null
                     ? default
                     : new RegExEnumerateOptions { FormatTemplate = replaceTemplate };
@@ -226,13 +241,16 @@ namespace UnicodeRegEx.Cli
             }
             finally
             {
-                handle.ReleasePointer();
+                if (basePtr != null)
+                {
+                    handle.ReleasePointer();
+                }
             }
         }
 
         // Single-pass replace: rewrites the file atomically if (and only if) it contains a match,
         // so files without matches are left untouched.
-        private static unsafe bool ApplyReplaceFile(RegEx regex, string path, int defaultCodePage, string template)
+        private static unsafe bool ApplyReplaceFile(RegEx regex, string path, SearchRequest request, int defaultCodePage)
         {
             string replaced;
             int codePage;
@@ -251,9 +269,9 @@ namespace UnicodeRegEx.Cli
                 var handle = view.SafeMemoryMappedViewHandle;
 
                 byte* basePtr = null;
-                handle.AcquirePointer(ref basePtr);
                 try
                 {
+                    handle.AcquirePointer(ref basePtr);
                     var data = basePtr + view.PointerOffset;
 
                     codePage = DetectCodePage(data, length, defaultCodePage, out _);
@@ -270,11 +288,14 @@ namespace UnicodeRegEx.Cli
                         return false;
                     }
 
-                    replaced = regex.Replace(input, template);
+                    replaced = regex.Replace(input, request.ReplaceTemplate!);
                 }
                 finally
                 {
-                    handle.ReleasePointer();
+                    if (basePtr != null)
+                    {
+                        handle.ReleasePointer();
+                    }
                 }
             }
 
@@ -310,25 +331,19 @@ namespace UnicodeRegEx.Cli
             }
         }
 
-        // Resolves the parsed default code page: turns the CP_ACP sentinel into the real ANSI code
-        // page, then falls back to UTF-8 (with a warning) if the engine can't handle the result.
-        private static int ResolveDefaultCodePage(int codePage)
+        // Renders a shared SearchRequest validation problem into CLI vocabulary (flag names).
+        private static string DescribeProblem(SearchRequestProblem problem)
         {
-            if (codePage == RegExCodePage.SystemDefault)
+            switch (problem)
             {
-                codePage = NativeMethods.GetACP();
+                case SearchRequestProblem.ApplyRequiresTemplate:
+                    return "--apply requires --replace";
+                default:
+                    return problem.ToString();
             }
-
-            if (!RegEx.IsCodePageSupported(codePage))
-            {
-                Console.Error.WriteLine($"Code page {RegExCodePage.GetName(codePage)} is not supported, using UTF-8.");
-                return RegExCodePage.Utf8;
-            }
-
-            return codePage;
         }
 
-        private static IEnumerable<string> EnumerateFiles(IReadOnlyList<string> paths)
+        private static IEnumerable<string> EnumerateFiles(IEnumerable<string> paths)
         {
             foreach (var path in paths)
             {

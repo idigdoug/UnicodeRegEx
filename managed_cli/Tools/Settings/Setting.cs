@@ -1,23 +1,47 @@
-namespace UnicodeRegEx.CommandLine
+namespace UnicodeRegEx.Tools.Settings
 {
     using System;
     using System.Collections.Generic;
     using System.Reflection;
 
     /// <summary>
-    /// Base description of a single command-line option. Each option owns its parsed value, so an
-    /// <see cref="OptionSet"/> is the single source of truth for defaults, parsing, and generated
+    /// Classifies a setting by persistence semantics. Required on every <see cref="Setting"/> so the
+    /// distinction is a conscious choice, never an accident.
+    /// </summary>
+    public enum SettingRole
+    {
+        /// <summary>
+        /// A durable user choice (e.g. match options, default code page). Persist-eligible: a
+        /// front-end may save it and reload it on next launch. Command-line values for a preference
+        /// are an ephemeral, per-invocation override and are NOT written back to the persisted store.
+        /// </summary>
+        Preference,
+
+        /// <summary>
+        /// Transient "what I'm doing right now" / launch intent (e.g. the replace template, apply
+        /// switch). Never persisted; this is the role command-line launch arguments populate.
+        /// </summary>
+        WorkingState,
+    }
+
+    /// <summary>
+    /// Base description of a single program setting. Each setting owns its parsed value, so a
+    /// <see cref="SettingGroup"/> is the single source of truth for defaults, parsing, and generated
     /// --help text. Kept application-agnostic so it can move to a shared core later.
     /// </summary>
-    public abstract class CommandLineOption
+    public abstract class Setting
     {
-        protected CommandLineOption(string longName, char? shortName, string? valueName, string description)
+        protected Setting(SettingRole role, string longName, char? shortName, string? valueName, string description)
         {
+            Role = role;
             LongName = longName;
             ShortName = shortName;
             ValueName = valueName;
             Description = description;
         }
+
+        /// <summary>Persistence classification (preference vs transient working state).</summary>
+        public SettingRole Role { get; }
 
         /// <summary>The --long-name, without the leading dashes.</summary>
         public string LongName { get; }
@@ -45,10 +69,10 @@ namespace UnicodeRegEx.CommandLine
     }
 
     /// <summary>A boolean flag: absent leaves the default (false), present sets it true.</summary>
-    public sealed class FlagOption : CommandLineOption
+    public sealed class FlagSetting : Setting
     {
-        public FlagOption(string longName, char? shortName, string description)
-            : base(longName, shortName, null, description)
+        public FlagSetting(SettingRole role, string longName, char? shortName, string description)
+            : base(role, longName, shortName, null, description)
         {
         }
 
@@ -80,14 +104,15 @@ namespace UnicodeRegEx.CommandLine
         }
     }
 
-    /// <summary>An option that consumes a value parsed into <typeparamref name="T"/>.</summary>
-    public sealed class ValueOption<T> : CommandLineOption
+    /// <summary>A setting that consumes a value parsed into <typeparamref name="T"/>.</summary>
+    public sealed class ValueSetting<T> : Setting
     {
         private readonly Func<string, T> parse;
         private readonly Func<T, string> describe;
         private readonly T defaultValue;
 
-        public ValueOption(
+        public ValueSetting(
+            SettingRole role,
             string longName,
             char? shortName,
             string valueName,
@@ -95,7 +120,7 @@ namespace UnicodeRegEx.CommandLine
             T defaultValue,
             Func<string, T> parse,
             Func<T, string>? describe = null)
-            : base(longName, shortName, valueName, description)
+            : base(role, longName, shortName, valueName, description)
         {
             this.parse = parse ?? throw new ArgumentNullException(nameof(parse));
             this.describe = describe ?? DescribeDefault;
@@ -122,45 +147,45 @@ namespace UnicodeRegEx.CommandLine
     }
 
     /// <summary>
-    /// A collection of options. Subclasses declare options as public fields; they are discovered
-    /// automatically (in declaration order) so adding a setting is a single edit, and every option
+    /// A collection of settings. Subclasses declare settings as public fields; they are discovered
+    /// automatically (in declaration order) so adding a setting is a single edit, and every setting
     /// is available for both parsing and --help.
     /// </summary>
-    public abstract class OptionSet
+    public abstract class SettingGroup
     {
-        private CommandLineOption[]? options;
+        private Setting[]? settings;
 
-        public IReadOnlyList<CommandLineOption> Options => options ??= Collect();
+        public IReadOnlyList<Setting> Settings => settings ??= Collect();
 
         /// <summary>
         /// Applies a set of name-&gt;value settings (from a config file, environment, etc.) onto the
-        /// options in this set, matching by <see cref="CommandLineOption.LongName"/>. Run this before
+        /// settings in this group, matching by <see cref="Setting.LongName"/>. Run this before
         /// the command line so command-line arguments take precedence. Unknown names and unparseable
         /// values are collected in <paramref name="errors"/> (prefixed with
         /// <paramref name="sourceLabel"/>) rather than thrown.
         /// </summary>
         public void ApplyOverlay(
-            IEnumerable<KeyValuePair<string, string?>> settings,
+            IEnumerable<KeyValuePair<string, string?>> values,
             string sourceLabel,
             List<string> errors)
         {
-            var byName = new Dictionary<string, CommandLineOption>(StringComparer.Ordinal);
-            foreach (var option in Options)
+            var byName = new Dictionary<string, Setting>(StringComparer.Ordinal);
+            foreach (var setting in Settings)
             {
-                byName[option.LongName] = option;
+                byName[setting.LongName] = setting;
             }
 
-            foreach (var setting in settings)
+            foreach (var value in values)
             {
-                if (!byName.TryGetValue(setting.Key, out var option))
+                if (!byName.TryGetValue(value.Key, out var setting))
                 {
-                    errors.Add($"{sourceLabel}: unknown setting '{setting.Key}'");
+                    errors.Add($"{sourceLabel}: unknown setting '{value.Key}'");
                     continue;
                 }
 
                 try
                 {
-                    option.Apply(setting.Value);
+                    setting.Apply(value.Value);
                 }
                 catch (Exception ex)
                 {
@@ -169,14 +194,14 @@ namespace UnicodeRegEx.CommandLine
             }
         }
 
-        private CommandLineOption[] Collect()
+        private Setting[] Collect()
         {
-            var result = new List<CommandLineOption>();
+            var result = new List<Setting>();
             foreach (var field in GetType().GetFields(BindingFlags.Public | BindingFlags.Instance))
             {
-                if (field.GetValue(this) is CommandLineOption option)
+                if (field.GetValue(this) is Setting setting)
                 {
-                    result.Add(option);
+                    result.Add(setting);
                 }
             }
 

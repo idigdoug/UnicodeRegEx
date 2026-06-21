@@ -1,17 +1,16 @@
-namespace UnicodeRegEx.Tools
+namespace UnicodeRegEx.Tools.Settings
 {
     using System.Collections.Generic;
     using System.Configuration;
-    using UnicodeRegEx.CommandLine;
 
     /// <summary>
-    /// Applies settings from the application's &lt;appSettings&gt; section (each key matching an
-    /// option's long name) onto an option set, before the command line is parsed. This is the first
+    /// Applies settings from the application's &lt;appSettings&gt; section (each key matching a
+    /// setting's long name) onto a setting group, before the command line is parsed. This is the first
     /// configuration layer; command-line arguments override it.
     /// </summary>
-    public static class AppConfigSettings
+    public static class AppConfigSource
     {
-        public static void Apply(OptionSet optionSet, List<string> errors)
+        public static void Apply(SettingGroup settingGroup, List<string> errors)
         {
             var appSettings = ConfigurationManager.AppSettings;
             var settings = new List<KeyValuePair<string, string?>>(appSettings.Count);
@@ -23,7 +22,7 @@ namespace UnicodeRegEx.Tools
                 }
             }
 
-            optionSet.ApplyOverlay(settings, "config", errors);
+            settingGroup.ApplyOverlay(settings, "config", errors);
         }
     }
 }
