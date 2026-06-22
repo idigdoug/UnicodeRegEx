@@ -167,33 +167,33 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <TargetName>UnicodeRegEx_$(PlatformTarget)</TargetName>
-    <OutDir>$(SolutionDir)out\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <TargetName>UnicodeRegEx_$(PlatformTarget)</TargetName>
-    <OutDir>$(SolutionDir)out\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <TargetName>UnicodeRegEx_$(PlatformTarget)</TargetName>
-    <OutDir>$(SolutionDir)out\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <TargetName>UnicodeRegEx_$(PlatformTarget)</TargetName>
-    <OutDir>$(SolutionDir)out\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <TargetName>UnicodeRegEx_$(PlatformTarget)</TargetName>
-    <OutDir>$(SolutionDir)out\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <TargetName>UnicodeRegEx_$(PlatformTarget)</TargetName>
-    <OutDir>$(SolutionDir)out\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -324,7 +324,7 @@
       <EnableSegmentHeap>true</EnableSegmentHeap>
     </Manifest>
     <ResourceCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib</AdditionalIncludeDirectories>
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -348,7 +348,7 @@
       <EnableSegmentHeap>true</EnableSegmentHeap>
     </Manifest>
     <ResourceCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib</AdditionalIncludeDirectories>
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
@@ -372,7 +372,7 @@
       <EnableSegmentHeap>true</EnableSegmentHeap>
     </Manifest>
     <ResourceCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib</AdditionalIncludeDirectories>
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -395,7 +395,7 @@
       <EnableSegmentHeap>true</EnableSegmentHeap>
     </Manifest>
     <ResourceCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib</AdditionalIncludeDirectories>
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -418,7 +418,7 @@
       <EnableSegmentHeap>true</EnableSegmentHeap>
     </Manifest>
     <ResourceCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib</AdditionalIncludeDirectories>
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
@@ -441,7 +441,7 @@
       <EnableSegmentHeap>true</EnableSegmentHeap>
     </Manifest>
     <ResourceCompile>
-      <AdditionalIncludeDirectories>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib</AdditionalIncludeDirectories>
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>

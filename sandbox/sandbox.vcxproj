@@ -98,28 +98,28 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>

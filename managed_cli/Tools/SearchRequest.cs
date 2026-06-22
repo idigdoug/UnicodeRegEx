@@ -15,14 +15,40 @@ namespace UnicodeRegEx.Tools
     /// </summary>
     public sealed class SearchRequest
     {
+        // Instance fields go here:
+
+        private int defaultCodePage = RegExCodePage.Utf8;
+
+        // Properties with implicit backing fields go here:
+
+        /// <summary>
+        /// <see cref="DefaultCodePage"/> with the CP_ACP sentinel resolved to the real ANSI code page
+        /// (kept in sync by the <see cref="DefaultCodePage"/> setter). This is the concrete page the
+        /// engine decodes with; <see cref="Validate"/> reports it via
+        /// <see cref="SearchRequestProblem.UnsupportedCodePage"/> if the engine cannot decode it.
+        /// </summary>
+        public int ResolvedDefaultCodePage { get; private set; } = RegExCodePage.Utf8;
+
+        /// <summary>Replacement template, or null for search-only (no replacement).</summary>
+        public string? ReplaceTemplate { get; set; }
+
+        /// <summary>Match without regard to case.</summary>
+        public bool IgnoreCase { get; set; }
+
+        /// <summary>
+        /// True to write replacements back to files in place; false to preview only. Only meaningful
+        /// when <see cref="ReplaceTemplate"/> is non-null (see <see cref="Validate"/>).
+        /// </summary>
+        public bool Apply { get; set; }
+
         /// <summary>The regular expression pattern to search for.</summary>
         public string Pattern { get; set; } = string.Empty;
 
         /// <summary>Files and/or directories to search; directories are searched recursively.</summary>
         public List<string> Paths { get; } = new List<string>();
 
-        /// <summary>Match without regard to case.</summary>
-        public bool IgnoreCase { get; set; }
+        // All object state (i.e. fields and Properties with implicit backing fields) go above this line.
+        // Derived values go below.
 
         /// <summary>
         /// Code page for files without a byte-order mark, as requested — may be the CP_ACP sentinel
@@ -39,25 +65,6 @@ namespace UnicodeRegEx.Tools
             }
         }
 
-        private int defaultCodePage = RegExCodePage.Utf8;
-
-        /// <summary>
-        /// <see cref="DefaultCodePage"/> with the CP_ACP sentinel resolved to the real ANSI code page
-        /// (kept in sync by the <see cref="DefaultCodePage"/> setter). This is the concrete page the
-        /// engine decodes with; <see cref="Validate"/> reports it via
-        /// <see cref="SearchRequestProblem.UnsupportedCodePage"/> if the engine cannot decode it.
-        /// </summary>
-        public int ResolvedDefaultCodePage { get; private set; } = RegExCodePage.Utf8;
-
-        /// <summary>Replacement template, or null for search-only (no replacement).</summary>
-        public string? ReplaceTemplate { get; set; }
-
-        /// <summary>
-        /// True to write replacements back to files in place; false to preview only. Only meaningful
-        /// when <see cref="ReplaceTemplate"/> is non-null (see <see cref="Validate"/>).
-        /// </summary>
-        public bool Apply { get; set; }
-
         /// <summary> True when this request performs replacement (preview or in place).</summary>
         public bool IsReplace => ReplaceTemplate != null;
 
@@ -73,9 +80,10 @@ namespace UnicodeRegEx.Tools
         /// </summary>
         public void ApplySettings(SearchSettings settings)
         {
-            IgnoreCase = settings.IgnoreCase.Value;
             DefaultCodePage = settings.Encoding.Value;
+            // ResolvedDefaultCodePage is updated by the DefaultCodePage setter.
             ReplaceTemplate = settings.Replace.Value;
+            IgnoreCase = settings.IgnoreCase.Value;
             Apply = settings.Apply.Value;
         }
 
@@ -99,6 +107,27 @@ namespace UnicodeRegEx.Tools
             {
                 Paths.Add(positionals[i]);
             }
+        }
+
+        /// <summary>
+        /// Returns an independent copy of this request, including a separate <see cref="Paths"/> list.
+        /// A job snapshots its request with this so the caller can keep editing the original (for the
+        /// next run) without affecting work in progress.
+        /// </summary>
+        public SearchRequest Clone()
+        {
+            var copy = new SearchRequest
+            {
+                defaultCodePage = defaultCodePage,
+                ResolvedDefaultCodePage = ResolvedDefaultCodePage,
+                ReplaceTemplate = ReplaceTemplate,
+                IgnoreCase = IgnoreCase,
+                Apply = Apply,
+                Pattern = Pattern,
+            };
+
+            copy.Paths.AddRange(Paths);
+            return copy;
         }
 
         /// <summary>

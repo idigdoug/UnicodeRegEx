@@ -300,28 +300,28 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -713,7 +713,7 @@
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "..\out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -749,7 +749,7 @@
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "..\out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -785,7 +785,7 @@
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "..\out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -821,7 +821,7 @@
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "..\out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -857,7 +857,7 @@
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "..\out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -893,7 +893,7 @@
       <TypeLibraryName>$(IntDir)%(Filename).tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "$(SolutionDir)out\."</Command>
+      <Command>copy /y "$(IntDir)UnicodeRegEx.h" "..\out\."</Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>Publishing MIDL outputs to $(OutDir)</Message>
@@ -947,7 +947,7 @@
     <_TlbImpExe Condition="'$(_TlbImpExe)' == '' AND Exists('$(WindowsSdkDir)bin\NETFX 4.8 Tools\TlbImp.exe')">$(WindowsSdkDir)bin\NETFX 4.8 Tools\TlbImp.exe</_TlbImpExe>
     <_TlbImpExe Condition="'$(_TlbImpExe)' == '' AND Exists('$(NETFXSDKDir)bin\NETFX 4.8 Tools\TlbImp.exe')">$(NETFXSDKDir)bin\NETFX 4.8 Tools\TlbImp.exe</_TlbImpExe>
     <_TlbImpExe Condition="'$(_TlbImpExe)' == ''">TlbImp.exe</_TlbImpExe>
-    <_InteropAssembly>$(SolutionDir)out\UnicodeRegEx.Interop.dll</_InteropAssembly>
+    <_InteropAssembly>..\out\UnicodeRegEx.Interop.dll</_InteropAssembly>
   </PropertyGroup>
   <Target Name="GenerateInteropAssembly" AfterTargets="Build" Inputs="$(IntDir)UnicodeRegEx.tlb" Outputs="$(_InteropAssembly)">
     <Message Importance="high" Text="Generating $(_InteropAssembly) from $(IntDir)UnicodeRegEx.tlb" />

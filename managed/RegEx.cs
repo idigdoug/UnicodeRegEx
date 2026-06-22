@@ -166,7 +166,7 @@ namespace UnicodeRegEx
         /// <summary>
         /// Converts the input to <paramref name="outputCodePage"/> and writes it to <paramref name="output"/>.
         /// </summary>
-        public static void TranscodeTo(RegExInput input, Interop.ISequentialStream output, int outputCodePage)
+        public static void TranscodeTo(RegExInput input, RegExSequentialStream output, int outputCodePage)
         {
             RegExInput.PinScope pinScope = default;
             try
@@ -183,10 +183,10 @@ namespace UnicodeRegEx
         /// Converts the pinned input bytes (interpreted with <paramref name="inputCodePage"/>) to
         /// <paramref name="outputCodePage"/> and writes them to <paramref name="output"/>.
         /// </summary>
-        public static void TranscodeTo(RegExPinnedBytes inputBytes, int inputCodePage, Interop.ISequentialStream output, int outputCodePage)
+        public static void TranscodeTo(RegExPinnedBytes inputBytes, int inputCodePage, RegExSequentialStream output, int outputCodePage)
         {
             var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            Library.TranscodeTo(bytes, (uint)inputCodePage, output, (uint)outputCodePage);
+            Library.TranscodeTo(bytes, (uint)inputCodePage, output.SequentialStream, (uint)outputCodePage);
         }
 
         /// <summary>
@@ -498,7 +498,7 @@ namespace UnicodeRegEx
         /// </summary>
         public void ReplaceTo(
             RegExInput input,
-            Interop.ISequentialStream outputStream,
+            RegExSequentialStream outputStream,
             int outputCodePage,
             string formatTemplate,
             RegExReplaceOptions options = default)
@@ -521,13 +521,13 @@ namespace UnicodeRegEx
         public void ReplaceTo(
             RegExPinnedBytes inputBytes,
             int inputCodePage,
-            Interop.ISequentialStream outputStream,
+            RegExSequentialStream outputStream,
             int outputCodePage,
             string formatTemplate,
             RegExReplaceOptions options = default)
         {
             var bytes = new Interop.RegExBytes { data = (nint)inputBytes.Data, size = (nint)inputBytes.Size };
-            inner.ReplaceTo(bytes, (uint)inputCodePage, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags, formatTemplate, (Interop.RegExFormatFlags)options.FormatFlags, outputStream, (uint)outputCodePage);
+            inner.ReplaceTo(bytes, (uint)inputCodePage, (long)options.StartByteOffset, (Interop.RegExMatchFlags)options.MatchFlags, formatTemplate, (Interop.RegExFormatFlags)options.FormatFlags, outputStream.SequentialStream, (uint)outputCodePage);
         }
 
         // PRIVATE

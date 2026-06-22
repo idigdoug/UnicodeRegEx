@@ -70,11 +70,21 @@
         }
 
         /// <summary>
-        /// Converts the specified span of input to a string in the specified codePage and writes it to the specified output stream.
+        /// Converts the specified span of input to the specified code page and writes it to
+        /// <paramref name="output"/>.
         /// </summary>
-        public void CopyInputTo(nuint inputOffset, nuint size, Interop.ISequentialStream outputStream, int outputCodePage)
+        public void CopyInputTo(nuint inputOffset, nuint size, RegExSequentialStream output, int outputCodePage)
         {
-            inner.CopyInputTo((long)inputOffset, (long)size, outputStream, (uint)outputCodePage);
+            inner.CopyInputTo((long)inputOffset, (long)size, output.SequentialStream, (uint)outputCodePage);
+        }
+
+        /// <summary>
+        /// Converts this whole segment (the input span from <see cref="Begin"/> to <see cref="End"/>)
+        /// to the specified code page and writes it to <paramref name="output"/>.
+        /// </summary>
+        public void CopyTo(RegExSequentialStream output, int outputCodePage)
+        {
+            inner.CopyInputTo((long)begin, (long)(end - begin), output.SequentialStream, (uint)outputCodePage);
         }
     }
 }

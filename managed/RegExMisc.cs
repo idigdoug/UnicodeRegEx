@@ -5,20 +5,6 @@
     using System.Text;
     using System.Threading;
 
-    /// <summary>Extension helpers for the regex wrapper types.</summary>
-    public static class RegExExtensions
-    {
-        /// <summary>
-        /// Cancels <paramref name="self"/> when <paramref name="token"/> is cancelled. Dispose the returned
-        /// registration to unlink.
-        /// </summary>
-        public static IDisposable LinkCancellation(this Interop.IRegExFileStream self, CancellationToken token)
-        {
-            // If already cancelled, cancel immediately; Register handles this synchronously.
-            return token.Register(static s => ((Interop.IRegExFileStream)s!).Cancel(), self);
-        }
-    }
-
     /// <summary>Options for <see cref="RegEx"/> match and search operations.</summary>
     public struct RegExMatchOptions
     {
@@ -59,22 +45,27 @@
     }
 
     /// <summary>
-    /// Owns an <see cref="Interop.IRegExMemoryStream"/> and releases it on <see cref="Dispose"/>.
+    /// Base for the wrapper stream types. Owns the underlying COM object and exposes it as an
+    /// <see cref="Interop.ISequentialStream"/> (the only capability used today: sequential writes
+    /// driven by <c>FormatTo</c>/<c>CopyInputTo</c>). Releases the object on <see cref="Dispose"/>.
+    /// Derived types add the verbs specific to their interface; the broader <c>IStream</c> surface
+    /// (seek, stat, clone) is intentionally not wrapped yet.
     /// </summary>
-    public sealed class RegExMemoryStream : IDisposable
+    public abstract class RegExSequentialStream : IDisposable
     {
-        private Interop.IRegExMemoryStream? inner;
+        private Interop.ISequentialStream? inner;
 
-        internal RegExMemoryStream(Interop.IRegExMemoryStream inner)
+        private protected RegExSequentialStream(Interop.ISequentialStream inner)
         {
             this.inner = inner;
         }
 
         /// <summary>
-        /// The underlying stream. Throws <see cref="ObjectDisposedException"/> if this object has been disposed.
+        /// The underlying stream as an <see cref="Interop.ISequentialStream"/>. Throws
+        /// <see cref="ObjectDisposedException"/> if this object has been disposed.
         /// </summary>
-        public Interop.IRegExMemoryStream Value =>
-            inner ?? throw new ObjectDisposedException(nameof(RegExMemoryStream));
+        public Interop.ISequentialStream SequentialStream =>
+            inner ?? throw new ObjectDisposedException(GetType().Name);
 
         /// <summary>
         /// If this object has not yet been disposed, calls FinalReleaseComObject.
@@ -90,34 +81,96 @@
     }
 
     /// <summary>
-    /// Owns an <see cref="Interop.IRegExFileStream"/> and releases it on <see cref="Dispose"/>.
+    /// Owns an <see cref="Interop.IRegExMemoryStream"/> and releases it on <see cref="RegExSequentialStream.Dispose"/>.
     /// </summary>
-    public sealed class RegExFileStream : IDisposable
+    public sealed class RegExMemoryStream : RegExSequentialStream
     {
-        private Interop.IRegExFileStream? inner;
-
-        internal RegExFileStream(Interop.IRegExFileStream inner)
+        internal RegExMemoryStream(Interop.IRegExMemoryStream inner)
+            : base(inner)
         {
-            this.inner = inner;
         }
 
         /// <summary>
         /// The underlying stream. Throws <see cref="ObjectDisposedException"/> if this object has been disposed.
         /// </summary>
-        public Interop.IRegExFileStream Value =>
-            inner ?? throw new ObjectDisposedException(nameof(RegExFileStream));
+        public Interop.IRegExMemoryStream Value => (Interop.IRegExMemoryStream)SequentialStream;
 
         /// <summary>
-        /// If this object has not yet been disposed, calls FinalReleaseComObject.
+        /// Returns the bytes currently in the stream. Throws <see cref="ObjectDisposedException"/> if this object has been disposed.
         /// </summary>
-        public void Dispose()
+        public RegExPinnedBytes Buffer
         {
-            var old = Interlocked.Exchange(ref inner, null);
-            if (old != null)
+            get
             {
-                Marshal.FinalReleaseComObject(old);
+                var buffer = Value.Buffer;
+                return new RegExPinnedBytes(unchecked((nuint)buffer.data), checked((nuint)buffer.size));
             }
         }
+
+        /// <summary>
+        /// Discards the buffered contents and resets the stream position to 0, retaining capacity for reuse.
+        /// </summary>
+        public void Reset() => Value.Reset();
+
+        /// <summary>
+        /// Pre-grows the backing buffer so writes up to <paramref name="capacity"/> bytes do not reallocate.
+        /// Does not change the stream position or logical size.
+        /// </summary>
+        public void Reserve(long capacity) => Value.Reserve(capacity);
+    }
+
+    /// <summary>
+    /// Owns an <see cref="Interop.IRegExFileStream"/> and releases it on <see cref="RegExSequentialStream.Dispose"/>.
+    /// </summary>
+    public sealed class RegExFileStream : RegExSequentialStream
+    {
+        internal RegExFileStream(Interop.IRegExFileStream inner)
+            : base(inner)
+        {
+        }
+
+        /// <summary>
+        /// The underlying stream. Throws <see cref="ObjectDisposedException"/> if this object has been disposed.
+        /// </summary>
+        public Interop.IRegExFileStream Value => (Interop.IRegExFileStream)SequentialStream;
+
+        /// <summary>The full path of the underlying file.</summary>
+        public string Path => Value.Path;
+
+        /// <summary>Whether I/O has been cancelled and whether the cancellation has completed.</summary>
+        public RegExStreamCancelStatus CancelStatus => (RegExStreamCancelStatus)Value.CancelStatus;
+
+        /// <summary>Flushes buffered writes to disk. Throws if the stream has been cancelled.</summary>
+        public void Flush() => Value.Flush();
+
+        /// <summary>
+        /// Non-blocking. Marks the stream as cancelling and attempts to abort in-progress I/O. After
+        /// this, all I/O on the stream fails. See <see cref="WaitForCancelled"/> to await completion.
+        /// </summary>
+        public void Cancel() => Value.Cancel();
+
+        /// <summary>
+        /// Waits up to <paramref name="timeoutMs"/> (use <see cref="Timeout.Infinite"/> for no limit)
+        /// for cancellation to complete. <see cref="Cancel"/> must have been called first. Returns
+        /// true if the stream reached the cancelled state within the timeout, false on timeout.
+        /// </summary>
+        public bool WaitForCancelled(int timeoutMs) => Value.WaitForCancelled(unchecked((uint)timeoutMs));
+
+        /// <summary>
+        /// Renames the file to <paramref name="destinationPath"/>, committing a replacement stream.
+        /// Clears delete-on-close before the rename. Throws if the stream has been cancelled or the
+        /// rename fails (e.g. the destination exists without <see cref="RegExFileMoveFlags.ReplaceExisting"/>).
+        /// </summary>
+        public void MoveTo(string destinationPath, RegExFileMoveFlags flags) =>
+            Value.MoveTo(destinationPath, (Interop.RegExFileMoveFlags)flags);
+
+        /// <summary>
+        /// Cancels this stream when <paramref name="token"/> is cancelled. Dispose the returned
+        /// registration to unlink.
+        /// </summary>
+        public IDisposable LinkCancellation(CancellationToken token) =>
+            // If already cancelled, cancel immediately; Register handles this synchronously.
+            token.Register(static s => ((RegExFileStream)s!).Cancel(), this);
     }
 
     /// <summary>

@@ -54,21 +54,21 @@ namespace UnicodeRegEx.Tests
             => GetEncoding(codePage).GetString(bytes);
 
         /// <summary>Snapshots the bytes currently buffered in a memory stream.</summary>
-        public static byte[] ReadAllBytes(Interop.IRegExMemoryStream stream)
+        public static byte[] ReadAllBytes(RegExMemoryStream stream)
         {
             var buffer = stream.Buffer;
-            int size = checked((int)buffer.size);
+            int size = checked((int)buffer.Size);
             var result = new byte[size];
             if (size > 0)
             {
-                Marshal.Copy((nint)buffer.data, result, 0, size);
+                Marshal.Copy((nint)buffer.Data, result, 0, size);
             }
 
             return result;
         }
 
         /// <summary>Reads and decodes all buffered bytes from a memory stream.</summary>
-        public static string ReadAllText(Interop.IRegExMemoryStream stream, int codePage)
+        public static string ReadAllText(RegExMemoryStream stream, int codePage)
             => Decode(ReadAllBytes(stream), codePage);
 
         /// <summary>Returns the bytes of a segment as text, decoded with the input code page.</summary>

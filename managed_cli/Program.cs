@@ -1,10 +1,10 @@
 namespace UnicodeRegEx.Cli
 {
     using System;
+    using System.Threading.Tasks;
     using UnicodeRegEx.Tools;
     using UnicodeRegEx.Tools.Engine;
     using UnicodeRegEx.Tools.Settings;
-    using CancellationTokenSource = System.Threading.CancellationTokenSource;
 
     internal static class Program
     {
@@ -14,7 +14,7 @@ Search files (default) or preview/apply replacements with a Unicode-aware regex.
 
         private const string SuggestHelp = "Run 'unirex --help' for detailed usage.";
 
-        private static int Main(string[] args)
+        private static async Task<int> Main(string[] args)
         {
             try
             {
@@ -62,15 +62,16 @@ Search files (default) or preview/apply replacements with a Unicode-aware regex.
                     return 2;
                 }
 
-                using var cancellation = new CancellationTokenSource();
+                using var job = new SearchJob(request, new ConsoleSink());
                 Console.CancelKeyPress += (_, e) =>
                 {
                     e.Cancel = true;
-                    cancellation.Cancel();
+                    job.Cancel();
                 };
 
-                var summary = new SearchEngine().Run(request, new ConsoleSink(), cancellation.Token);
+                await job.RunAsync();
 
+                var summary = job.Summary;
                 if (summary.Errors > 0)
                 {
                     return 2;
@@ -91,8 +92,8 @@ Search files (default) or preview/apply replacements with a Unicode-aware regex.
             public void OnHit(in SearchHit hit)
             {
                 Console.Out.WriteLine(hit.Replacement == null
-                    ? $"{hit.Path}:{hit.Line}: {hit.Text}"
-                    : $"{hit.Path}:{hit.Line}: {hit.Text} => {hit.Replacement}");
+                    ? $"{hit.Path}: {hit.Text}"
+                    : $"{hit.Path}: {hit.Text} => {hit.Replacement}");
             }
 
             public void OnFileChanged(string path)

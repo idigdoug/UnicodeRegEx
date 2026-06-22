@@ -99,31 +99,31 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\out\$(PlatformTarget)_$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -136,14 +136,14 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalIncludeDirectories>../inc;../external/boost.regex/include;../external/microsoft.wil/include;$(SolutionDir)out;$(VCInstallDir)Auxiliary\VS\UnitTest\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../inc;../external/boost.regex/include;../external/microsoft.wil/include;..\out;$(VCInstallDir)Auxiliary\VS\UnitTest\include</AdditionalIncludeDirectories>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FunctionLevelLinking>true</FunctionLevelLinking>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib</AdditionalLibraryDirectories>
       <Profile>true</Profile>
     </Link>
@@ -159,14 +159,14 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalIncludeDirectories>../inc;../external/boost.regex/include;../external/microsoft.wil/include;$(SolutionDir)out;$(VCInstallDir)Auxiliary\VS\UnitTest\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../inc;../external/boost.regex/include;../external/microsoft.wil/include;..\out;$(VCInstallDir)Auxiliary\VS\UnitTest\include</AdditionalIncludeDirectories>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FunctionLevelLinking>true</FunctionLevelLinking>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib</AdditionalLibraryDirectories>
       <Profile>true</Profile>
     </Link>
@@ -182,14 +182,14 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalIncludeDirectories>../inc;../external/boost.regex/include;../external/microsoft.wil/include;$(SolutionDir)out;$(VCInstallDir)Auxiliary\VS\UnitTest\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../inc;../external/boost.regex/include;../external/microsoft.wil/include;..\out;$(VCInstallDir)Auxiliary\VS\UnitTest\include</AdditionalIncludeDirectories>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FunctionLevelLinking>true</FunctionLevelLinking>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib</AdditionalLibraryDirectories>
       <Profile>true</Profile>
     </Link>
@@ -206,12 +206,12 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>../inc;../external/boost.regex/include;../external/microsoft.wil/include;$(SolutionDir)out;$(VCInstallDir)Auxiliary\VS\UnitTest\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../inc;../external/boost.regex/include;../external/microsoft.wil/include;..\out;$(VCInstallDir)Auxiliary\VS\UnitTest\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib</AdditionalLibraryDirectories>
       <Profile>true</Profile>
     </Link>
@@ -228,12 +228,12 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>../inc;../external/boost.regex/include;../external/microsoft.wil/include;$(SolutionDir)out;$(VCInstallDir)Auxiliary\VS\UnitTest\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../inc;../external/boost.regex/include;../external/microsoft.wil/include;..\out;$(VCInstallDir)Auxiliary\VS\UnitTest\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib</AdditionalLibraryDirectories>
       <Profile>true</Profile>
     </Link>
@@ -250,12 +250,12 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>../inc;../external/boost.regex/include;../external/microsoft.wil/include;$(SolutionDir)out;$(VCInstallDir)Auxiliary\VS\UnitTest\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../inc;../external/boost.regex/include;../external/microsoft.wil/include;..\out;$(VCInstallDir)Auxiliary\VS\UnitTest\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>$(SolutionDir)out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\out\$(PlatformTarget)_$(Configuration)\UnicodeRegExLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib</AdditionalLibraryDirectories>
       <Profile>true</Profile>
     </Link>

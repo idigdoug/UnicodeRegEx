@@ -21,15 +21,15 @@ namespace UnicodeRegEx.Tests
             var wrapper = RegEx.CreateMemoryStream();
 
             // Value is non-null and usable before disposal.
-            Assert.IsNotNull(wrapper.Value);
-            wrapper.Value.Reserve(16);
+            Assert.IsNotNull(wrapper);
+            wrapper.Reserve(16);
 
             // Dispose is idempotent (no throw on the second call).
             wrapper.Dispose();
             wrapper.Dispose();
 
             // Accessing Value after disposal throws rather than returning a (poisoned) null.
-            TestHelpers.AssertThrows<ObjectDisposedException>(() => { var _ = wrapper.Value; });
+            TestHelpers.AssertThrows<ObjectDisposedException>(() => { wrapper.Reserve(32); });
         }
 
         [TestMethod]
@@ -47,11 +47,11 @@ namespace UnicodeRegEx.Tests
             var regex = RegEx.Create("a");
             using var stream = RegEx.CreateMemoryStream();
 
-            regex.ReplaceTo("banana", stream.Value, RegExCodePage.Utf16LE, "X");
-            Assert.AreNotEqual(0, TestHelpers.ReadAllBytes(stream.Value).Length);
+            regex.ReplaceTo("banana", stream, RegExCodePage.Utf16LE, "X");
+            Assert.AreNotEqual(0, TestHelpers.ReadAllBytes(stream).Length);
 
-            stream.Value.Reset();
-            Assert.AreEqual(0, TestHelpers.ReadAllBytes(stream.Value).Length);
+            stream.Reset();
+            Assert.AreEqual(0, TestHelpers.ReadAllBytes(stream).Length);
         }
 
         [TestMethod]
@@ -59,10 +59,10 @@ namespace UnicodeRegEx.Tests
         {
             using var stream = RegEx.CreateMemoryStream();
 
-            stream.Value.Reserve(4096);
+            stream.Reserve(4096);
 
             // Reserve grows capacity only; the logical (buffered) size stays 0.
-            Assert.AreEqual(0, TestHelpers.ReadAllBytes(stream.Value).Length);
+            Assert.AreEqual(0, TestHelpers.ReadAllBytes(stream).Length);
         }
 
         // ---- File stream interop + LinkCancellation extension (managed)
@@ -74,10 +74,10 @@ namespace UnicodeRegEx.Tests
 
             using var stream = RegEx.CreateReplacementFileStream(finalPath);
 
-            Assert.IsFalse(string.IsNullOrEmpty(stream.Value.Path));
+            Assert.IsFalse(string.IsNullOrEmpty(stream.Path));
             Assert.AreEqual(
                 RegExStreamCancelStatus.Running,
-                (RegExStreamCancelStatus)stream.Value.CancelStatus);
+                (RegExStreamCancelStatus)stream.CancelStatus);
         }
 
         [TestMethod]
@@ -86,20 +86,19 @@ namespace UnicodeRegEx.Tests
             var finalPath = Path.Combine(Path.GetTempPath(), $"urx_{Guid.NewGuid():N}.tmp");
 
             using var stream = RegEx.CreateReplacementFileStream(finalPath);
-            var file = stream.Value;
 
             using (var cts = new CancellationTokenSource())
-            using (file.LinkCancellation(cts.Token))
+            using (stream.LinkCancellation(cts.Token))
             {
-                // Cancelling the token invokes file.Cancel() through the managed extension.
+                // Cancelling the token invokes stream.Cancel().
                 cts.Cancel();
 
-                Assert.IsTrue(file.WaitForCancelled(5000));
+                Assert.IsTrue(stream.WaitForCancelled(5000));
             }
 
             Assert.AreEqual(
                 RegExStreamCancelStatus.Cancelled,
-                (RegExStreamCancelStatus)file.CancelStatus);
+                stream.CancelStatus);
         }
     }
 }

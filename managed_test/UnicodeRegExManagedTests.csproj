@@ -35,15 +35,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Embed the COM interop types (type equivalence) like the wrapper project,
-         so the Interop.* types exposed by the wrapper's stream APIs unify with
-         ours. The wrapper's stream factories are non-generic, so their embedded
-         interop return/parameter types cross the assembly boundary fine. -->
-    <Reference Include="UnicodeRegEx.Interop">
-      <HintPath>..\out\UnicodeRegEx.Interop.dll</HintPath>
-      <EmbedInteropTypes>true</EmbedInteropTypes>
-      <Private>false</Private>
-    </Reference>
     <ProjectReference Include="..\managed\UnicodeRegExManaged.csproj" />
   </ItemGroup>
 

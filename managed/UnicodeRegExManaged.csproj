@@ -16,14 +16,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="UnicodeRegEx.Interop">
-      <HintPath>..\out\UnicodeRegEx.Interop.dll</HintPath>
-      <EmbedInteropTypes>true</EmbedInteropTypes>
-      <Private>false</Private>
-    </Reference>
     <ProjectReference Include="..\lib\UnicodeRegExLib.vcxproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
+    <Reference Include="UnicodeRegEx.Interop">
+      <HintPath>..\out\UnicodeRegEx.Interop.dll</HintPath>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
 
 </Project>

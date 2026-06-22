@@ -96,11 +96,12 @@
         }
 
         /// <summary>
-        /// Formats this match according to the previously set format template and returns the result.
+        /// Formats this match according to the previously set format template and writes it to
+        /// <paramref name="output"/> in the specified code page.
         /// </summary>
-        public void FormatTo(Interop.ISequentialStream outputStream, int outputCodePage)
+        public void FormatTo(RegExSequentialStream output, int outputCodePage)
         {
-            inner.FormatTo(outputStream, (uint)outputCodePage);
+            inner.FormatTo(output.SequentialStream, (uint)outputCodePage);
         }
 
         /// <summary>
@@ -112,11 +113,12 @@
         }
 
         /// <summary>
-        /// Converts the specified span of input to a string in the specified code page and writes it to the specified output stream.
+        /// Converts the specified span of input to the specified code page and writes it to
+        /// <paramref name="output"/>.
         /// </summary>
-        public void CopyInputTo(nuint inputOffset, nuint size, Interop.ISequentialStream outputStream, int outputCodePage)
+        public void CopyInputTo(nuint inputOffset, nuint size, RegExSequentialStream output, int outputCodePage)
         {
-            inner.CopyInputTo((long)inputOffset, (long)size, outputStream, (uint)outputCodePage);
+            inner.CopyInputTo((long)inputOffset, (long)size, output.SequentialStream, (uint)outputCodePage);
         }
     }
 }

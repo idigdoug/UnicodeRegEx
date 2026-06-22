@@ -78,9 +78,9 @@ namespace UnicodeRegEx.Tests
             var regex = RegEx.Create("a");
 
             using var stream = RegEx.CreateMemoryStream();
-            regex.ReplaceTo("banana", stream.Value, RegExCodePage.Utf16LE, "X");
+            regex.ReplaceTo("banana", stream, RegExCodePage.Utf16LE, "X");
 
-            var text = TestHelpers.ReadAllText(stream.Value, RegExCodePage.Utf16LE);
+            var text = TestHelpers.ReadAllText(stream, RegExCodePage.Utf16LE);
             Assert.AreEqual("bXnXnX", text);
         }
 
@@ -90,9 +90,9 @@ namespace UnicodeRegEx.Tests
             var regex = RegEx.Create("a");
 
             using var stream = RegEx.CreateMemoryStream();
-            regex.ReplaceTo("banana", stream.Value, RegExCodePage.Utf8, "X");
+            regex.ReplaceTo("banana", stream, RegExCodePage.Utf8, "X");
 
-            var bytes = TestHelpers.ReadAllBytes(stream.Value);
+            var bytes = TestHelpers.ReadAllBytes(stream);
             Assert.AreEqual("bXnXnX", TestHelpers.Decode(bytes, RegExCodePage.Utf8));
         }
     }

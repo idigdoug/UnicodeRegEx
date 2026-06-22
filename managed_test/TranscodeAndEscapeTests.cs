@@ -49,9 +49,9 @@ namespace UnicodeRegEx.Tests
         {
             using var stream = RegEx.CreateMemoryStream();
 
-            RegEx.TranscodeTo("caf\u00e9", stream.Value, RegExCodePage.Utf8);
+            RegEx.TranscodeTo("caf\u00e9", stream, RegExCodePage.Utf8);
 
-            var bytes = TestHelpers.ReadAllBytes(stream.Value);
+            var bytes = TestHelpers.ReadAllBytes(stream);
             CollectionAssert.AreEqual(TestHelpers.Encode("caf\u00e9", RegExCodePage.Utf8), bytes);
         }
 
@@ -77,9 +77,9 @@ namespace UnicodeRegEx.Tests
         {
             using var stream = RegEx.CreateMemoryStream();
 
-            RegEx.TranscodeTo("A\u20AC\u00E9", stream.Value, Windows1252);
+            RegEx.TranscodeTo("A\u20AC\u00E9", stream, Windows1252);
 
-            var bytes = TestHelpers.ReadAllBytes(stream.Value);
+            var bytes = TestHelpers.ReadAllBytes(stream);
             CollectionAssert.AreEqual(new byte[] { 0x41, 0x80, 0xE9 }, bytes);
         }
 
@@ -98,9 +98,9 @@ namespace UnicodeRegEx.Tests
         {
             using var stream = RegEx.CreateMemoryStream();
 
-            RegEx.TranscodeTo("\u041F\u0440\u0438\u0432\u0435\u0442", stream.Value, Windows1251);
+            RegEx.TranscodeTo("\u041F\u0440\u0438\u0432\u0435\u0442", stream, Windows1251);
 
-            var bytes = TestHelpers.ReadAllBytes(stream.Value);
+            var bytes = TestHelpers.ReadAllBytes(stream);
             CollectionAssert.AreEqual(new byte[] { 0xCF, 0xF0, 0xE8, 0xE2, 0xE5, 0xF2 }, bytes);
         }
 
@@ -113,9 +113,9 @@ namespace UnicodeRegEx.Tests
             var text = RegEx.Transcode(new RegExInput(original, Windows1252));
 
             using var stream = RegEx.CreateMemoryStream();
-            RegEx.TranscodeTo(text, stream.Value, Windows1252);
+            RegEx.TranscodeTo(text, stream, Windows1252);
 
-            CollectionAssert.AreEqual(original, TestHelpers.ReadAllBytes(stream.Value));
+            CollectionAssert.AreEqual(original, TestHelpers.ReadAllBytes(stream));
         }
 
         [TestMethod]

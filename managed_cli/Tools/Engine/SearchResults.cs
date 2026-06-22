@@ -7,7 +7,7 @@ namespace UnicodeRegEx.Tools.Engine
     /// </summary>
     public interface ISearchSink
     {
-        /// <summary>A search result (a matching line) or a replace-preview result (a match and its replacement).</summary>
+        /// <summary>A search result (a match) or a replace-preview result (a match and its replacement).</summary>
         void OnHit(in SearchHit hit);
 
         /// <summary>A file was rewritten in apply mode.</summary>
@@ -18,16 +18,21 @@ namespace UnicodeRegEx.Tools.Engine
     }
 
     /// <summary>
-    /// A single result. In search mode <see cref="Text"/> is the matching line and
+    /// A single result. In search mode <see cref="Text"/> is the matched text and
     /// <see cref="Replacement"/> is null; in replace mode <see cref="Text"/> is the matched text and
     /// <see cref="Replacement"/> is what it becomes.
     /// </summary>
+    /// <remarks>
+    /// This shape is provisional: it carries only what the CLI byproduct needs today (matched text and,
+    /// for preview, its replacement). A richer model — byte offsets, surrounding context, etc. — will
+    /// be designed when the GUI's needs are known. The engine does not track line numbers; mapping an
+    /// offset to a line is a front-end concern.
+    /// </remarks>
     public readonly struct SearchHit
     {
-        public SearchHit(string path, int line, string text, string? replacement)
+        public SearchHit(string path, string text, string? replacement)
         {
             Path = path;
-            Line = line;
             Text = text;
             Replacement = replacement;
         }
@@ -35,10 +40,7 @@ namespace UnicodeRegEx.Tools.Engine
         /// <summary>The file this hit is in.</summary>
         public string Path { get; }
 
-        /// <summary>1-based line number of the match.</summary>
-        public int Line { get; }
-
-        /// <summary>The matching line (search) or the matched text (replace).</summary>
+        /// <summary>The matched text.</summary>
         public string Text { get; }
 
         /// <summary>The replacement for the match, or null in search-only mode.</summary>
