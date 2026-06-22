@@ -4,6 +4,7 @@ namespace UnicodeRegEx.Tools.Engine
     using System.Collections.Generic;
     using System.IO;
     using System.IO.MemoryMappedFiles;
+    using System.Text.RegularExpressions;
     using System.Threading;
     using System.Threading.Tasks;
     using UnicodeRegEx;
@@ -159,8 +160,9 @@ namespace UnicodeRegEx.Tools.Engine
         {
             SetState(SearchJobState.Enumerating);
 
+            var include = GlobToRegex.Compile(request.Include);
             var files = new List<string>();
-            foreach (var path in EnumerateFiles(request.Paths))
+            foreach (var path in EnumerateFiles(request.Paths, include))
             {
                 if (cancellation.IsCancellationRequested)
                 {
@@ -381,32 +383,49 @@ namespace UnicodeRegEx.Tools.Engine
             }
         }
 
-        private IEnumerable<string> EnumerateFiles(IEnumerable<string> paths)
+        private IEnumerable<string> EnumerateFiles(IEnumerable<string> paths, Regex? include)
         {
             foreach (var path in paths)
             {
-                if (File.Exists(path))
+                FileAttributes attributes;
+                try
                 {
-                    yield return path;
+                    // One metadata probe instead of File.Exists + Directory.Exists.
+                    attributes = File.GetAttributes(path);
                 }
-                else if (Directory.Exists(path))
+                catch (Exception ex) when (ex is FileNotFoundException || ex is DirectoryNotFoundException)
                 {
-                    foreach (var file in EnumerateDirectory(path))
+                    lock (sinkGate)
+                    {
+                        sink.OnError(path, "no such file or directory");
+                    }
+                    continue;
+                }
+                catch (Exception ex)
+                {
+                    lock (sinkGate)
+                    {
+                        sink.OnError(path, ex.Message);
+                    }
+                    continue;
+                }
+
+                if ((attributes & FileAttributes.Directory) != 0)
+                {
+                    foreach (var file in EnumerateDirectory(path, include))
                     {
                         yield return file;
                     }
                 }
                 else
                 {
-                    lock (sinkGate)
-                    {
-                        sink.OnError(path, "no such file or directory");
-                    }
+                    // An explicitly named file is always searched, bypassing the include filter.
+                    yield return path;
                 }
             }
         }
 
-        private IEnumerable<string> EnumerateDirectory(string root)
+        private IEnumerable<string> EnumerateDirectory(string root, Regex? include)
         {
             var stack = new Stack<string>();
             stack.Push(root);
@@ -424,7 +443,7 @@ namespace UnicodeRegEx.Tools.Engine
                 try
                 {
                     files = Directory.GetFiles(current);
-                    subdirectories = Directory.GetDirectories(current);
+                    subdirectories = request.Recurse ? Directory.GetDirectories(current) : Array.Empty<string>();
                 }
                 catch (Exception ex)
                 {
@@ -437,7 +456,10 @@ namespace UnicodeRegEx.Tools.Engine
 
                 foreach (var file in files)
                 {
-                    yield return file;
+                    if (include == null || include.IsMatch(Path.GetFileName(file)))
+                    {
+                        yield return file;
+                    }
                 }
 
                 foreach (var subdirectory in subdirectories)

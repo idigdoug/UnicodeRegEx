@@ -18,7 +18,7 @@ namespace UnicodeRegEx.Tools
             new ValueSetting<int>(
                 SettingRole.Preference,
                 "encoding",
-                'e',
+                null,
                 "codepage",
                 "Default code page for files without a byte-order mark (utf8 | acp | <number>).",
                 defaultValue: RegExCodePage.Utf8,
@@ -29,7 +29,7 @@ namespace UnicodeRegEx.Tools
             new ValueSetting<string?>(
                 SettingRole.WorkingState,
                 "replace",
-                'r',
+                null,
                 "template",
                 "Replace matches using this template (preview unless --apply).",
                 defaultValue: null,
@@ -37,6 +37,19 @@ namespace UnicodeRegEx.Tools
 
         public readonly FlagSetting Apply =
             new FlagSetting(SettingRole.WorkingState, "apply", null, "Write replacements to files in place (default: preview only).");
+
+        public readonly FlagSetting Recurse =
+            new FlagSetting(SettingRole.WorkingState, "recurse", 'r', "Search directories recursively (default: top level only).");
+
+        public readonly ValueSetting<string?> Include =
+            new ValueSetting<string?>(
+                SettingRole.WorkingState,
+                "include",
+                null,
+                "glob",
+                "Only search files whose name matches this glob list (e.g. *.cs;*.txt). Explicitly named files are always searched.",
+                defaultValue: null,
+                parse: value => value);
 
         private static int ParseCodePage(string spec) =>
             CodePages.TryParse(spec, out var codePage)

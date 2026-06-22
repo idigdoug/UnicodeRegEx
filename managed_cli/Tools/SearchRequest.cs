@@ -44,8 +44,18 @@ namespace UnicodeRegEx.Tools
         /// <summary>The regular expression pattern to search for.</summary>
         public string Pattern { get; set; } = string.Empty;
 
-        /// <summary>Files and/or directories to search; directories are searched recursively.</summary>
+        /// <summary>Files and/or directories to search. Directories are walked (recursively only when <see cref="Recurse"/> is set); explicitly named files are always included, bypassing <see cref="Include"/>.</summary>
         public List<string> Paths { get; } = new List<string>();
+
+        /// <summary>When true, directory roots are searched recursively; otherwise only their immediate files are considered.</summary>
+        public bool Recurse { get; set; }
+
+        /// <summary>
+        /// Semicolon-separated filename glob list (e.g. <c>*.cs;*.txt</c>) applied to the file name of
+        /// each file found by walking a directory; null or empty means "all files". Explicitly named
+        /// files are not filtered by this. Compiled via <see cref="GlobToRegex"/>.
+        /// </summary>
+        public string? Include { get; set; }
 
         // All object state (i.e. fields and Properties with implicit backing fields) go above this line.
         // Derived values go below.
@@ -85,6 +95,8 @@ namespace UnicodeRegEx.Tools
             ReplaceTemplate = settings.Replace.Value;
             IgnoreCase = settings.IgnoreCase.Value;
             Apply = settings.Apply.Value;
+            Recurse = settings.Recurse.Value;
+            Include = settings.Include.Value;
         }
 
         /// <summary>
@@ -124,6 +136,8 @@ namespace UnicodeRegEx.Tools
                 IgnoreCase = IgnoreCase,
                 Apply = Apply,
                 Pattern = Pattern,
+                Recurse = Recurse,
+                Include = Include,
             };
 
             copy.Paths.AddRange(Paths);
