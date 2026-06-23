@@ -32,8 +32,21 @@ namespace UnicodeRegEx.Tools
         /// <summary>Replacement template, or null for search-only (no replacement).</summary>
         public string? ReplaceTemplate { get; set; }
 
+        /// <summary>
+        /// The operation to perform. An explicit capability rather than something inferred from
+        /// <see cref="ReplaceTemplate"/> presence: a GUI keeps an always-present (possibly empty)
+        /// replace box, so presence cannot imply the verb. Each front-end sets this from its own idiom
+        /// (the CLI from whether <c>--replace</c> was given; a GUI from a mode control).
+        /// </summary>
+        public SearchVerb Verb { get; set; } = SearchVerb.Search;
+
         /// <summary>Match without regard to case.</summary>
         public bool IgnoreCase { get; set; }
+
+        /// <summary>
+        /// Core syntax: Extended, Literal, Basic, Perl.
+        /// </summary>
+        public RegExSyntaxFlags SyntaxFlags { get; set; } = RegExSyntaxFlags.Perl;
 
         /// <summary>
         /// True to write replacements back to files in place; false to preview only. Only meaningful
@@ -75,15 +88,6 @@ namespace UnicodeRegEx.Tools
             }
         }
 
-        /// <summary> True when this request performs replacement (preview or in place).</summary>
-        public bool IsReplace => ReplaceTemplate != null;
-
-        /// <summary>Syntax/option flags compiled from the editable options (e.g. <see cref="IgnoreCase"/>).</summary>
-        public RegExSyntaxFlags SyntaxFlags =>
-            IgnoreCase
-                ? RegExSyntaxFlags.ECMAScript | RegExSyntaxFlags.ICase
-                : RegExSyntaxFlags.ECMAScript;
-
         /// <summary>
         /// Copies the named, overridable settings (case sensitivity, encoding, replacement) from a
         /// resolved <see cref="SearchSettings"/> onto this request.
@@ -93,7 +97,12 @@ namespace UnicodeRegEx.Tools
             DefaultCodePage = settings.Encoding.Value;
             // ResolvedDefaultCodePage is updated by the DefaultCodePage setter.
             ReplaceTemplate = settings.Replace.Value;
+            // The CLI's flag grammar: presence of --replace selects the replace verb. This
+            // presence-implies-verb rule is a command-line idiom, so it lives in this translation
+            // step rather than in the shared model (a GUI sets Verb from a mode control instead).
+            Verb = settings.Replace.Value != null ? SearchVerb.Replace : SearchVerb.Search;
             IgnoreCase = settings.IgnoreCase.Value;
+            SyntaxFlags = settings.Syntax.Value;
             Apply = settings.Apply.Value;
             Recurse = settings.Recurse.Value;
             Include = settings.Include.Value;
@@ -133,7 +142,9 @@ namespace UnicodeRegEx.Tools
                 defaultCodePage = defaultCodePage,
                 ResolvedDefaultCodePage = ResolvedDefaultCodePage,
                 ReplaceTemplate = ReplaceTemplate,
+                Verb = Verb,
                 IgnoreCase = IgnoreCase,
+                SyntaxFlags = SyntaxFlags,
                 Apply = Apply,
                 Pattern = Pattern,
                 Recurse = Recurse,
@@ -162,9 +173,9 @@ namespace UnicodeRegEx.Tools
                 problems.Add(SearchRequestProblem.PathRequired);
             }
 
-            if (Apply && ReplaceTemplate == null)
+            if (Apply && Verb != SearchVerb.Replace)
             {
-                problems.Add(SearchRequestProblem.ApplyRequiresTemplate);
+                problems.Add(SearchRequestProblem.ApplyRequiresReplace);
             }
 
             if (!CodePages.IsSupported(ResolvedDefaultCodePage))
@@ -195,7 +206,7 @@ namespace UnicodeRegEx.Tools
             {
                 SearchRequestProblem.PatternRequired => "no pattern given",
                 SearchRequestProblem.PathRequired => "no paths given",
-                SearchRequestProblem.ApplyRequiresTemplate => "--apply requires --replace",
+                SearchRequestProblem.ApplyRequiresReplace => "--apply requires --replace",
                 SearchRequestProblem.UnsupportedCodePage =>
                     $"unsupported encoding '{CodePages.GetName(ResolvedDefaultCodePage)}'",
             };
@@ -211,10 +222,20 @@ namespace UnicodeRegEx.Tools
         /// <summary>No <see cref="SearchRequest.Paths"/> were given.</summary>
         PathRequired,
 
-        /// <summary><see cref="SearchRequest.Apply"/> is set but no replacement template was given.</summary>
-        ApplyRequiresTemplate,
+        /// <summary><see cref="SearchRequest.Apply"/> is set but the verb is not <see cref="SearchVerb.Replace"/>.</summary>
+        ApplyRequiresReplace,
 
         /// <summary><see cref="SearchRequest.ResolvedDefaultCodePage"/> is not one the engine can decode.</summary>
         UnsupportedCodePage,
+    }
+
+    /// <summary>The operation a <see cref="SearchRequest"/> performs.</summary>
+    public enum SearchVerb
+    {
+        /// <summary>Find matches and report them (no file modification).</summary>
+        Search,
+
+        /// <summary>Replace matches using <see cref="SearchRequest.ReplaceTemplate"/> (preview unless <see cref="SearchRequest.Apply"/>).</summary>
+        Replace,
     }
 }

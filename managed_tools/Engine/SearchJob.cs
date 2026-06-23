@@ -136,8 +136,14 @@ namespace UnicodeRegEx.Tools.Engine
         {
             try
             {
+                var syntaxFlags = request.SyntaxFlags;
+                if (request.IgnoreCase)
+                {
+                    syntaxFlags |= RegExSyntaxFlags.ICase;
+                }
+
                 // An invalid pattern is a setup failure for the whole run; it faults the task.
-                using var regex = RegEx.Create(request.Pattern, request.SyntaxFlags);
+                using var regex = RegEx.Create(request.Pattern, syntaxFlags);
 
                 var files = Enumerate();
                 if (cancellation.IsCancellationRequested)
@@ -267,7 +273,7 @@ namespace UnicodeRegEx.Tools.Engine
                     return false;
                 }
 
-                var replaceTemplate = request.ReplaceTemplate;
+                var replaceTemplate = request.Verb == SearchVerb.Replace ? request.ReplaceTemplate : null;
                 var enumerateOptions = replaceTemplate == null
                     ? default
                     : new RegExEnumerateOptions { FormatTemplate = replaceTemplate };

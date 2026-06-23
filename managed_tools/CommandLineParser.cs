@@ -32,14 +32,21 @@ namespace UnicodeRegEx.Tools
         {
             var positionals = new List<string>();
 
-            var byLong = new Dictionary<string, Setting>(StringComparer.OrdinalIgnoreCase);
-            var byShort = new Dictionary<char, Setting>();
+            var byLong = new Dictionary<string, (Setting Setting, string? ImpliedValue)>(StringComparer.OrdinalIgnoreCase);
+            var byShort = new Dictionary<char, (Setting Setting, string? ImpliedValue)>();
             foreach (var option in settingGroup.Settings)
             {
-                byLong[option.LongName] = option;
-                if (option.ShortName is char shortName)
+                foreach (var binding in option.CommandLineBindings)
                 {
-                    byShort[shortName] = option;
+                    if (binding.LongName is string longName)
+                    {
+                        byLong[longName] = (option, binding.ImpliedValue);
+                    }
+
+                    if (binding.ShortName is char shortName)
+                    {
+                        byShort[shortName] = (option, binding.ImpliedValue);
+                    }
                 }
             }
 
@@ -65,7 +72,8 @@ namespace UnicodeRegEx.Tools
                     return new CommandLineParseResult(true, positionals);
                 }
 
-                Setting? option;
+                Setting option;
+                string? impliedValue;
                 string? inlineValue;
                 if (arg.StartsWith("--", StringComparison.Ordinal))
                 {
@@ -81,42 +89,58 @@ namespace UnicodeRegEx.Tools
                         inlineValue = null;
                     }
 
-                    if (!byLong.TryGetValue(name, out option))
+                    if (!byLong.TryGetValue(name, out var entry))
                     {
                         errors.Add($"unknown option --{name}");
                         continue;
                     }
+
+                    option = entry.Setting;
+                    impliedValue = entry.ImpliedValue;
                 }
                 else
                 {
                     var shortName = arg[1];
                     inlineValue = arg.Length > 2 ? arg.Substring(2) : null;
-                    if (!byShort.TryGetValue(shortName, out option))
+                    if (!byShort.TryGetValue(shortName, out var entry))
                     {
                         errors.Add($"unknown option -{shortName}");
                         continue;
                     }
+
+                    option = entry.Setting;
+                    impliedValue = entry.ImpliedValue;
                 }
 
-                Apply(option, inlineValue, args, ref i, errors);
+                Apply(option, impliedValue, inlineValue, args, ref i, errors);
             }
 
             return new CommandLineParseResult(false, positionals);
         }
 
-        private static void Apply(Setting option, string? inlineValue, string[] args, ref int i, List<string> errors)
+        private static void Apply(Setting option, string? impliedValue, string? inlineValue, string[] args, ref int i, List<string> errors)
         {
-            var value = inlineValue;
-            if (option.TakesValue && value == null)
+            string? value;
+            if (impliedValue != null)
             {
-                if (i + 1 < args.Length)
+                // A valueless, value-implying token (e.g. a choice flag like -E): the value is fixed by
+                // the binding; do not consume the next argument or an inline value.
+                value = impliedValue;
+            }
+            else
+            {
+                value = inlineValue;
+                if (option.TakesValue && value == null)
                 {
-                    value = args[++i];
-                }
-                else
-                {
-                    errors.Add($"--{option.LongName} requires a value");
-                    return;
+                    if (i + 1 < args.Length)
+                    {
+                        value = args[++i];
+                    }
+                    else
+                    {
+                        errors.Add($"--{option.LongName} requires a value");
+                        return;
+                    }
                 }
             }
 
@@ -145,16 +169,30 @@ namespace UnicodeRegEx.Tools
 
             foreach (var option in settingGroup.Settings)
             {
-                sb.AppendLine(FormatOption(option.ShortName, option.LongName, option.ValueName, option.Description, option.DefaultText));
+                if (option is IChoiceSetting choiceSetting)
+                {
+                    foreach (var choice in choiceSetting.Choices)
+                    {
+                        var isDefault = ReferenceEquals(choice, choiceSetting.DefaultChoice);
+                        var note = isDefault ? $"{choice.Description} [default]" : choice.Description;
+                        sb.AppendLine(FormatOption(choice.ShortName, choice.LongName, null, note, null));
+                    }
+                }
+                else
+                {
+                    sb.AppendLine(FormatOption(option.ShortName, option.LongName, option.ValueName, option.Description, option.DefaultText));
+                }
             }
 
             sb.Append(FormatOption('h', "help", null, "Show this help and exit.", null));
             return sb.ToString();
         }
 
-        private static string FormatOption(char? shortName, string longName, string? valueName, string description, string? defaultText)
+        private static string FormatOption(char? shortName, string? longName, string? valueName, string description, string? defaultText)
         {
-            var left = shortName is char c ? $"-{c}, --{longName}" : $"    --{longName}";
+            var left = shortName is char c
+                ? (longName != null ? $"-{c}, --{longName}" : $"-{c}")
+                : $"    --{longName}";
             if (valueName != null)
             {
                 left += $" <{valueName}>";

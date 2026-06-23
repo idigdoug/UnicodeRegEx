@@ -1,6 +1,36 @@
 namespace UnicodeRegEx.Tools.Settings
 {
     using System;
+    using System.Collections.Generic;
+
+    /// <summary>
+    /// One way a <see cref="Setting"/> can be named on the command line. Most settings expose a single
+    /// binding (their own long/short name); a <see cref="ChoiceSetting{T}"/> exposes one valueless
+    /// binding per choice, each carrying the choice's <see cref="ImpliedValue"/> so selecting the flag
+    /// applies that value (e.g. <c>-E</c> implies "extended"). Application-agnostic.
+    /// </summary>
+    public readonly struct CommandLineBinding
+    {
+        public CommandLineBinding(string? longName, char? shortName, string? impliedValue)
+        {
+            LongName = longName;
+            ShortName = shortName;
+            ImpliedValue = impliedValue;
+        }
+
+        /// <summary>The --long-name this binding responds to, without dashes; null if short-only.</summary>
+        public string? LongName { get; }
+
+        /// <summary>The -s short alias this binding responds to; null if long-only.</summary>
+        public char? ShortName { get; }
+
+        /// <summary>
+        /// If non-null, this is a valueless token that applies this exact value to the owning setting
+        /// (no separate value is consumed). If null, the binding follows the owning setting's normal
+        /// value/flag rules.
+        /// </summary>
+        public string? ImpliedValue { get; }
+    }
 
     /// <summary>
     /// Classifies a setting by persistence semantics. Required on every <see cref="Setting"/> so the
@@ -55,6 +85,14 @@ namespace UnicodeRegEx.Tools.Settings
 
         /// <summary>True if the option consumes a value; false for boolean flags.</summary>
         public bool TakesValue => ValueName != null;
+
+        /// <summary>
+        /// The command-line tokens that select this setting. By default a single binding using the
+        /// setting's own long/short name with no implied value; <see cref="ChoiceSetting{T}"/> overrides
+        /// this to expose one valueless, value-implying binding per choice.
+        /// </summary>
+        public virtual IEnumerable<CommandLineBinding> CommandLineBindings =>
+            new[] { new CommandLineBinding(LongName, ShortName, null) };
 
         /// <summary>Human-readable default value, shown in help.</summary>
         public abstract string DefaultText { get; }
@@ -142,5 +180,143 @@ namespace UnicodeRegEx.Tools.Settings
 
         private static string DescribeDefault(T value) =>
             value is null ? "(none)" : value.ToString() ?? "(none)";
+    }
+
+    /// <summary>
+    /// One option of a <see cref="ChoiceSetting{T}"/>, without its value type: its canonical name
+    /// (config/persistence token and implied command-line value) and its own command-line flags
+    /// (e.g. <c>-E</c>/<c>--extended-regexp</c>). The non-generic base lets help rendering enumerate
+    /// choices without knowing the value type.
+    /// </summary>
+    public abstract class Choice
+    {
+        protected Choice(string name, char? shortName, string? longName, string description)
+        {
+            Name = name;
+            ShortName = shortName;
+            LongName = longName;
+            Description = description;
+        }
+
+        /// <summary>Canonical name: the config/persistence value and the implied command-line value (e.g. "extended").</summary>
+        public string Name { get; }
+
+        /// <summary>This choice's -s short flag (e.g. 'E'); null if none.</summary>
+        public char? ShortName { get; }
+
+        /// <summary>This choice's --long flag without dashes (e.g. "extended-regexp"); null if none.</summary>
+        public string? LongName { get; }
+
+        /// <summary>One-line help description for this choice.</summary>
+        public string Description { get; }
+    }
+
+    /// <summary>A <see cref="Choice"/> paired with the value selected when it is chosen.</summary>
+    public sealed class Choice<T> : Choice
+    {
+        public Choice(T value, string name, char? shortName, string? longName, string description)
+            : base(name, shortName, longName, description)
+        {
+            Value = value;
+        }
+
+        /// <summary>The value selected when this choice is chosen.</summary>
+        public T Value { get; }
+    }
+
+    /// <summary>
+    /// Non-generic view of a <see cref="ChoiceSetting{T}"/> for help rendering, so the formatter need
+    /// not know the value type.
+    /// </summary>
+    public interface IChoiceSetting
+    {
+        /// <summary>The available choices, in declaration order.</summary>
+        IReadOnlyList<Choice> Choices { get; }
+
+        /// <summary>The choice selected when none is given.</summary>
+        Choice DefaultChoice { get; }
+    }
+
+    /// <summary>
+    /// A single-valued choice selected among several mutually-exclusive options. On the command line
+    /// each choice is a valueless flag (e.g. <c>-E</c>, <c>--fixed-strings</c>); the last one given
+    /// wins. In config (and persistence) it is the canonical key (<see cref="Setting.LongName"/>) with
+    /// a choice name as the value (e.g. <c>syntax=extended</c>). A future GUI binds one control to
+    /// <see cref="Value"/> and enumerates <see cref="Choices"/> — the same single value, several
+    /// presentations. The canonical long name is not itself a command-line token.
+    /// </summary>
+    public sealed class ChoiceSetting<T> : Setting, IChoiceSetting
+    {
+        private readonly IReadOnlyList<Choice<T>> choices;
+        private readonly Choice<T> defaultChoice;
+
+        public ChoiceSetting(
+            SettingRole role,
+            string longName,
+            string description,
+            T defaultValue,
+            IReadOnlyList<Choice<T>> choices)
+            : base(role, longName, null, null, description)
+        {
+            if (choices == null || choices.Count == 0)
+            {
+                throw new ArgumentException("A choice setting needs at least one choice.", nameof(choices));
+            }
+
+            this.choices = choices;
+
+            Choice<T>? found = null;
+            foreach (var choice in choices)
+            {
+                if (EqualityComparer<T>.Default.Equals(choice.Value, defaultValue))
+                {
+                    found = choice;
+                    break;
+                }
+            }
+
+            defaultChoice = found ?? throw new ArgumentException("The default value is not among the choices.", nameof(defaultValue));
+            Value = defaultChoice.Value;
+        }
+
+        /// <summary>The currently selected value.</summary>
+        public T Value { get; private set; }
+
+        /// <summary>The available choices, in declaration order (for help text and GUI binding).</summary>
+        public IReadOnlyList<Choice<T>> Choices => choices;
+
+        // Non-generic IChoiceSetting view (IReadOnlyList<out T> covariance makes the list assignable).
+        IReadOnlyList<Choice> IChoiceSetting.Choices => choices;
+
+        Choice IChoiceSetting.DefaultChoice => defaultChoice;
+
+        // One valueless, value-implying binding per choice; the canonical long name is not a token.
+        public override IEnumerable<CommandLineBinding> CommandLineBindings
+        {
+            get
+            {
+                foreach (var choice in choices)
+                {
+                    yield return new CommandLineBinding(choice.LongName, choice.ShortName, choice.Name);
+                }
+            }
+        }
+
+        public override string DefaultText => defaultChoice.Name;
+
+        // Applies a choice by its canonical name (from config or a flag's implied value).
+        public override void Apply(string? value)
+        {
+            foreach (var choice in choices)
+            {
+                if (string.Equals(choice.Name, value, StringComparison.OrdinalIgnoreCase))
+                {
+                    Value = choice.Value;
+                    return;
+                }
+            }
+
+            throw new FormatException($"'{value}' is not a valid value for {LongName}");
+        }
     }
 }
