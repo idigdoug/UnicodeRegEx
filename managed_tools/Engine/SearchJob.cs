@@ -249,7 +249,7 @@ namespace UnicodeRegEx.Tools.Engine
             }
 
             using var mmf = MemoryMappedFile.CreateFromFile(
-                stream, null, 0, MemoryMappedFileAccess.Read, null, HandleInheritability.None, leaveOpen: true);
+                stream, null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, leaveOpen: true);
             using var view = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
             var handle = view.SafeMemoryMappedViewHandle;
 
@@ -317,7 +317,7 @@ namespace UnicodeRegEx.Tools.Engine
             }
 
             using var mmf = MemoryMappedFile.CreateFromFile(
-                stream, null, 0, MemoryMappedFileAccess.Read, null, HandleInheritability.None, leaveOpen: true);
+                stream, null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, leaveOpen: true);
             using var view = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
             var handle = view.SafeMemoryMappedViewHandle;
 

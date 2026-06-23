@@ -26,6 +26,7 @@
   <ItemGroup>
     <Reference Include="System.Configuration" />
     <ProjectReference Include="..\managed\UnicodeRegExManaged.csproj" />
+    <ProjectReference Include="..\managed_tools\UnicodeRegExManagedTools.csproj" />
   </ItemGroup>
 
 </Project>

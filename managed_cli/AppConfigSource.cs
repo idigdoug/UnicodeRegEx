@@ -1,7 +1,8 @@
-namespace UnicodeRegEx.Tools.Settings
+namespace UnicodeRegEx.Cli
 {
     using System.Collections.Generic;
     using System.Configuration;
+    using UnicodeRegEx.Tools.Settings;
 
     /// <summary>
     /// Applies settings from the application's &lt;appSettings&gt; section (each key matching a

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <WarningLevel>4</WarningLevel>
+
+    <!-- Land alongside the wrapper and the consuming apps in SolutionDir\out\<Config>\
+         so a ProjectReference resolves without extra copies. -->
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>..\out\$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>..\out\obj\$(Configuration)\tools\</IntermediateOutputPath>
+
+    <AssemblyName>UnicodeRegEx.Tools</AssemblyName>
+    <RootNamespace>UnicodeRegEx.Tools</RootNamespace>
+
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\managed\UnicodeRegExManaged.csproj" />
+  </ItemGroup>
+
+</Project>
