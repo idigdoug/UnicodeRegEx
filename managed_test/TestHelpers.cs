@@ -32,6 +32,25 @@ namespace UnicodeRegEx.Tests
             Assert.Fail($"Expected {typeof(T).Name} to be thrown.");
         }
 
+        /// <summary>
+        /// Asserts that awaiting <paramref name="action"/> throws an exception of type
+        /// <typeparamref name="T"/>. Async sibling of <see cref="AssertThrows{T}(Action)"/>.
+        /// </summary>
+        public static async System.Threading.Tasks.Task AssertThrowsAsync<T>(Func<System.Threading.Tasks.Task> action)
+            where T : Exception
+        {
+            try
+            {
+                await action();
+            }
+            catch (T)
+            {
+                return;
+            }
+
+            Assert.Fail($"Expected {typeof(T).Name} to be thrown.");
+        }
+
         /// <summary>Returns the <see cref="Encoding"/> for a <see cref="RegExCodePage"/> code page.</summary>
         public static Encoding GetEncoding(int codePage)
         {
