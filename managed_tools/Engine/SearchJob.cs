@@ -59,6 +59,7 @@ namespace UnicodeRegEx.Tools.Engine
 
         private int totalFileCount;
         private int completedFileCount;
+        private int errorCount;
         private volatile SearchJobState state = SearchJobState.Created;
         private int started;
         private bool disposed;
@@ -80,6 +81,9 @@ namespace UnicodeRegEx.Tools.Engine
 
         /// <summary>The number of files processed so far. Grows while <see cref="State"/> is <see cref="SearchJobState.Processing"/>.</summary>
         public int CompletedFileCount => Volatile.Read(ref completedFileCount);
+
+        /// <summary>The number of files reported as errors so far (access failures, per-file faults, or binary files under <see cref="BinaryFileDisposition.Error"/>).</summary>
+        public int ErrorCount => Volatile.Read(ref errorCount);
 
         /// <summary>The aggregate outcome. Meaningful once the job reaches a terminal state.</summary>
         public SearchSummary Summary { get; private set; }
@@ -190,13 +194,12 @@ namespace UnicodeRegEx.Tools.Engine
 
             var anyMatch = false;
             var filesChanged = 0;
-            var errors = 0;
 
             foreach (var path in files)
             {
                 if (cancellation.IsCancellationRequested)
                 {
-                    Finish(SearchJobState.Canceled, new SearchSummary(anyMatch, filesChanged, errors, cancelled: true));
+                    Finish(SearchJobState.Canceled, new SearchSummary(anyMatch, filesChanged, Volatile.Read(ref errorCount), cancelled: true));
                     return;
                 }
 
@@ -217,7 +220,7 @@ namespace UnicodeRegEx.Tools.Engine
                 }
                 catch (Exception ex)
                 {
-                    errors++;
+                    Interlocked.Increment(ref errorCount);
                     lock (sinkGate)
                     {
                         sink.OnError(path, ex.Message);
@@ -228,7 +231,7 @@ namespace UnicodeRegEx.Tools.Engine
                 RaiseProgress();
             }
 
-            Finish(SearchJobState.Completed, new SearchSummary(anyMatch, filesChanged, errors, cancelled: false));
+            Finish(SearchJobState.Completed, new SearchSummary(anyMatch, filesChanged, Volatile.Read(ref errorCount), cancelled: false));
         }
 
         private void Finish(SearchJobState terminal, SearchSummary summary)
@@ -244,6 +247,29 @@ namespace UnicodeRegEx.Tools.Engine
         }
 
         private void RaiseProgress() => ProgressChanged?.Invoke(this, EventArgs.Empty);
+
+        // Applies the request's binary-file disposition. Returns true if the file should still be
+        // processed (Search), or false if it should be skipped (Skip, or Error after reporting it).
+        private bool ShouldProcessBinaryFile(string path)
+        {
+            switch (request.BinaryDisposition)
+            {
+                case BinaryFileDisposition.Search:
+                    return true;
+
+                case BinaryFileDisposition.Error:
+                    Interlocked.Increment(ref errorCount);
+                    lock (sinkGate)
+                    {
+                        sink.OnError(path, "binary file");
+                    }
+
+                    return false;
+
+                default: // Skip
+                    return false;
+            }
+        }
 
         private unsafe bool MatchFile(RegEx regex, string path)
         {
@@ -265,12 +291,18 @@ namespace UnicodeRegEx.Tools.Engine
                 handle.AcquirePointer(ref basePtr);
                 var data = basePtr + view.PointerOffset;
 
-                var codePage = DetectCodePage(data, length, request.ResolvedDefaultCodePage, out _);
-                if (codePage != RegExCodePage.Utf16LE &&
-                    codePage != RegExCodePage.Utf16BE &&
-                    LooksBinary(data, length))
+                var detection = EncodingDetector.Detect(
+                    new RegExPinnedBytes((void*)data, (nuint)length), length, request.ResolvedDefaultCodePage, request.EncodingDetection);
+                if (detection.LooksBinary && !ShouldProcessBinaryFile(path))
                 {
                     return false;
+                }
+
+                var codePage = detection.CodePage;
+                var file = new SearchFile(path, codePage, detection.LooksBinary);
+                lock (sinkGate)
+                {
+                    sink.OnFile(file);
                 }
 
                 var replaceTemplate = request.Verb == SearchVerb.Replace ? request.ReplaceTemplate : null;
@@ -287,7 +319,7 @@ namespace UnicodeRegEx.Tools.Engine
                         foreach (var match in matches)
                         {
                             var replacement = replaceTemplate != null ? match.Format() : null;
-                            var hit = new SearchHit(path, match.Text, replacement);
+                            var hit = new SearchHit(file, match.Text, replacement);
                             lock (sinkGate)
                             {
                                 sink.OnHit(hit);
@@ -333,12 +365,17 @@ namespace UnicodeRegEx.Tools.Engine
                 handle.AcquirePointer(ref basePtr);
                 var data = basePtr + view.PointerOffset;
 
-                var codePage = DetectCodePage(data, length, request.ResolvedDefaultCodePage, out _);
-                if (codePage != RegExCodePage.Utf16LE &&
-                    codePage != RegExCodePage.Utf16BE &&
-                    LooksBinary(data, length))
+                var detection = EncodingDetector.Detect(
+                    new RegExPinnedBytes((void*)data, (nuint)length), length, request.ResolvedDefaultCodePage, request.EncodingDetection);
+                if (detection.LooksBinary && !ShouldProcessBinaryFile(path))
                 {
                     return false;
+                }
+
+                var codePage = detection.CodePage;
+                lock (sinkGate)
+                {
+                    sink.OnFile(new SearchFile(path, codePage, detection.LooksBinary));
                 }
 
                 var input = new RegExInput(handle, (nuint)view.PointerOffset, (nuint)length, codePage);
@@ -473,44 +510,6 @@ namespace UnicodeRegEx.Tools.Engine
                     stack.Push(subdirectory);
                 }
             }
-        }
-
-        private static unsafe int DetectCodePage(byte* data, long length, int defaultCodePage, out int bomLength)
-        {
-            if (length >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF)
-            {
-                bomLength = 3;
-                return RegExCodePage.Utf8;
-            }
-
-            if (length >= 2 && data[0] == 0xFF && data[1] == 0xFE)
-            {
-                bomLength = 2;
-                return RegExCodePage.Utf16LE;
-            }
-
-            if (length >= 2 && data[0] == 0xFE && data[1] == 0xFF)
-            {
-                bomLength = 2;
-                return RegExCodePage.Utf16BE;
-            }
-
-            bomLength = 0;
-            return defaultCodePage;
-        }
-
-        private static unsafe bool LooksBinary(byte* data, long length)
-        {
-            var n = (int)Math.Min(length, 8000);
-            for (var i = 0; i < n; i++)
-            {
-                if (data[i] == 0)
-                {
-                    return true;
-                }
-            }
-
-            return false;
         }
     }
 }

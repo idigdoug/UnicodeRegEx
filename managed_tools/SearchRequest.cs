@@ -54,12 +54,6 @@ namespace UnicodeRegEx.Tools
         /// </summary>
         public bool Apply { get; set; }
 
-        /// <summary>The regular expression pattern to search for.</summary>
-        public string Pattern { get; set; } = string.Empty;
-
-        /// <summary>Files and/or directories to search. Directories are walked (recursively only when <see cref="Recurse"/> is set); explicitly named files are always included, bypassing <see cref="Include"/>.</summary>
-        public List<string> Paths { get; } = new List<string>();
-
         /// <summary>When true, directory roots are searched recursively; otherwise only their immediate files are considered.</summary>
         public bool Recurse { get; set; }
 
@@ -69,6 +63,20 @@ namespace UnicodeRegEx.Tools
         /// files are not filtered by this. Compiled via <see cref="GlobToRegex"/>.
         /// </summary>
         public string? Include { get; set; }
+
+        /// <summary>What to do with a file that detection judges to be binary (default: <see cref="BinaryFileDisposition.Skip"/>).</summary>
+        public BinaryFileDisposition BinaryDisposition { get; set; } = BinaryFileDisposition.Skip;
+
+        /// <summary>Which encoding/binary detection steps to run (default: <see cref="EncodingDetectionOptions.Default"/> — all steps).</summary>
+        public EncodingDetectionOptions EncodingDetection { get; set; } = EncodingDetectionOptions.Default;
+
+        // Pattern and Paths come last since they are positional (not read from SearchSettings).
+
+        /// <summary>The regular expression pattern to search for.</summary>
+        public string Pattern { get; set; } = string.Empty;
+
+        /// <summary>Files and/or directories to search. Directories are walked (recursively only when <see cref="Recurse"/> is set); explicitly named files are always included, bypassing <see cref="Include"/>.</summary>
+        public List<string> Paths { get; } = new List<string>();
 
         // All object state (i.e. fields and Properties with implicit backing fields) go above this line.
         // Derived values go below.
@@ -146,9 +154,11 @@ namespace UnicodeRegEx.Tools
                 IgnoreCase = IgnoreCase,
                 SyntaxFlags = SyntaxFlags,
                 Apply = Apply,
-                Pattern = Pattern,
                 Recurse = Recurse,
                 Include = Include,
+                BinaryDisposition = BinaryDisposition,
+                EncodingDetection = EncodingDetection,
+                Pattern = Pattern,
             };
 
             copy.Paths.AddRange(Paths);
@@ -237,5 +247,18 @@ namespace UnicodeRegEx.Tools
 
         /// <summary>Replace matches using <see cref="SearchRequest.ReplaceTemplate"/> (preview unless <see cref="SearchRequest.Apply"/>).</summary>
         Replace,
+    }
+
+    /// <summary>What to do with a file that detection judges to be binary (non-text) content.</summary>
+    public enum BinaryFileDisposition
+    {
+        /// <summary>Silently skip the file (the default).</summary>
+        Skip,
+
+        /// <summary>Report the file as an error and do not process it.</summary>
+        Error,
+
+        /// <summary>Search (or replace in) the file anyway, using the detected/default code page.</summary>
+        Search,
     }
 }

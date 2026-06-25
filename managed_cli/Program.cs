@@ -89,11 +89,16 @@ Search files (default) or preview/apply replacements with a Unicode-aware regex.
         /// <summary>Writes engine results and status to the console in grep-like form.</summary>
         private sealed class ConsoleSink : ISearchSink
         {
+            // The CLI streams hits and does not surface per-file metadata, so OnFile is a no-op.
+            public void OnFile(SearchFile file)
+            {
+            }
+
             public void OnHit(in SearchHit hit)
             {
                 Console.Out.WriteLine(hit.Replacement == null
-                    ? $"{hit.Path}: {hit.Text}"
-                    : $"{hit.Path}: {hit.Text} => {hit.Replacement}");
+                    ? $"{hit.File.Path}: {hit.Text}"
+                    : $"{hit.File.Path}: {hit.Text} => {hit.Replacement}");
             }
 
             public void OnFileChanged(string path)

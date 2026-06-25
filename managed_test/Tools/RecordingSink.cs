@@ -10,11 +10,15 @@ namespace UnicodeRegEx.Tests.Tools
     /// </summary>
     internal sealed class RecordingSink : ISearchSink
     {
+        public List<SearchFile> Files { get; } = new List<SearchFile>();
+
         public List<SearchHit> Hits { get; } = new List<SearchHit>();
 
         public List<string> ChangedFiles { get; } = new List<string>();
 
         public List<(string Path, string Message)> Errors { get; } = new List<(string, string)>();
+
+        public void OnFile(SearchFile file) => Files.Add(file);
 
         public void OnHit(in SearchHit hit) => Hits.Add(hit);
 

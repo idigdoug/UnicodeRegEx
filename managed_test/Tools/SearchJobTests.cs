@@ -154,6 +154,11 @@ namespace UnicodeRegEx.Tests.Tools
             Assert.AreEqual(1, summary.FilesChanged);
             CollectionAssert.Contains(sink.ChangedFiles, file);
             Assert.AreEqual("X beta X", File.ReadAllText(file));
+
+            // Apply mode also reports the processed file via OnFile (with its detected encoding).
+            Assert.AreEqual(1, sink.Files.Count);
+            Assert.AreEqual(file, sink.Files[0].Path);
+            Assert.AreEqual(RegExCodePage.Utf8, sink.Files[0].CodePage);
         }
 
         [TestMethod]
@@ -237,6 +242,143 @@ namespace UnicodeRegEx.Tests.Tools
             Assert.AreEqual(SearchJobState.Completed, job.State);
             Assert.AreEqual(2, job.TotalFileCount);
             Assert.AreEqual(job.TotalFileCount, job.CompletedFileCount);
+        }
+
+        // ---- Binary-file disposition (slice 4)
+
+        // Writes a file whose bytes contain a NUL (so detection judges it binary) but whose ASCII text
+        // still contains the given pattern, so a Search disposition can match it.
+        private string WriteBinaryFile(string relativePath, string asciiBefore, string asciiAfter)
+        {
+            var full = Path.Combine(tempDir, relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+            var before = System.Text.Encoding.ASCII.GetBytes(asciiBefore);
+            var after = System.Text.Encoding.ASCII.GetBytes(asciiAfter);
+            var bytes = new byte[before.Length + 1 + after.Length];
+            System.Array.Copy(before, 0, bytes, 0, before.Length);
+            bytes[before.Length] = 0x00; // NUL -> binary
+            System.Array.Copy(after, 0, bytes, before.Length + 1, after.Length);
+            File.WriteAllBytes(full, bytes);
+            return full;
+        }
+
+        [TestMethod]
+        public async Task BinarySkip_Default_NoHitsNoErrors()
+        {
+            var file = WriteBinaryFile("bin.dat", "alpha", "alpha");
+
+            var (sink, summary, _) = await RunAsync(Request("alpha", file)); // default disposition = Skip
+
+            Assert.AreEqual(0, sink.Hits.Count);
+            Assert.AreEqual(0, sink.Errors.Count);
+            Assert.IsFalse(summary.AnyMatch);
+        }
+
+        [TestMethod]
+        public async Task BinaryError_ReportsErrorAndDoesNotProcess()
+        {
+            var file = WriteBinaryFile("bin.dat", "alpha", "alpha");
+            var request = Request("alpha", file);
+            request.BinaryDisposition = BinaryFileDisposition.Error;
+
+            var (sink, summary, _) = await RunAsync(request);
+
+            Assert.AreEqual(0, sink.Hits.Count);
+            Assert.AreEqual(1, sink.Errors.Count);
+            Assert.AreEqual(file, sink.Errors[0].Path);
+            Assert.AreEqual("binary file", sink.Errors[0].Message);
+            Assert.AreEqual(1, summary.Errors);
+        }
+
+        [TestMethod]
+        public async Task BinarySearch_SearchesAnyway_FindsMatches()
+        {
+            var file = WriteBinaryFile("bin.dat", "alpha", "alpha");
+            var request = Request("alpha", file);
+            request.BinaryDisposition = BinaryFileDisposition.Search;
+
+            var (sink, summary, _) = await RunAsync(request);
+
+            Assert.AreEqual(2, sink.Hits.Count); // both "alpha" occurrences
+            Assert.AreEqual(0, sink.Errors.Count);
+            Assert.IsTrue(summary.AnyMatch);
+        }
+
+        // ---- SearchFile / OnFile (slice 5)
+
+        [TestMethod]
+        public async Task OnFile_ReportsSearchedFile_WithMetadata_AndHitsShareIt()
+        {
+            var file = WriteFile("a.txt", "alpha beta alpha"); // UTF-8 text, two matches
+
+            var (sink, _, _) = await RunAsync(Request("alpha", file));
+
+            Assert.AreEqual(1, sink.Files.Count);
+            var searched = sink.Files[0];
+            Assert.AreEqual(file, searched.Path);
+            Assert.AreEqual(RegExCodePage.Utf8, searched.CodePage);
+            Assert.IsFalse(searched.LooksBinary);
+
+            // Every hit references the same SearchFile instance reported by OnFile.
+            Assert.AreEqual(2, sink.Hits.Count);
+            foreach (var hit in sink.Hits)
+            {
+                Assert.AreSame(searched, hit.File);
+            }
+        }
+
+        [TestMethod]
+        public async Task OnFile_ZeroHitFile_IsStillReported()
+        {
+            var file = WriteFile("a.txt", "nothing to find here");
+
+            var (sink, _, _) = await RunAsync(Request("zzz", file));
+
+            Assert.AreEqual(1, sink.Files.Count); // the searched file is reported even with no hits
+            Assert.AreEqual(file, sink.Files[0].Path);
+            Assert.AreEqual(0, sink.Hits.Count);
+        }
+
+        [TestMethod]
+        public async Task OnFile_SkippedBinaryFile_IsNotReported()
+        {
+            var file = WriteBinaryFile("bin.dat", "alpha", "alpha"); // default disposition = Skip
+
+            var (sink, _, _) = await RunAsync(Request("alpha", file));
+
+            Assert.AreEqual(0, sink.Files.Count); // skipped files are not "processed"
+            Assert.AreEqual(0, sink.Hits.Count);
+        }
+
+        [TestMethod]
+        public async Task OnFile_BinarySearchedAnyway_IsReportedAsBinary()
+        {
+            var file = WriteBinaryFile("bin.dat", "alpha", "alpha");
+            var request = Request("alpha", file);
+            request.BinaryDisposition = BinaryFileDisposition.Search;
+
+            var (sink, _, _) = await RunAsync(request);
+
+            Assert.AreEqual(1, sink.Files.Count);
+            Assert.IsTrue(sink.Files[0].LooksBinary);
+            Assert.AreSame(sink.Files[0], sink.Hits[0].File);
+        }
+
+        [TestMethod]
+        public async Task EncodingDetection_FromRequest_DisablingBinaryChecks_StopsBinarySkip()
+        {
+            // With binary detection steps disabled via the request, a NUL file is no longer judged
+            // binary, so it is searched (and reported) instead of skipped.
+            var file = WriteBinaryFile("bin.dat", "alpha", "alpha");
+            var request = Request("alpha", file);
+            request.EncodingDetection = new EncodingDetectionOptions(
+                EncodingDetectionSteps.All & ~EncodingDetectionSteps.BinaryNul & ~EncodingDetectionSteps.BinaryControlRatio);
+
+            var (sink, summary, _) = await RunAsync(request);
+
+            Assert.AreEqual(1, sink.Files.Count);
+            Assert.IsFalse(sink.Files[0].LooksBinary);
+            Assert.IsTrue(summary.AnyMatch);
         }
     }
 }
