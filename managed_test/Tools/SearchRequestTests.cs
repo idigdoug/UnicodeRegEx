@@ -113,6 +113,19 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         [TestMethod]
+        public void ApplySettings_IgnoreCase_FoldsIntoSyntaxFlags()
+        {
+            var settings = new SearchSettings();
+            var errors = new List<string>();
+            CommandLine.Parse(new[] { "-i", "p", "x" }, settings, errors);
+
+            var request = new SearchRequest();
+            request.ApplySettings(settings);
+
+            Assert.IsTrue(request.SyntaxFlags.HasFlag(RegExSyntaxFlags.ICase));
+        }
+
+        [TestMethod]
         public void DefaultCodePage_ResolvesSentinelIntoResolvedDefault()
         {
             var request = new SearchRequest { DefaultCodePage = RegExCodePage.SystemDefault };
@@ -134,6 +147,112 @@ namespace UnicodeRegEx.Tests.Tools
             Assert.AreEqual(2, copy.Paths.Count);
             Assert.AreEqual(SearchVerb.Replace, copy.Verb);
             Assert.AreEqual("X", copy.ReplaceTemplate);
+        }
+
+        [TestMethod]
+        public void ComposeSyntaxFlags_DefaultPerl_ForcesDotNotNewline()
+        {
+            // DotAll is authoritative: with it off (the default), the perl group gets no_mod_s so "."
+            // deterministically does not match a newline.
+            Assert.AreEqual(
+                RegExSyntaxFlags.Perl | RegExSyntaxFlags.NoModS,
+                SearchRequest.ComposeSyntaxFlags(RegExSyntaxFlags.Perl));
+        }
+
+        [TestMethod]
+        public void ComposeSyntaxFlags_IgnoreCase_AddsICase()
+        {
+            Assert.AreEqual(
+                RegExSyntaxFlags.Perl | RegExSyntaxFlags.ICase | RegExSyntaxFlags.NoModS,
+                SearchRequest.ComposeSyntaxFlags(RegExSyntaxFlags.Perl, ignoreCase: true));
+        }
+
+        [TestMethod]
+        public void ComposeSyntaxFlags_CollateOnPerl_AddsCollate()
+        {
+            var flags = SearchRequest.ComposeSyntaxFlags(RegExSyntaxFlags.Perl, collate: true);
+            Assert.IsTrue(flags.HasFlag(RegExSyntaxFlags.Collate));
+        }
+
+        [TestMethod]
+        public void ComposeSyntaxFlags_BasicWithoutCollate_ClearsBundledCollateBit()
+        {
+            // Basic bundles collate in its POSIX definition; the composer treats collate as its own axis,
+            // so with collate off it compiles Basic without the collate bit.
+            var flags = SearchRequest.ComposeSyntaxFlags(RegExSyntaxFlags.Basic);
+            Assert.IsFalse(flags.HasFlag(RegExSyntaxFlags.Collate));
+        }
+
+        [TestMethod]
+        public void ComposeSyntaxFlags_BasicWithCollate_KeepsCollateBit()
+        {
+            var flags = SearchRequest.ComposeSyntaxFlags(RegExSyntaxFlags.Basic, collate: true);
+            Assert.IsTrue(flags.HasFlag(RegExSyntaxFlags.Collate));
+        }
+
+        [TestMethod]
+        public void ComposeSyntaxFlags_PerlModifiers_SetTheirBits()
+        {
+            var flags = SearchRequest.ComposeSyntaxFlags(
+                RegExSyntaxFlags.Perl, dotAll: true, freeSpacing: true, multilineAnchors: false);
+
+            Assert.IsTrue(flags.HasFlag(RegExSyntaxFlags.ModS));
+            Assert.IsFalse(flags.HasFlag(RegExSyntaxFlags.NoModS));
+            Assert.IsTrue(flags.HasFlag(RegExSyntaxFlags.ModX));
+            Assert.IsTrue(flags.HasFlag(RegExSyntaxFlags.NoModM));
+        }
+
+        [TestMethod]
+        public void ComposeSyntaxFlags_PerlModifiers_ApplyToExtended()
+        {
+            // Extended is in the perl syntax group, so the modifiers apply there too.
+            var flags = SearchRequest.ComposeSyntaxFlags(RegExSyntaxFlags.Extended, dotAll: true);
+            Assert.IsTrue(flags.HasFlag(RegExSyntaxFlags.ModS));
+        }
+
+        [TestMethod]
+        public void ComposeSyntaxFlags_PerlModifiers_SuppressedForBasicGroup()
+        {
+            // In the basic group bits 10-13 alias to unrelated options, so the composer does not set them.
+            var flags = SearchRequest.ComposeSyntaxFlags(
+                RegExSyntaxFlags.Basic, dotAll: true, freeSpacing: true, multilineAnchors: false);
+
+            Assert.IsFalse(flags.HasFlag(RegExSyntaxFlags.ModS));
+            Assert.IsFalse(flags.HasFlag(RegExSyntaxFlags.NoModS));
+            Assert.IsFalse(flags.HasFlag(RegExSyntaxFlags.ModX));
+            Assert.IsFalse(flags.HasFlag(RegExSyntaxFlags.NoModM));
+        }
+
+        [TestMethod]
+        public void SetSyntaxFlags_ResultIsCarriedByClone()
+        {
+            var original = new SearchRequest();
+            original.SetSyntaxFlags(
+                RegExSyntaxFlags.Perl, collate: true, dotAll: true, freeSpacing: true, multilineAnchors: false);
+
+            var copy = original.Clone();
+
+            Assert.AreEqual(original.SyntaxFlags, copy.SyntaxFlags);
+            Assert.AreEqual(
+                SearchRequest.ComposeSyntaxFlags(
+                    RegExSyntaxFlags.Perl, collate: true, dotAll: true, freeSpacing: true, multilineAnchors: false),
+                copy.SyntaxFlags);
+        }
+
+        [TestMethod]
+        public void MatchFlags_DefaultsToDefault()
+        {
+            Assert.AreEqual(RegExMatchFlags.Default, new SearchRequest().MatchFlags);
+        }
+
+        [TestMethod]
+        public void MatchFlags_IsCarriedByClone()
+        {
+            var original = new SearchRequest { MatchFlags = RegExMatchFlags.NotBol | RegExMatchFlags.NotBob };
+
+            var copy = original.Clone();
+
+            Assert.AreEqual(RegExMatchFlags.NotBol | RegExMatchFlags.NotBob, copy.MatchFlags);
         }
     }
 }

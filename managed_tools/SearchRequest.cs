@@ -40,13 +40,22 @@ namespace UnicodeRegEx.Tools
         /// </summary>
         public SearchVerb Verb { get; set; } = SearchVerb.Search;
 
-        /// <summary>Match without regard to case.</summary>
-        public bool IgnoreCase { get; set; }
+        /// <summary>
+        /// The full, unvalidated syntax-flags mask handed directly to the compiler (<c>RegEx.Create</c>).
+        /// This is the whole mask, not just the flavor: case sensitivity and tuning bits live here too.
+        /// Compose it from a flavor plus orthogonal options with <see cref="SetSyntaxFlags"/> (or the pure
+        /// <see cref="ComposeSyntaxFlags"/>), or assign bits directly when you know exactly what you want.
+        /// No validation happens here — the native allow-mask in <c>CreateRegEx</c> is the validity gate.
+        /// </summary>
+        public RegExSyntaxFlags SyntaxFlags { get; set; } = ComposeSyntaxFlags(RegExSyntaxFlags.Perl);
 
         /// <summary>
-        /// Core syntax: Extended, Literal, Basic, Perl.
+        /// Match-time flags applied to every search/replace in the run (default <see cref="RegExMatchFlags.Default"/>).
+        /// A single raw mask handed straight to the matcher — a front-end ORs the individual flags it wants.
+        /// Note: "." matching newline and multiline "^"/"$" are handled on the syntax axis
+        /// (<see cref="SyntaxFlags"/>), not here, so those behaviors stay a single knob.
         /// </summary>
-        public RegExSyntaxFlags SyntaxFlags { get; set; } = RegExSyntaxFlags.Perl;
+        public RegExMatchFlags MatchFlags { get; set; } = RegExMatchFlags.Default;
 
         /// <summary>
         /// True to write replacements back to files in place; false to preview only. Only meaningful
@@ -64,8 +73,13 @@ namespace UnicodeRegEx.Tools
         /// </summary>
         public string? Include { get; set; }
 
-        /// <summary>What to do with a file that detection judges to be binary (default: <see cref="BinaryFileDisposition.Skip"/>).</summary>
-        public BinaryFileDisposition BinaryDisposition { get; set; } = BinaryFileDisposition.Skip;
+        /// <summary>
+        /// When true (the default), files that detection judges to be binary are skipped. Set false to
+        /// search them anyway (their <see cref="SearchFile.LooksBinary"/> is still reported, so a caller
+        /// that wants different handling — e.g. treat binary as an error — can do so from
+        /// <see cref="ISearchSink.OnFile"/>).
+        /// </summary>
+        public bool SkipBinaryFiles { get; set; } = true;
 
         /// <summary>Which encoding/binary detection steps to run (default: <see cref="EncodingDetectionOptions.Default"/> — all steps).</summary>
         public EncodingDetectionOptions EncodingDetection { get; set; } = EncodingDetectionOptions.Default;
@@ -109,8 +123,7 @@ namespace UnicodeRegEx.Tools
             // presence-implies-verb rule is a command-line idiom, so it lives in this translation
             // step rather than in the shared model (a GUI sets Verb from a mode control instead).
             Verb = settings.Replace.Value != null ? SearchVerb.Replace : SearchVerb.Search;
-            IgnoreCase = settings.IgnoreCase.Value;
-            SyntaxFlags = settings.Syntax.Value;
+            SetSyntaxFlags(settings.Syntax.Value, ignoreCase: settings.IgnoreCase.Value);
             Apply = settings.Apply.Value;
             Recurse = settings.Recurse.Value;
             Include = settings.Include.Value;
@@ -151,18 +164,85 @@ namespace UnicodeRegEx.Tools
                 ResolvedDefaultCodePage = ResolvedDefaultCodePage,
                 ReplaceTemplate = ReplaceTemplate,
                 Verb = Verb,
-                IgnoreCase = IgnoreCase,
                 SyntaxFlags = SyntaxFlags,
+                MatchFlags = MatchFlags,
                 Apply = Apply,
                 Recurse = Recurse,
                 Include = Include,
-                BinaryDisposition = BinaryDisposition,
+                SkipBinaryFiles = SkipBinaryFiles,
                 EncodingDetection = EncodingDetection,
                 Pattern = Pattern,
             };
 
             copy.Paths.AddRange(Paths);
             return copy;
+        }
+
+        /// <summary>
+        /// Composes a full <see cref="RegExSyntaxFlags"/> mask from a syntax <paramref name="flavor"/>
+        /// plus orthogonal options. Collation is treated as an independent axis: the flavor's bundled
+        /// collate bit is cleared and <paramref name="collate"/> is authoritative. The Perl modifiers
+        /// (<paramref name="dotAll"/>, <paramref name="freeSpacing"/>, <paramref name="multilineAnchors"/>)
+        /// are applied only for perl-group flavors, because their bits alias to unrelated options in the
+        /// basic syntax group. Pure and side-effect free, so a front-end can preview the resulting mask.
+        /// </summary>
+        public static RegExSyntaxFlags ComposeSyntaxFlags(
+            RegExSyntaxFlags flavor,
+            bool ignoreCase = false,
+            bool collate = false,
+            bool dotAll = false,
+            bool freeSpacing = false,
+            bool multilineAnchors = true)
+        {
+            // Collation is an independent axis: strip the flavor's bundled bit and let collate own it.
+            var flags = flavor & ~RegExSyntaxFlags.Collate;
+            if (collate)
+            {
+                flags |= RegExSyntaxFlags.Collate;
+            }
+
+            if (ignoreCase)
+            {
+                flags |= RegExSyntaxFlags.ICase;
+            }
+
+            // Bits 10-13 only carry their Perl meaning in the perl syntax group (perl, extended, awk,
+            // egrep); in the basic group they alias to bk_plus_qm / bk_vbar / emacs_ex, so gate on the group.
+            if ((flavor & RegExSyntaxFlags.SyntaxGroupMask) == RegExSyntaxFlags.PerlSyntaxGroup)
+            {
+                // DotAll is authoritative: Boost's baseline (driven by the match flags) has "." matching
+                // newline, so we emit no_mod_s when off to force the conventional grep/Perl default where
+                // "." does not match newline.
+                flags |= dotAll ? RegExSyntaxFlags.ModS : RegExSyntaxFlags.NoModS;
+
+                if (freeSpacing)
+                {
+                    flags |= RegExSyntaxFlags.ModX;
+                }
+
+                if (!multilineAnchors)
+                {
+                    flags |= RegExSyntaxFlags.NoModM;
+                }
+            }
+
+            return flags;
+        }
+
+        /// <summary>
+        /// Sets <see cref="SyntaxFlags"/> from a syntax <paramref name="flavor"/> plus orthogonal options.
+        /// Instance sugar over <see cref="ComposeSyntaxFlags"/>; a caller that wants a specific bit pattern
+        /// can assign <see cref="SyntaxFlags"/> directly instead.
+        /// </summary>
+        public void SetSyntaxFlags(
+            RegExSyntaxFlags flavor = RegExSyntaxFlags.Perl,
+            bool ignoreCase = false,
+            bool collate = false,
+            bool dotAll = false,
+            bool freeSpacing = false,
+            bool multilineAnchors = true)
+        {
+            SyntaxFlags = ComposeSyntaxFlags(flavor, ignoreCase, collate, dotAll, freeSpacing, multilineAnchors);
         }
 
         /// <summary>
@@ -247,18 +327,5 @@ namespace UnicodeRegEx.Tools
 
         /// <summary>Replace matches using <see cref="SearchRequest.ReplaceTemplate"/> (preview unless <see cref="SearchRequest.Apply"/>).</summary>
         Replace,
-    }
-
-    /// <summary>What to do with a file that detection judges to be binary (non-text) content.</summary>
-    public enum BinaryFileDisposition
-    {
-        /// <summary>Silently skip the file (the default).</summary>
-        Skip,
-
-        /// <summary>Report the file as an error and do not process it.</summary>
-        Error,
-
-        /// <summary>Search (or replace in) the file anyway, using the detected/default code page.</summary>
-        Search,
     }
 }

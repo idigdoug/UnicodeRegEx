@@ -76,6 +76,13 @@ typedef [v1_enum] enum RegExSyntaxFlags
     RegExSyntaxFlags_nosubs             = 1 << 22,
     RegExSyntaxFlags_optimize           = 0,
     RegExSyntaxFlags_collate            = collate,
+    // Perl-group modifiers. These bits (8-13) are only meaningful when the syntax group is
+    // perl_syntax_group (perl, ECMAScript, extended, awk, egrep); in the basic group the same bits
+    // mean something else (e.g. bit 12 is emacs_ex), so only set them for perl-group syntaxes.
+    RegExSyntaxFlags_no_mod_m           = 1 << 10, // disable the Perl m modifier: ^ and $ no longer match at embedded newlines.
+    RegExSyntaxFlags_mod_x              = 1 << 11, // Perl x modifier: unescaped whitespace in the pattern is ignored.
+    RegExSyntaxFlags_mod_s              = 1 << 12, // force the Perl s modifier on: "." matches newline.
+    RegExSyntaxFlags_no_mod_s           = 1 << 13, // force the Perl s modifier off: "." never matches newline.
     RegExSyntaxFlags_normal             = 0,
     RegExSyntaxFlags_perl               = 0,
     RegExSyntaxFlags_ECMAScript         = 0,
@@ -142,6 +149,8 @@ typedef [v1_enum] enum RegExMatchFlags
     RegExMatchFlag_default    = 0,
     RegExMatchFlag_not_bol    = 1 << 0,
     RegExMatchFlag_not_eol    = 1 << 1,
+    RegExMatchFlag_not_bob    = 1 << 2,
+    RegExMatchFlag_not_eob    = 1 << 3,
     RegExMatchFlag_not_bow    = 1 << 4,
     RegExMatchFlag_not_eow    = 1 << 5,
     RegExMatchFlag_any        = 1 << 10,

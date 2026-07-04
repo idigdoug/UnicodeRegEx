@@ -187,8 +187,29 @@ RegExLibrary::CreateRegEx(
     boost::regex_constants::error_type errorCode;
     PCSTR errorMessage = nullptr;
 
-    if (syntaxFlags & static_cast<RegExSyntaxFlags>(boost::regex_constants::no_except))
+    // The set of syntax bits this library exposes and supports as input. Anything outside this mask is
+    // rejected rather than passed through to Boost: this blocks error-handling state bits (no_except,
+    // failbit), unsupported options (save_subexpression_location, no_empty_expressions), and any
+    // undefined bit. Kept in sync with the RegExSyntaxFlags enum in the IDL.
+    constexpr unsigned int c_allowedSyntaxFlags =
+        boost::regbase::main_option_type       // perl / basic / literal syntax groups
+        | boost::regbase::no_bk_refs           // extended, awk, egrep
+        | boost::regbase::no_perl_ex           // extended, awk, egrep
+        | boost::regbase::no_mod_m             // disable Perl m modifier
+        | boost::regbase::mod_x                // Perl x modifier
+        | boost::regbase::mod_s                // force Perl s modifier on
+        | boost::regbase::no_mod_s             // force Perl s modifier off
+        | boost::regbase::no_escape_in_lists   // basic, extended
+        | boost::regbase::newline_alt          // grep, egrep
+        | boost::regbase::icase
+        | boost::regbase::collate
+        | boost::regbase::nosubs;
+
+    auto const flagBits = static_cast<unsigned int>(syntaxFlags);
+    if ((flagBits & ~c_allowedSyntaxFlags) != 0 ||
+        (flagBits & boost::regbase::main_option_type) == boost::regbase::main_option_type)
     {
+        // Unsupported/undefined bit set, or an invalid syntax-group combination (e.g. basic | literal).
         hr = E_INVALIDARG;
         errorCode = boost::regex_constants::error_unknown;
     }

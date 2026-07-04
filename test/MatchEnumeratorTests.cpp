@@ -442,9 +442,47 @@ namespace RegExTests
 
             wil::com_ptr<IRegExMatchEnumerator> enumerator;
             HRESULT hr = regex->EnumerateMatches(
-                inputBytes, RegExCodePage_utf8, 0, static_cast<RegExMatchFlags>(1 << 8), enumerator.put());
+                inputBytes, RegExCodePage_utf8, 0, static_cast<RegExMatchFlags>(boost::match_prev_avail), enumerator.put());
             Assert::AreEqual(E_INVALIDARG, hr);
             Assert::IsNull(enumerator.get());
+        }
+
+        TEST_METHOD(RejectsUndefinedMatchFlag)
+        {
+            // The allow-mask rejects any bit outside the exposed match flags (here match_extra),
+            // not just match_prev_avail.
+            auto regex = MakeRegEx(L"a");
+
+            RegExBytes inputBytes = MakeString(u8"a"sv);
+
+            wil::com_ptr<IRegExMatchEnumerator> enumerator;
+            HRESULT hr = regex->EnumerateMatches(
+                inputBytes, RegExCodePage_utf8, 0, static_cast<RegExMatchFlags>(boost::match_extra), enumerator.put());
+            Assert::AreEqual(E_INVALIDARG, hr);
+            Assert::IsNull(enumerator.get());
+        }
+
+        TEST_METHOD(NotBob_SuppressesBufferStartAnchor)
+        {
+            // match_not_bob (a newly exposed flag) must flow through: \A should not match at the
+            // start of the buffer when it is set, so an anchored pattern finds nothing.
+            auto regex = MakeRegEx(L"\\Aa");
+
+            RegExBytes inputBytes = MakeString(u8"abc"sv);
+
+            wil::com_ptr<IRegExMatchEnumerator> withFlag;
+            Assert::AreEqual(S_OK, regex->EnumerateMatches(
+                inputBytes, RegExCodePage_utf8, 0, RegExMatchFlag_not_bob, withFlag.put()));
+            VARIANT_BOOL found = VARIANT_TRUE;
+            Assert::AreEqual(S_OK, withFlag->NextMatch(&found));
+            Assert::IsFalse(found != 0); // \A suppressed at buffer start
+
+            wil::com_ptr<IRegExMatchEnumerator> withoutFlag;
+            Assert::AreEqual(S_OK, regex->EnumerateMatches(
+                inputBytes, RegExCodePage_utf8, 0, RegExMatchFlag_default, withoutFlag.put()));
+            found = VARIANT_FALSE;
+            Assert::AreEqual(S_OK, withoutFlag->NextMatch(&found));
+            Assert::IsTrue(found != 0); // \A matches normally
         }
 
         TEST_METHOD(RejectsNoExcept)

@@ -90,15 +90,14 @@ Search files (default) or preview/apply replacements with a Unicode-aware regex.
         private sealed class ConsoleSink : ISearchSink
         {
             // The CLI streams hits and does not surface per-file metadata, so OnFile is a no-op.
-            public void OnFile(SearchFile file)
-            {
-            }
+            public SearchResponse OnFile(SearchFile file) => SearchResponse.Continue;
 
-            public void OnHit(in SearchHit hit)
+            public SearchResponse OnHit(in SearchHit hit)
             {
                 Console.Out.WriteLine(hit.Replacement == null
                     ? $"{hit.File.Path}: {hit.Text}"
                     : $"{hit.File.Path}: {hit.Text} => {hit.Replacement}");
+                return SearchResponse.Continue;
             }
 
             public void OnFileChanged(string path)
@@ -106,8 +105,12 @@ Search files (default) or preview/apply replacements with a Unicode-aware regex.
                 Console.Out.WriteLine($"{path}: updated");
             }
 
-            public void OnError(string path, string message)
+            public void OnError(string path, Exception exception)
             {
+                // Present missing paths in grep's idiom; otherwise the exception's own message.
+                var message = exception is System.IO.FileNotFoundException || exception is System.IO.DirectoryNotFoundException
+                    ? "no such file or directory"
+                    : exception.Message;
                 Console.Error.WriteLine($"{path}: {message}");
             }
         }

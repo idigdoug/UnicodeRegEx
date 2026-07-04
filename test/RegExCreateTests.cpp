@@ -40,6 +40,65 @@ namespace RegExTests
             Assert::IsNotNull(regex.get());
         }
 
+        TEST_METHOD(CreateRejectsNoExcept)
+        {
+            RegExErrorCode errorCode = RegExErrorCode_ok;
+            wil::com_ptr<IRegEx> regex;
+            HRESULT hr = TryMakeRegEx(L"hello",
+                static_cast<RegExSyntaxFlags>(boost::regex_constants::no_except),
+                LOCALE_NEUTRAL, &errorCode, regex);
+
+            Assert::AreEqual(E_INVALIDARG, hr);
+            Assert::IsNull(regex.get());
+        }
+
+        TEST_METHOD(CreateRejectsFailbit)
+        {
+            RegExErrorCode errorCode = RegExErrorCode_ok;
+            wil::com_ptr<IRegEx> regex;
+            HRESULT hr = TryMakeRegEx(L"hello",
+                static_cast<RegExSyntaxFlags>(boost::regex_constants::failbit),
+                LOCALE_NEUTRAL, &errorCode, regex);
+
+            Assert::AreEqual(E_INVALIDARG, hr);
+            Assert::IsNull(regex.get());
+        }
+
+        TEST_METHOD(CreateRejectsUndefinedBit)
+        {
+            RegExErrorCode errorCode = RegExErrorCode_ok;
+            wil::com_ptr<IRegEx> regex;
+            HRESULT hr = TryMakeRegEx(L"hello",
+                static_cast<RegExSyntaxFlags>(1u << 30),
+                LOCALE_NEUTRAL, &errorCode, regex);
+
+            Assert::AreEqual(E_INVALIDARG, hr);
+            Assert::IsNull(regex.get());
+        }
+
+        TEST_METHOD(CreateRejectsInvalidSyntaxGroup)
+        {
+            // basic | literal is not a valid syntax-group combination.
+            RegExErrorCode errorCode = RegExErrorCode_ok;
+            wil::com_ptr<IRegEx> regex;
+            HRESULT hr = TryMakeRegEx(L"hello",
+                static_cast<RegExSyntaxFlags>(RegExSyntaxFlags_basic_syntax_group | RegExSyntaxFlags_literal),
+                LOCALE_NEUTRAL, &errorCode, regex);
+
+            Assert::AreEqual(E_INVALIDARG, hr);
+            Assert::IsNull(regex.get());
+        }
+
+        TEST_METHOD(CreateAcceptsPerlModifiers)
+        {
+            // The four Perl-group modifier bits are legal input and compile in the perl group.
+            auto regex = MakeRegEx(L"a b c",
+                static_cast<RegExSyntaxFlags>(
+                    RegExSyntaxFlags_perl | RegExSyntaxFlags_mod_x | RegExSyntaxFlags_mod_s),
+                LOCALE_NEUTRAL);
+            Assert::IsNotNull(regex.get());
+        }
+
         TEST_METHOD(QueryInterface_IUnknown)
         {
             auto regex = MakeRegEx(L"test", RegExSyntaxFlags_ECMAScript, LOCALE_INVARIANT);

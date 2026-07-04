@@ -82,7 +82,7 @@ namespace UnicodeRegEx.Tools.Engine
         /// <summary>The number of files processed so far. Grows while <see cref="State"/> is <see cref="SearchJobState.Processing"/>.</summary>
         public int CompletedFileCount => Volatile.Read(ref completedFileCount);
 
-        /// <summary>The number of files reported as errors so far (access failures, per-file faults, or binary files under <see cref="BinaryFileDisposition.Error"/>).</summary>
+        /// <summary>The number of files reported as errors so far (missing paths, access failures, or per-file faults).</summary>
         public int ErrorCount => Volatile.Read(ref errorCount);
 
         /// <summary>The aggregate outcome. Meaningful once the job reaches a terminal state.</summary>
@@ -141,10 +141,6 @@ namespace UnicodeRegEx.Tools.Engine
             try
             {
                 var syntaxFlags = request.SyntaxFlags;
-                if (request.IgnoreCase)
-                {
-                    syntaxFlags |= RegExSyntaxFlags.ICase;
-                }
 
                 // An invalid pattern is a setup failure for the whole run; it faults the task.
                 using var regex = RegEx.Create(request.Pattern, syntaxFlags);
@@ -218,13 +214,16 @@ namespace UnicodeRegEx.Tools.Engine
                         anyMatch = true;
                     }
                 }
+                catch (SinkException ex)
+                {
+                    // A sink callback threw — treat as a bug and fault the whole job, surfacing the
+                    // original exception (with its stack) rather than the wrapper.
+                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex.InnerException!).Throw();
+                }
                 catch (Exception ex)
                 {
                     Interlocked.Increment(ref errorCount);
-                    lock (sinkGate)
-                    {
-                        sink.OnError(path, ex.Message);
-                    }
+                    ReportError(path, ex);
                 }
 
                 Interlocked.Increment(ref completedFileCount);
@@ -248,26 +247,66 @@ namespace UnicodeRegEx.Tools.Engine
 
         private void RaiseProgress() => ProgressChanged?.Invoke(this, EventArgs.Empty);
 
-        // Applies the request's binary-file disposition. Returns true if the file should still be
-        // processed (Search), or false if it should be skipped (Skip, or Error after reporting it).
-        private bool ShouldProcessBinaryFile(string path)
+        // Sink calls run under the gate so a sink need not be thread-safe. A sink that throws is a bug,
+        // not a per-file error: wrap the throw as a SinkException so the per-file handler re-throws it
+        // (faulting the job) instead of reporting it as a file error.
+        private SearchResponse ReportFile(SearchFile file)
         {
-            switch (request.BinaryDisposition)
+            lock (sinkGate)
             {
-                case BinaryFileDisposition.Search:
-                    return true;
+                try
+                {
+                    return sink.OnFile(file);
+                }
+                catch (Exception ex)
+                {
+                    throw new SinkException(ex);
+                }
+            }
+        }
 
-                case BinaryFileDisposition.Error:
-                    Interlocked.Increment(ref errorCount);
-                    lock (sinkGate)
-                    {
-                        sink.OnError(path, "binary file");
-                    }
+        private SearchResponse ReportHit(in SearchHit hit)
+        {
+            lock (sinkGate)
+            {
+                try
+                {
+                    return sink.OnHit(hit);
+                }
+                catch (Exception ex)
+                {
+                    throw new SinkException(ex);
+                }
+            }
+        }
 
-                    return false;
+        private void ReportFileChanged(string path)
+        {
+            lock (sinkGate)
+            {
+                try
+                {
+                    sink.OnFileChanged(path);
+                }
+                catch (Exception ex)
+                {
+                    throw new SinkException(ex);
+                }
+            }
+        }
 
-                default: // Skip
-                    return false;
+        private void ReportError(string path, Exception exception)
+        {
+            lock (sinkGate)
+            {
+                try
+                {
+                    sink.OnError(path, exception);
+                }
+                catch (Exception ex)
+                {
+                    throw new SinkException(ex);
+                }
             }
         }
 
@@ -293,22 +332,31 @@ namespace UnicodeRegEx.Tools.Engine
 
                 var detection = EncodingDetector.Detect(
                     new RegExPinnedBytes((void*)data, (nuint)length), length, request.ResolvedDefaultCodePage, request.EncodingDetection);
-                if (detection.LooksBinary && !ShouldProcessBinaryFile(path))
+                if (detection.LooksBinary && request.SkipBinaryFiles)
                 {
                     return false;
                 }
 
                 var codePage = detection.CodePage;
                 var file = new SearchFile(path, codePage, detection.LooksBinary);
-                lock (sinkGate)
+                var fileResponse = ReportFile(file);
+                if (fileResponse == SearchResponse.StopAll)
                 {
-                    sink.OnFile(file);
+                    cancellation.Cancel();
+                    return false;
+                }
+
+                if (fileResponse == SearchResponse.StopFile)
+                {
+                    return false;
                 }
 
                 var replaceTemplate = request.Verb == SearchVerb.Replace ? request.ReplaceTemplate : null;
-                var enumerateOptions = replaceTemplate == null
-                    ? default
-                    : new RegExEnumerateOptions { FormatTemplate = replaceTemplate };
+                var enumerateOptions = new RegExEnumerateOptions
+                {
+                    MatchFlags = request.MatchFlags,
+                    FormatTemplate = replaceTemplate,
+                };
 
                 return regex.EnumerateMatches(
                     new RegExInput(handle, (nuint)view.PointerOffset, (nuint)length, codePage),
@@ -318,14 +366,20 @@ namespace UnicodeRegEx.Tools.Engine
                         var matched = false;
                         foreach (var match in matches)
                         {
-                            var replacement = replaceTemplate != null ? match.Format() : null;
-                            var hit = new SearchHit(file, match.Text, replacement);
-                            lock (sinkGate)
+                            var hit = new SearchHit(file, match, replaceTemplate != null);
+                            var response = ReportHit(hit);
+                            matched = true;
+
+                            if (response == SearchResponse.StopAll)
                             {
-                                sink.OnHit(hit);
+                                cancellation.Cancel();
+                                break;
                             }
 
-                            matched = true;
+                            if (response == SearchResponse.StopFile)
+                            {
+                                break;
+                            }
                         }
 
                         return matched;
@@ -367,22 +421,35 @@ namespace UnicodeRegEx.Tools.Engine
 
                 var detection = EncodingDetector.Detect(
                     new RegExPinnedBytes((void*)data, (nuint)length), length, request.ResolvedDefaultCodePage, request.EncodingDetection);
-                if (detection.LooksBinary && !ShouldProcessBinaryFile(path))
+                if (detection.LooksBinary && request.SkipBinaryFiles)
                 {
                     return false;
                 }
 
                 var codePage = detection.CodePage;
-                lock (sinkGate)
+                var file = new SearchFile(path, codePage, detection.LooksBinary);
+                var fileResponse = ReportFile(file);
+                if (fileResponse == SearchResponse.StopAll)
                 {
-                    sink.OnFile(new SearchFile(path, codePage, detection.LooksBinary));
+                    cancellation.Cancel();
+                    return false;
+                }
+
+                if (fileResponse == SearchResponse.StopFile)
+                {
+                    return false;
                 }
 
                 var input = new RegExInput(handle, (nuint)view.PointerOffset, (nuint)length, codePage);
-                var options = new RegExEnumerateOptions { FormatTemplate = request.ReplaceTemplate };
+                var options = new RegExEnumerateOptions
+                {
+                    MatchFlags = request.MatchFlags,
+                    FormatTemplate = request.ReplaceTemplate,
+                };
 
                 // Write into a delete-on-close temp adjacent to the file; commit with MoveTo on success.
                 using var destination = RegEx.CreateReplacementFileStream(path);
+                var stopped = false;
                 var matched = regex.EnumerateSegments(input, options, segments =>
                 {
                     var any = false;
@@ -390,6 +457,23 @@ namespace UnicodeRegEx.Tools.Engine
                     {
                         if (segment.IsMatch)
                         {
+                            // Report the match before writing it, so a StopFile/StopAll response abandons
+                            // the rewrite: we leave the loop without committing, the delete-on-close temp
+                            // is discarded, and the original file is left untouched.
+                            var response = ReportHit(new SearchHit(file, segment.Match, isReplace: true));
+                            if (response == SearchResponse.StopAll)
+                            {
+                                cancellation.Cancel();
+                                stopped = true;
+                                break;
+                            }
+
+                            if (response == SearchResponse.StopFile)
+                            {
+                                stopped = true;
+                                break;
+                            }
+
                             segment.Match.FormatTo(destination, codePage);
                             any = true;
                         }
@@ -402,7 +486,7 @@ namespace UnicodeRegEx.Tools.Engine
                     return any;
                 });
 
-                if (!matched)
+                if (stopped || !matched)
                 {
                     return false;
                 }
@@ -410,10 +494,7 @@ namespace UnicodeRegEx.Tools.Engine
                 destination.Flush();
                 destination.MoveTo(path, RegExFileMoveFlags.ReplaceExisting);
 
-                lock (sinkGate)
-                {
-                    sink.OnFileChanged(path);
-                }
+                ReportFileChanged(path);
 
                 return true;
             }
@@ -436,20 +517,9 @@ namespace UnicodeRegEx.Tools.Engine
                     // One metadata probe instead of File.Exists + Directory.Exists.
                     attributes = File.GetAttributes(path);
                 }
-                catch (Exception ex) when (ex is FileNotFoundException || ex is DirectoryNotFoundException)
-                {
-                    lock (sinkGate)
-                    {
-                        sink.OnError(path, "no such file or directory");
-                    }
-                    continue;
-                }
                 catch (Exception ex)
                 {
-                    lock (sinkGate)
-                    {
-                        sink.OnError(path, ex.Message);
-                    }
+                    ReportError(path, ex);
                     continue;
                 }
 
@@ -490,10 +560,7 @@ namespace UnicodeRegEx.Tools.Engine
                 }
                 catch (Exception ex)
                 {
-                    lock (sinkGate)
-                    {
-                        sink.OnError(current, ex.Message);
-                    }
+                    ReportError(current, ex);
                     continue;
                 }
 
@@ -509,6 +576,16 @@ namespace UnicodeRegEx.Tools.Engine
                 {
                     stack.Push(subdirectory);
                 }
+            }
+        }
+
+        // Marks an exception as having come from a sink callback (a bug) rather than from file/IO work,
+        // so the per-file handler re-throws it to fault the job instead of reporting it as a file error.
+        private sealed class SinkException : Exception
+        {
+            public SinkException(Exception inner)
+                : base("A search sink callback threw.", inner)
+            {
             }
         }
     }

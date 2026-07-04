@@ -1,9 +1,29 @@
 namespace UnicodeRegEx.Tools.Engine
 {
+    using System;
+    using UnicodeRegEx;
+
+    /// <summary>
+    /// A sink's response to a callback, letting it steer the run. Applies to <see cref="ISearchSink.OnFile"/>
+    /// and <see cref="ISearchSink.OnHit"/>.
+    /// </summary>
+    public enum SearchResponse
+    {
+        /// <summary>Keep going.</summary>
+        Continue,
+
+        /// <summary>Stop processing the current file, but continue with the remaining files.</summary>
+        StopFile,
+
+        /// <summary>Stop the whole job (equivalent to <see cref="SearchJob.Cancel"/>).</summary>
+        StopAll,
+    }
+
     /// <summary>
     /// Receives results and status from a <see cref="SearchJob"/> run as they happen, so a
     /// front-end can stream output (CLI) or update a live view (GUI). Implementations should be
-    /// cheap and should not throw. The job serializes its callbacks, so a sink need not be thread-safe.
+    /// cheap. The job serializes its callbacks, so a sink need not be thread-safe. A callback that
+    /// throws faults the whole job (a thrown sink is treated as a bug, not a per-file error).
     /// </summary>
     public interface ISearchSink
     {
@@ -11,18 +31,23 @@ namespace UnicodeRegEx.Tools.Engine
         /// A file is about to be searched. Reported once per processed file — including files with no
         /// matches — and before any of that file's hits, so a front-end can learn its detected encoding
         /// and binary verdict even when it produces no hits. Skipped, errored, and empty files are not
-        /// reported here.
+        /// reported here. Return <see cref="SearchResponse.StopFile"/> to skip this file, or
+        /// <see cref="SearchResponse.StopAll"/> to end the run.
         /// </summary>
-        void OnFile(SearchFile file);
+        SearchResponse OnFile(SearchFile file);
 
-        /// <summary>A search result (a match) or a replace-preview result (a match and its replacement).</summary>
-        void OnHit(in SearchHit hit);
+        /// <summary>
+        /// A search result (a match) or a replace-preview result (a match and its replacement). Return
+        /// <see cref="SearchResponse.StopFile"/> to stop enumerating this file (e.g. after N matches), or
+        /// <see cref="SearchResponse.StopAll"/> to end the run.
+        /// </summary>
+        SearchResponse OnHit(in SearchHit hit);
 
         /// <summary>A file was rewritten in apply mode.</summary>
         void OnFileChanged(string path);
 
-        /// <summary>A path could not be processed: a missing path, a directory access error, or a per-file failure.</summary>
-        void OnError(string path, string message);
+        /// <summary>A path could not be processed: a missing path, a directory access error, or a per-file failure. Receives the underlying exception so the sink can present or classify it as it sees fit.</summary>
+        void OnError(string path, Exception exception);
     }
 
     /// <summary>
@@ -45,37 +70,47 @@ namespace UnicodeRegEx.Tools.Engine
         /// <summary>The code page the file was decoded with.</summary>
         public int CodePage { get; }
 
-        /// <summary>True if detection judged the file to be binary (it was searched anyway).</summary>
+        /// <summary>True if detection judged the file to be binary.</summary>
         public bool LooksBinary { get; }
     }
 
     /// <summary>
-    /// A single result. In search mode <see cref="Text"/> is the matched text and
-    /// <see cref="Replacement"/> is null; in replace mode <see cref="Text"/> is the matched text and
-    /// <see cref="Replacement"/> is what it becomes.
+    /// A single match. Carries the file it belongs to and the underlying <see cref="RegExMatch"/>, from
+    /// which a tool derives matched text, sub-matches, byte offsets, and surrounding context.
     /// </summary>
     /// <remarks>
-    /// This shape is still evolving: byte offsets, surrounding context, etc. will be added when the
-    /// GUI's needs are known. The engine does not track line numbers; mapping an offset to a line is a
-    /// front-end concern.
+    /// LIFETIME: a <see cref="SearchHit"/> (and its <see cref="Match"/>) is valid ONLY for the duration
+    /// of the <see cref="ISearchSink.OnHit"/> call that receives it. The match enumerator advances a
+    /// shared native object on each step, so the match goes stale on the next iteration, and the file's
+    /// bytes are unmapped when the file finishes. A sink that needs to keep anything (text, offsets,
+    /// context bytes) must copy it out during the call. Being a <see langword="ref"/> struct, the hit
+    /// cannot be stored in a field or collection, which enforces this at compile time.
     /// </remarks>
-    public readonly struct SearchHit
+    public readonly ref struct SearchHit
     {
-        public SearchHit(SearchFile file, string text, string? replacement)
+        private readonly bool isReplace;
+
+        public SearchHit(SearchFile file, RegExMatch match, bool isReplace)
         {
             File = file;
-            Text = text;
-            Replacement = replacement;
+            Match = match;
+            this.isReplace = isReplace;
         }
 
         /// <summary>The file this hit is in (shared with the file's other hits and its <see cref="ISearchSink.OnFile"/> report).</summary>
         public SearchFile File { get; }
 
-        /// <summary>The matched text.</summary>
-        public string Text { get; }
+        /// <summary>The underlying match: sub-matches, byte offsets, input bytes, formatting.</summary>
+        public RegExMatch Match { get; }
 
-        /// <summary>The replacement for the match, or null in search-only mode.</summary>
-        public string? Replacement { get; }
+        /// <summary>The matched text (sub-match 0), decoded with the file's code page.</summary>
+        public string Text => Match.Text;
+
+        /// <summary>
+        /// The replacement this match formats to in replace mode, or <see langword="null"/> in
+        /// search-only mode. Computed on access (search-mode hits never format).
+        /// </summary>
+        public string? Replacement => isReplace ? Match.Format() : null;
     }
 
     /// <summary>The aggregate outcome of a <see cref="SearchEngine"/> run.</summary>

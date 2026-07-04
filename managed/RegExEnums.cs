@@ -30,6 +30,31 @@
         /// <summary>Use locale-specific collation in character ranges such as [a-b].</summary>
         Collate = 2097152,
 
+        /// <summary>
+        /// Disable the Perl "m" modifier: "^" and "$" no longer match at embedded newlines (only at the
+        /// start/end of the input). Perl-group syntaxes only (perl, ECMAScript, extended, awk, egrep);
+        /// in the basic syntax group this bit means something else.
+        /// </summary>
+        NoModM = 1024,
+
+        /// <summary>
+        /// Perl "x" modifier: unescaped whitespace in the pattern is ignored, allowing free-spacing
+        /// expressions. Perl-group syntaxes only; in the basic syntax group this bit means something else.
+        /// </summary>
+        ModX = 2048,
+
+        /// <summary>
+        /// Force the Perl "s" modifier on: "." matches a newline character. Perl-group syntaxes only; in
+        /// the basic syntax group this bit means something else.
+        /// </summary>
+        ModS = 4096,
+
+        /// <summary>
+        /// Force the Perl "s" modifier off: "." never matches a newline character. Perl-group syntaxes
+        /// only; in the basic syntax group this bit means something else.
+        /// </summary>
+        NoModS = 8192,
+
         /// <summary>Normal (Perl/ECMAScript) syntax. Equivalent to <see cref="ECMAScript"/>.</summary>
         Normal = 0,
 
@@ -67,6 +92,12 @@
 
         /// <summary>"$" should not match at the end of the input (the end is not treated as the end of a line).</summary>
         NotEol = 2,
+
+        /// <summary>"\A" and "\`" should not match at the start of the input (the start is not treated as the beginning of the buffer). The buffer-anchor analogue of <see cref="NotBol"/>, for treating the input as mid-stream.</summary>
+        NotBob = 0x4,
+
+        /// <summary>"\'", "\z", and "\Z" should not match at the end of the input (the end is not treated as the end of the buffer). The buffer-anchor analogue of <see cref="NotEol"/>, for treating the input as mid-stream.</summary>
+        NotEob = 0x8,
 
         /// <summary>"\b" and "\&lt;" should not match at the start of the input (the start is not treated as a word boundary).</summary>
         NotBow = 0x10,

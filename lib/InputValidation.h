@@ -26,6 +26,16 @@ RangeIsInBounds(LONGLONG offset, LONGLONG size, size_t bufferSize) noexcept;
 bool
 InputIsAligned(TextEncoding encoding, LONGLONG lowBits) noexcept;
 
+// Returns true if flags contains only match flags this library accepts as input.
+// The allowed set is the exposed RegExMatchFlags input bits; everything else is
+// rejected, including boost-internal state (match_init/match_max), unused bits,
+// format bits (which must not arrive on the match-flags parameter), unsupported
+// options (match_posix / match_all / match_extra / match_nosubs), and
+// match_prev_avail -- the enumerator supplies that implicitly via its base
+// iterator (see MatchEnumerator::AdvanceMatch), so a caller must not set it.
+bool
+MatchFlagsAreValid(RegExMatchFlags flags) noexcept;
+
 // Returns true and sets encoding if codePage is valid and lowBits is valid for it
 // (multiple of the encoding's element size).
 _Success_(return)

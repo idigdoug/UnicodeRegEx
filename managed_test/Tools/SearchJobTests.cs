@@ -1,8 +1,10 @@
 namespace UnicodeRegEx.Tests.Tools
 {
     using System;
+    using System.Collections.Generic;
     using System.IO;
     using System.Threading.Tasks;
+    using System.Text;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using UnicodeRegEx;
     using UnicodeRegEx.Tests;
@@ -41,7 +43,7 @@ namespace UnicodeRegEx.Tests.Tools
         {
             var full = Path.Combine(tempDir, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(full)!);
-            File.WriteAllText(full, content, new System.Text.UTF8Encoding(false));
+            File.WriteAllText(full, content, new UTF8Encoding(false));
             return full;
         }
 
@@ -74,6 +76,75 @@ namespace UnicodeRegEx.Tests.Tools
             Assert.IsTrue(summary.AnyMatch);
             CollectionAssert.AreEqual(new[] { "alpha", "alpha" }, sink.HitTexts());
             Assert.AreEqual(0, summary.Errors);
+        }
+
+        // ---- Syntax-flag tuning (to-do #3)
+
+        [TestMethod]
+        public async Task DotAll_Off_DotDoesNotCrossNewline()
+        {
+            var file = WriteFile("a.txt", "a\nb");
+
+            var (sink, _, _) = await RunAsync(Request("a.b", file)); // DotAll defaults off
+
+            Assert.AreEqual(0, sink.Hits.Count);
+        }
+
+        [TestMethod]
+        public async Task DotAll_On_DotMatchesAcrossNewline()
+        {
+            var file = WriteFile("a.txt", "a\nb");
+            var request = Request("a.b", file);
+            request.SetSyntaxFlags(RegExSyntaxFlags.Perl, dotAll: true);
+
+            var (sink, _, _) = await RunAsync(request);
+
+            Assert.AreEqual(1, sink.Hits.Count);
+        }
+
+        [TestMethod]
+        public async Task MultilineAnchors_Default_CaretMatchesAfterEmbeddedNewline()
+        {
+            var file = WriteFile("a.txt", "a\nb");
+
+            var (sink, _, _) = await RunAsync(Request("^b", file)); // MultilineAnchors defaults on
+
+            Assert.AreEqual(1, sink.Hits.Count);
+        }
+
+        [TestMethod]
+        public async Task MultilineAnchors_Off_CaretMatchesOnlyAtInputStart()
+        {
+            var file = WriteFile("a.txt", "a\nb");
+            var request = Request("^b", file);
+            request.SetSyntaxFlags(RegExSyntaxFlags.Perl, multilineAnchors: false);
+
+            var (sink, _, _) = await RunAsync(request);
+
+            Assert.AreEqual(0, sink.Hits.Count);
+        }
+
+        [TestMethod]
+        public async Task MatchFlags_NotBol_SuppressesCaretAtBufferStart()
+        {
+            var file = WriteFile("a.txt", "b"); // "^b" would match at the buffer start by default
+
+            var request = Request("^b", file);
+            request.MatchFlags = RegExMatchFlags.NotBol;
+
+            var (sink, _, _) = await RunAsync(request);
+
+            Assert.AreEqual(0, sink.Hits.Count); // NotBol suppresses "^" at the start of the input
+        }
+
+        [TestMethod]
+        public async Task MatchFlags_Default_CaretMatchesAtBufferStart()
+        {
+            var file = WriteFile("a.txt", "b");
+
+            var (sink, _, _) = await RunAsync(Request("^b", file)); // MatchFlags defaults to Default
+
+            Assert.AreEqual(1, sink.Hits.Count);
         }
 
         [TestMethod]
@@ -179,6 +250,80 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         [TestMethod]
+        public async Task ApplyReplace_ReportsHitPerMatch_WithReplacement()
+        {
+            var file = WriteFile("a.txt", "alpha beta alpha");
+            var request = Request("alpha", file);
+            request.Verb = SearchVerb.Replace;
+            request.ReplaceTemplate = "X";
+            request.Apply = true;
+
+            var (sink, summary, _) = await RunAsync(request);
+
+            // Apply mode now reports a hit per match (symmetry with search), each exposing its replacement.
+            Assert.AreEqual(2, sink.Hits.Count);
+            foreach (var hit in sink.Hits)
+            {
+                Assert.AreEqual("alpha", hit.Text);
+                Assert.AreEqual("X", hit.Replacement);
+            }
+
+            Assert.AreEqual(1, summary.FilesChanged);
+            Assert.AreEqual("X beta X", File.ReadAllText(file));
+        }
+
+        [TestMethod]
+        public async Task ApplyReplace_OnHitStopFile_AbandonsFile_ButContinuesToNextFile()
+        {
+            var a = WriteFile("a.txt", "alpha alpha");
+            var b = WriteFile("b.txt", "alpha alpha");
+
+            // Stop on the very first hit (in file a), then let the rest through.
+            var hitCount = 0;
+            var sink = new SteeringSink(onHit: _ =>
+            {
+                hitCount++;
+                return hitCount == 1 ? SearchResponse.StopFile : SearchResponse.Continue;
+            });
+
+            var request = Request("alpha", a, b);
+            request.Verb = SearchVerb.Replace;
+            request.ReplaceTemplate = "X";
+            request.Apply = true;
+
+            using var job = new SearchJob(request, sink);
+            await job.RunAsync();
+
+            Assert.AreEqual(SearchJobState.Completed, job.State);
+            Assert.AreEqual("alpha alpha", File.ReadAllText(a));  // abandoned: original untouched
+            Assert.AreEqual("X X", File.ReadAllText(b));          // next file still rewritten
+            Assert.AreEqual(1, job.Summary.FilesChanged);
+        }
+
+        [TestMethod]
+        public async Task ApplyReplace_OnHitStopAll_CancelsJob_LeavesFilesUnchanged()
+        {
+            var a = WriteFile("a.txt", "alpha alpha");
+            var b = WriteFile("b.txt", "alpha alpha");
+
+            var sink = new SteeringSink(onHit: _ => SearchResponse.StopAll);
+
+            var request = Request("alpha", a, b);
+            request.Verb = SearchVerb.Replace;
+            request.ReplaceTemplate = "X";
+            request.Apply = true;
+
+            using var job = new SearchJob(request, sink);
+            await job.RunAsync();
+
+            Assert.AreEqual(SearchJobState.Canceled, job.State);
+            Assert.IsTrue(job.Summary.Cancelled);
+            Assert.AreEqual(0, job.Summary.FilesChanged);
+            Assert.AreEqual("alpha alpha", File.ReadAllText(a));  // abandoned before commit
+            Assert.AreEqual("alpha alpha", File.ReadAllText(b));  // never processed
+        }
+
+        [TestMethod]
         public async Task MissingPath_ReportsError()
         {
             var missing = Path.Combine(tempDir, "does-not-exist.txt");
@@ -252,12 +397,12 @@ namespace UnicodeRegEx.Tests.Tools
         {
             var full = Path.Combine(tempDir, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(full)!);
-            var before = System.Text.Encoding.ASCII.GetBytes(asciiBefore);
-            var after = System.Text.Encoding.ASCII.GetBytes(asciiAfter);
+            var before = Encoding.ASCII.GetBytes(asciiBefore);
+            var after = Encoding.ASCII.GetBytes(asciiAfter);
             var bytes = new byte[before.Length + 1 + after.Length];
-            System.Array.Copy(before, 0, bytes, 0, before.Length);
+            Array.Copy(before, 0, bytes, 0, before.Length);
             bytes[before.Length] = 0x00; // NUL -> binary
-            System.Array.Copy(after, 0, bytes, before.Length + 1, after.Length);
+            Array.Copy(after, 0, bytes, before.Length + 1, after.Length);
             File.WriteAllBytes(full, bytes);
             return full;
         }
@@ -267,7 +412,7 @@ namespace UnicodeRegEx.Tests.Tools
         {
             var file = WriteBinaryFile("bin.dat", "alpha", "alpha");
 
-            var (sink, summary, _) = await RunAsync(Request("alpha", file)); // default disposition = Skip
+            var (sink, summary, _) = await RunAsync(Request("alpha", file)); // binary files are skipped by default
 
             Assert.AreEqual(0, sink.Hits.Count);
             Assert.AreEqual(0, sink.Errors.Count);
@@ -275,27 +420,11 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         [TestMethod]
-        public async Task BinaryError_ReportsErrorAndDoesNotProcess()
-        {
-            var file = WriteBinaryFile("bin.dat", "alpha", "alpha");
-            var request = Request("alpha", file);
-            request.BinaryDisposition = BinaryFileDisposition.Error;
-
-            var (sink, summary, _) = await RunAsync(request);
-
-            Assert.AreEqual(0, sink.Hits.Count);
-            Assert.AreEqual(1, sink.Errors.Count);
-            Assert.AreEqual(file, sink.Errors[0].Path);
-            Assert.AreEqual("binary file", sink.Errors[0].Message);
-            Assert.AreEqual(1, summary.Errors);
-        }
-
-        [TestMethod]
         public async Task BinarySearch_SearchesAnyway_FindsMatches()
         {
             var file = WriteBinaryFile("bin.dat", "alpha", "alpha");
             var request = Request("alpha", file);
-            request.BinaryDisposition = BinaryFileDisposition.Search;
+            request.SkipBinaryFiles = false;
 
             var (sink, summary, _) = await RunAsync(request);
 
@@ -342,7 +471,7 @@ namespace UnicodeRegEx.Tests.Tools
         [TestMethod]
         public async Task OnFile_SkippedBinaryFile_IsNotReported()
         {
-            var file = WriteBinaryFile("bin.dat", "alpha", "alpha"); // default disposition = Skip
+            var file = WriteBinaryFile("bin.dat", "alpha", "alpha"); // binary files are skipped by default
 
             var (sink, _, _) = await RunAsync(Request("alpha", file));
 
@@ -355,7 +484,7 @@ namespace UnicodeRegEx.Tests.Tools
         {
             var file = WriteBinaryFile("bin.dat", "alpha", "alpha");
             var request = Request("alpha", file);
-            request.BinaryDisposition = BinaryFileDisposition.Search;
+            request.SkipBinaryFiles = false;
 
             var (sink, _, _) = await RunAsync(request);
 
@@ -379,6 +508,155 @@ namespace UnicodeRegEx.Tests.Tools
             Assert.AreEqual(1, sink.Files.Count);
             Assert.IsFalse(sink.Files[0].LooksBinary);
             Assert.IsTrue(summary.AnyMatch);
+        }
+
+        // Captures each hit's match byte-offset span during OnHit (the ref-struct hit can't be stored).
+        private sealed class OffsetCapturingSink : ISearchSink
+        {
+            public List<(nuint Begin, nuint Size)> Spans { get; } = new List<(nuint, nuint)>();
+
+            public SearchResponse OnFile(SearchFile file) => SearchResponse.Continue;
+
+            public SearchResponse OnHit(in SearchHit hit)
+            {
+                var whole = hit.Match.GetSubMatch(0);
+                Spans.Add((whole.Begin, whole.Size));
+                return SearchResponse.Continue;
+            }
+
+            public void OnFileChanged(string path)
+            {
+            }
+
+            public void OnError(string path, Exception exception)
+            {
+            }
+        }
+
+        [TestMethod]
+        public async Task Hit_ExposesMatch_ForByteOffsets()
+        {
+            var file = WriteFile("a.txt", "alpha beta alpha"); // "alpha" at bytes 0 and 11 (UTF-8/ASCII)
+            var sink = new OffsetCapturingSink();
+            using var job = new SearchJob(Request("alpha", file), sink);
+            await job.RunAsync();
+
+            CollectionAssert.AreEqual(
+                new[] { ((nuint)0, (nuint)5), ((nuint)11, (nuint)5) },
+                sink.Spans);
+        }
+
+        // A sink whose OnHit/OnFile responses (and optional throws) are driven by the test.
+        private sealed class SteeringSink : ISearchSink
+        {
+            private readonly Func<string, SearchResponse>? onHit;
+            private readonly Func<SearchFile, SearchResponse>? onFile;
+            private readonly bool throwOnHit;
+
+            public SteeringSink(
+                Func<string, SearchResponse>? onHit = null,
+                Func<SearchFile, SearchResponse>? onFile = null,
+                bool throwOnHit = false)
+            {
+                this.onHit = onHit;
+                this.onFile = onFile;
+                this.throwOnHit = throwOnHit;
+            }
+
+            public List<string> HitTexts { get; } = new List<string>();
+            public List<string> FilePaths { get; } = new List<string>();
+
+            public SearchResponse OnFile(SearchFile file)
+            {
+                FilePaths.Add(file.Path);
+                return onFile?.Invoke(file) ?? SearchResponse.Continue;
+            }
+
+            public SearchResponse OnHit(in SearchHit hit)
+            {
+                if (throwOnHit)
+                {
+                    throw new InvalidOperationException("boom");
+                }
+
+                HitTexts.Add(hit.Text);
+                return onHit?.Invoke(hit.Text) ?? SearchResponse.Continue;
+            }
+
+            public void OnFileChanged(string path)
+            {
+            }
+
+            public void OnError(string path, Exception exception)
+            {
+            }
+        }
+
+        [TestMethod]
+        public async Task OnHit_StopFile_StopsCurrentFile_ContinuesToNext()
+        {
+            WriteFile("a.txt", "m m m");   // 3 matches; we stop after the first
+            WriteFile("b.txt", "m m");     // still searched
+
+            // Stop the current file on its first hit.
+            var sink = new SteeringSink(onHit: _ => SearchResponse.StopFile);
+            using var job = new SearchJob(Request("m", tempDir), sink);
+            await job.RunAsync();
+
+            Assert.AreEqual(SearchJobState.Completed, job.State);
+            Assert.AreEqual(2, sink.FilePaths.Count);      // both files processed
+            Assert.AreEqual(2, sink.HitTexts.Count);       // exactly one hit per file
+        }
+
+        [TestMethod]
+        public async Task OnHit_StopAll_EndsTheRun()
+        {
+            WriteFile("a.txt", "m m m");
+            WriteFile("b.txt", "m m m");
+
+            var sink = new SteeringSink(onHit: _ => SearchResponse.StopAll);
+            using var job = new SearchJob(Request("m", tempDir), sink);
+            await job.RunAsync();
+
+            Assert.AreEqual(SearchJobState.Canceled, job.State);
+            Assert.AreEqual(1, sink.HitTexts.Count);       // stopped at the very first hit
+        }
+
+        [TestMethod]
+        public async Task OnFile_StopFile_SkipsThatFilesHits()
+        {
+            var a = WriteFile("a.txt", "m m");
+
+            var sink = new SteeringSink(onFile: f => f.Path == a ? SearchResponse.StopFile : SearchResponse.Continue);
+            using var job = new SearchJob(Request("m", a), sink);
+            await job.RunAsync();
+
+            Assert.AreEqual(SearchJobState.Completed, job.State);
+            Assert.AreEqual(1, sink.FilePaths.Count);      // OnFile was called
+            Assert.AreEqual(0, sink.HitTexts.Count);       // but the file was skipped, no hits
+        }
+
+        [TestMethod]
+        public async Task SinkThrows_FaultsTheJob()
+        {
+            WriteFile("a.txt", "m");
+
+            var sink = new SteeringSink(throwOnHit: true);
+            using var job = new SearchJob(Request("m", tempDir), sink);
+
+            Exception? caught = null;
+            try
+            {
+                await job.RunAsync();
+            }
+            catch (Exception ex)
+            {
+                caught = ex;
+            }
+
+            Assert.IsInstanceOfType(caught, typeof(InvalidOperationException));
+            Assert.AreEqual("boom", caught!.Message);
+            Assert.AreEqual(SearchJobState.Faulted, job.State);
         }
     }
 }

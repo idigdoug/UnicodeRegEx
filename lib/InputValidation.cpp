@@ -61,3 +61,23 @@ TextEncodingForCodePageIfAligned(unsigned codePage, LONGLONG lowBits, _Out_ Text
         return (lowBits & (sizeof(typename EncodingT::encoded_char) - 1)) == 0;
         });
 }
+
+bool
+MatchFlagsAreValid(RegExMatchFlags flags) noexcept
+{
+    // The match flags this library exposes and accepts as input. Anything outside this
+    // mask is rejected rather than passed through to Boost. Kept in sync with the
+    // RegExMatchFlags enum in the IDL.
+    constexpr unsigned int c_allowedMatchFlags =
+        RegExMatchFlag_not_bol |
+        RegExMatchFlag_not_eol |
+        RegExMatchFlag_not_bob |
+        RegExMatchFlag_not_eob |
+        RegExMatchFlag_not_bow |
+        RegExMatchFlag_not_eow |
+        RegExMatchFlag_any |
+        RegExMatchFlag_not_null |
+        RegExMatchFlag_continuous;
+
+    return (static_cast<unsigned int>(flags) & ~c_allowedMatchFlags) == 0;
+}

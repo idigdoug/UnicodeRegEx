@@ -169,7 +169,7 @@ RegEx::EnumerateMatches(
     UINT_PTR const startByteOffsetU = static_cast<UINT_PTR>(startByteOffset);
     if (!InputIsValid(input) ||
         !TextEncodingForCodePageIfAligned(inputCodePage, input.data | input.size | startByteOffset, &inputEncoding) ||
-        (flags & static_cast<RegExMatchFlags>(boost::match_prev_avail)) ||
+        !MatchFlagsAreValid(flags) ||
         startByteOffsetU > static_cast<UINT_PTR>(input.size))
     {
         hr = E_INVALIDARG;
@@ -199,6 +199,12 @@ RegEx::Replace(
     _Out_ BSTR* pOutputString) noexcept
 {
     *pOutputString = nullptr;
+
+    // Validate the raw match flags before combining with the format flags.
+    if (!MatchFlagsAreValid(matchFlags))
+    {
+        return E_INVALIDARG;
+    }
 
     auto const flags = static_cast<boost::regex_constants::match_flag_type>(
         static_cast<int>(matchFlags) | static_cast<int>(formatFlags));
@@ -245,6 +251,12 @@ RegEx::ReplaceTo(
         return E_INVALIDARG;
     }
 
+    // Validate the raw match flags before combining with the format flags.
+    if (!MatchFlagsAreValid(matchFlags))
+    {
+        return E_INVALIDARG;
+    }
+
     auto const flags = static_cast<boost::regex_constants::match_flag_type>(
         static_cast<int>(matchFlags) | static_cast<int>(formatFlags));
 
@@ -278,9 +290,22 @@ RegEx::ReplaceImpl(
 {
     TextEncoding inputEncoding;
     UINT_PTR const startByteOffsetU = static_cast<UINT_PTR>(startByteOffset);
+
+    // flags is the combined match|format value; validate the match portion defensively (the public
+    // Replace/ReplaceTo entry points already validate the raw match flags before combining). Mask off
+    // the format bits (which live above the match bits) so only the match portion is checked here.
+    // The bits are cast to unsigned before OR-ing because boost's enum operator| is not constexpr.
+    constexpr unsigned int c_formatFlagBits =
+        static_cast<unsigned int>(boost::regex_constants::format_sed) |
+        static_cast<unsigned int>(boost::regex_constants::format_all) |
+        static_cast<unsigned int>(boost::regex_constants::format_no_copy) |
+        static_cast<unsigned int>(boost::regex_constants::format_first_only) |
+        static_cast<unsigned int>(boost::regex_constants::format_is_if) |
+        static_cast<unsigned int>(boost::regex_constants::format_literal);
+    auto const matchFlagsOnly = static_cast<RegExMatchFlags>(static_cast<unsigned int>(flags) & ~c_formatFlagBits);
     if (!InputIsValid(input) ||
         !TextEncodingForCodePageIfAligned(inputCodePage, input.data | input.size | startByteOffset, &inputEncoding) ||
-        (flags & boost::match_prev_avail) ||
+        !MatchFlagsAreValid(matchFlagsOnly) ||
         startByteOffsetU > static_cast<UINT_PTR>(input.size))
     {
         return E_INVALIDARG;
@@ -384,7 +409,7 @@ RegEx::SearchImpl(
     UINT_PTR const startByteOffsetU = static_cast<UINT_PTR>(startByteOffset);
     if (!InputIsValid(input) ||
         !TextEncodingForCodePageIfAligned(inputCodePage, input.data | input.size | startByteOffset, &inputEncoding) ||
-        (flags & static_cast<RegExMatchFlags>(boost::match_prev_avail)) ||
+        !MatchFlagsAreValid(flags) ||
         startByteOffsetU > static_cast<UINT_PTR>(input.size))
     {
         hr = E_INVALIDARG;
