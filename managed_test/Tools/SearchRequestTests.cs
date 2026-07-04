@@ -126,6 +126,59 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         [TestMethod]
+        public void AddIncludeGlobs_SplitsSemicolonList_IntoIncludeFilters()
+        {
+            var request = new SearchRequest();
+            request.AddIncludeFileGlobs(" *.cs ; ; *.txt ");
+
+            Assert.AreEqual(2, request.FileNameFilters.Count);
+            Assert.AreEqual(FilterKind.Include, request.FileNameFilters[0].Kind);
+            Assert.AreEqual("*.cs", request.FileNameFilters[0].Glob);
+            Assert.AreEqual(FilterKind.Include, request.FileNameFilters[1].Kind);
+            Assert.AreEqual("*.txt", request.FileNameFilters[1].Glob);
+        }
+
+        [TestMethod]
+        public void AddIncludeGlobs_Null_AddsNothing()
+        {
+            var request = new SearchRequest();
+            request.AddIncludeFileGlobs(null);
+
+            Assert.AreEqual(0, request.FileNameFilters.Count);
+        }
+
+        [TestMethod]
+        public void ApplySettings_IncludeString_BecomesIncludeFilters()
+        {
+            var settings = new SearchSettings();
+            var errors = new List<string>();
+            CommandLine.Parse(new[] { "--include", "*.cs;*.h", "p", "x" }, settings, errors);
+
+            var request = new SearchRequest();
+            request.ApplySettings(settings);
+
+            Assert.AreEqual(2, request.FileNameFilters.Count);
+            CollectionAssert.AreEqual(
+                new[] { "*.cs", "*.h" },
+                request.FileNameFilters.ConvertAll(f => f.Glob));
+            Assert.IsTrue(request.FileNameFilters.TrueForAll(f => f.Kind == FilterKind.Include));
+        }
+
+        [TestMethod]
+        public void AddExcludeDirGlobs_AppendsExcludeDirectoryFilters()
+        {
+            var request = new SearchRequest();
+            request.AddExcludeDirGlobs("bin; ; obj");
+
+            Assert.AreEqual(0, request.FileNameFilters.Count); // directory filters are a separate list
+            Assert.AreEqual(2, request.DirectoryFilters.Count);
+            CollectionAssert.AreEqual(
+                new[] { "bin", "obj" },
+                request.DirectoryFilters.ConvertAll(f => f.Glob));
+            Assert.IsTrue(request.DirectoryFilters.TrueForAll(f => f.Kind == FilterKind.Exclude));
+        }
+
+        [TestMethod]
         public void DefaultCodePage_ResolvesSentinelIntoResolvedDefault()
         {
             var request = new SearchRequest { DefaultCodePage = RegExCodePage.SystemDefault };
@@ -147,6 +200,34 @@ namespace UnicodeRegEx.Tests.Tools
             Assert.AreEqual(2, copy.Paths.Count);
             Assert.AreEqual(SearchVerb.Replace, copy.Verb);
             Assert.AreEqual("X", copy.ReplaceTemplate);
+        }
+
+        [TestMethod]
+        public void Clone_ProducesIndependentFileNameFilters()
+        {
+            var original = Valid();
+            original.AddIncludeFileGlobs("*.cs");
+
+            var copy = original.Clone();
+            copy.FileNameFilters.Add(new GlobFilter(FilterKind.Exclude, "*.g.cs"));
+
+            Assert.AreEqual(1, original.FileNameFilters.Count, "original's filters must not be affected by the clone");
+            Assert.AreEqual(2, copy.FileNameFilters.Count);
+            Assert.AreEqual("*.cs", copy.FileNameFilters[0].Glob);
+        }
+
+        [TestMethod]
+        public void Clone_ProducesIndependentDirectoryFilters()
+        {
+            var original = Valid();
+            original.AddExcludeDirGlobs("bin");
+
+            var copy = original.Clone();
+            copy.DirectoryFilters.Add(new GlobFilter(FilterKind.Exclude, "obj"));
+
+            Assert.AreEqual(1, original.DirectoryFilters.Count, "original's directory filters must not be affected by the clone");
+            Assert.AreEqual(2, copy.DirectoryFilters.Count);
+            Assert.AreEqual("bin", copy.DirectoryFilters[0].Glob);
         }
 
         [TestMethod]

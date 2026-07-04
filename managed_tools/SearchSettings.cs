@@ -56,7 +56,7 @@ namespace UnicodeRegEx.Tools
             SettingRole.Preference,
             "recurse",
             'r',
-            "Search directories recursively (default: top level only).");
+            "Search directories recursively (default: report a directory argument as an error).");
 
         public readonly ChoiceSetting<RegExSyntaxFlags> Syntax = new ChoiceSetting<RegExSyntaxFlags>(
             SettingRole.Preference,

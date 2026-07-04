@@ -94,21 +94,44 @@ Locked-in facts:
   matches any exclude-dir glob. No ordering rule needed (exclude-only), hence the separate list.
 
 ### Directories & links
-- `-d skip` / `-d recurse`: config (recurse exists; add the exclude-dir list).
-- `-d read`: **keep on the list** — reporting "foo is a directory" on Win32 (rather than silently
-  skipping) has minor value. Needs a way to surface a directory-as-input to the tool.
-- `-R` symlink deref: **config option** (follow directory links or not) — engine-level.
-- **Cycle prevention: very-nice-to-have, not a must** (may be non-trivial). Key simplification:
-  **cycles are only possible when following directory links** — on NTFS/ReFS a tree can only loop through
-  a directory reparse point (junction/symlink); hardlinked directories aren't allowed. So detection is
-  only needed when follow-links is ON; with it OFF, no detection required.
-  - Detection must be **identity-based, not path-based** (a junction's path differs but points to the
-    same place): track the ancestor chain's file identities (`GetFileInformationByHandle` → volume serial
-    + file index, or `FILE_ID_INFO` for the 128-bit id on ReFS); refuse to descend into a directory whose
-    identity is already an ancestor. One dir-handle open per descent, only when following links.
-- **Special files (`-D`)**: disposition (read/skip) is a **PRE-OPEN** decision made during enumeration
-  (before mmap), NOT an `OnFile` response. `File.GetAttributes` reveals `ReparsePoint`/`Device`; true
-  FIFO/pipe/socket may need `GetFileType` on a handle. Config option on the request.
+- **`DirectoryDisposition` (replaced the `Recurse` bool)** governs every directory encountered (a search
+  target or a discovered subdirectory), applied *after* the directory-filter verdict:
+  `Error` (default; reports an `IOException("Is a directory")` via `OnError`, grep `-d read`), `Skip`,
+  `ReadImmediateFiles` (files, no descent), `RecurseNoLinks`, `RecurseWithLinks`. Error/Skip never recurse,
+  and only Recurse* push subdirectories, so a discovered directory only ever exists under a Recurse* run.
+- **Roots are NOT special** (matches grep 3.11): directory filters apply to command-line directories too,
+  and a directory arg with no recurse flag hits `Error`. CLI `-r` → `RecurseNoLinks`; no `-r` → `Error`.
+- **Link handling:** `RecurseNoLinks` skips subdirectories that are reparse points (checked via
+  `FileAttributes.ReparsePoint`, no interop); `RecurseWithLinks` follows them. **Cycle prevention is NOT
+  yet implemented** (RecurseWithLinks can loop through a self-referential junction).
+- **`RecurseNoLinks`'s reparse check is coarse (known limitation).** `FileAttributes.ReparsePoint` is set
+  for *every* reparse point, not just links, so NoLinks currently **over-skips** non-link reparse points:
+  OneDrive/cloud placeholders (`IO_REPARSE_TAG_CLOUD*`), Data Dedup stubs (`_DEDUP`), ProjFS/VFS-for-Git
+  working trees (`_PROJFS`), container isolation (`_WCI*`) — all normal directories wrongly treated as
+  links. The error is conservative (over-skip / miss content, never *follows* a real link it shouldn't).
+  Nuanced fix: classify by **reparse tag**, skipping only *name-surrogate* tags
+  (`IsReparseTagNameSurrogate(tag)` — true for symlink/junction/mount-point, false for cloud/dedup/ProjFS;
+  future-proof vs. a tag blocklist). The tag is only obtainable via interop on these frameworks:
+  `WIN32_FIND_DATA.dwReserved0` carries it during a `FindFirstFileEx` enumeration (the BCL doesn't surface
+  it through `FileSystemInfo`), or `DeviceIoControl(FSCTL_GET_REPARSE_POINT)` per handle. So this means
+  replacing `EnumerateFileSystemInfos` with a `FindFirstFileEx`-based enumerator — bundle it with the
+  cycle-prevention P/Invoke pass below (both need a Win32 enumeration/handle layer).
+- **Cycle prevention (still to do): very-nice-to-have.** Only possible when following links (NTFS/ReFS
+  loops only through a directory reparse point; hardlinked dirs aren't allowed), so only `RecurseWithLinks`
+  needs it. Must be **identity-based, not path-based**. On the target frameworks (netstandard2.0 / net48)
+  there is **no BCL API** for directory identity, so it needs Win32 P/Invoke:
+  `CreateFile(path, 0, share, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS)` to get a directory handle, then
+  `GetFileInformationByHandleEx(FileIdInfo)` → `FILE_ID_INFO` (128-bit id, ReFS-correct;
+  `GetFileInformationByHandle`'s 64-bit `nFileIndex` is the NTFS-only fallback). Track ancestor identities
+  in a set; refuse to descend into one already an ancestor. One dir-handle open per descent, only when
+  following links. (`LinkTarget`/`ResolveLinkTarget` are .NET 6+, unavailable here.)
+- **Special files (`-D`): OUT OF SCOPE (won't do).** Devices / FIFOs / pipes / sockets are structurally
+  unsupported: the engine mmaps a real file (`FileStream` → `MemoryMappedFile.CreateFromFile`), so there
+  is nothing to stream from — and the library's point is in-place *replace* of files, which a stream can't
+  be. Current behavior: a special file fails to open or fails to mmap → `ReportError` (or reports
+  `length == 0` and is skipped). Acceptable. A `-D` option would only toggle Error-vs-Skip (log verbosity,
+  not capability), and even a clean pre-open Skip would need the same `GetFileType`/interop tier as the
+  reparse-tag/cycle work. Not worthwhile. (grep's `-D` matters only because grep can *read* a FIFO.)
 
 ### Line terminators / binary edges
 - **Binary handling is a fact + one convenience bool, not a policy enum.** Detection reports the fact
@@ -136,15 +159,26 @@ Locked-in facts:
 ## To-do (sequencing)
 
 Done and captured in **Decisions (settled)** above + the status snapshot: SearchHit context, bidirectional
-callback responses, and syntax + match-flag settings (both `SyntaxFlags` and `MatchFlags` masks). Remaining:
+callback responses, syntax + match-flag settings (both `SyntaxFlags` and `MatchFlags` masks), the
+**ordered filename + directory filter lists** (`SearchRequest.FileNameFilters` / `DirectoryFilters`, both
+`List<GlobFilter>`; `AddIncludeFileGlobs` / `AddExcludeDirGlobs` translate a semicolon string;
+`GlobFilterSet` collapses contiguous same-kind runs into `(Kind, Regex)` segments and applies
+last-match-wins), and **`DirectoryDisposition`** (replaced the `Recurse` bool; Error(default)/Skip/
+ReadImmediateFiles/RecurseNoLinks/RecurseWithLinks). Directory filters use the **same include/exclude
+rules** but pass `defaultIncludeWhenNoMatch: true` (Option B). Filters apply **uniformly to roots and
+discovered dirs** (roots not special — matches grep 3.11); the disposition then decides Error/Skip/read/
+recurse. `RecurseNoLinks` skips reparse-point subdirs; `RecurseWithLinks` follows them (no cycle
+prevention yet). CLI `-r` → `RecurseNoLinks`, no `-r` → `Error`; still `--include`-only otherwise.
+Remaining:
 
-1. **Ordered filename-filter list** on the request (Include/Exclude per entry) + parser append
-   capability, evaluated by the exact grep rule above; separate **exclude-only** directory-filter list
-   for `--exclude-dir` (prunes the walk).
-2. **Follow-links option** + **cycle prevention** (nice-to-have): identity-based ancestor tracking,
-   needed only when following links.
-3. **Directory / special-file disposition** — `-d read` ("foo is a directory" report); pre-open
-   special-file (`-D`) read/skip config checked during enumeration.
+1. **Win32 interop pass for `RecurseWithLinks`** (nice-to-have; single P/Invoke layer covers both):
+   (a) **cycle prevention** — identity-based ancestor tracking
+   (`CreateFile(FILE_FLAG_BACKUP_SEMANTICS)` + `GetFileInformationByHandleEx(FileIdInfo)`), only when
+   following links; (b) **reparse-tag classification** — replace `EnumerateFileSystemInfos` with a
+   `FindFirstFileEx` enumerator to read `dwReserved0` and skip only name-surrogate tags
+   (`IsReparseTagNameSurrogate`), fixing NoLinks' over-skip of cloud/dedup/ProjFS dirs.
+
+(Special-file `-D` disposition is **out of scope** — see Directories & links above.)
 
 Also still open (CLI surfacing; engine side is done):
 - **Syntax/match-flag settings on the CLI** — the `SyntaxFlags`/`MatchFlags` masks and the
@@ -180,6 +214,16 @@ Also still open (CLI surfacing; engine side is done):
   `SearchHit` is a `readonly ref struct { SearchFile File; RegExMatch Match; }` (+ lazy `Text`/`Replacement`).
 - Syntax + match flags: `SearchRequest.SyntaxFlags` / `.MatchFlags` (single raw masks), validated by C++
   allow-masks; `ComposeSyntaxFlags`/`SetSyntaxFlags` helpers. Not on the CLI yet (see to-do).
-- Filters: `--include` only (single semicolon glob on file names; named files bypass). `--exclude` /
-  `--exclude-dir` and the ordered-filter list not yet added (to-do #1).
-- Tests: 268 managed + 61 native (lib) passing.
+- Filters: request holds ordered `FileNameFilters` and `DirectoryFilters` lists (`List<GlobFilter>`);
+  `GlobFilterSet` applies last-match-wins, collapsing same-kind runs into one regex each. Filenames use
+  grep's default (include unless first filter is an include); directories force default-include (Option B).
+  Filters apply to roots and discovered dirs alike (roots not special). Named files bypass. CLI still
+  exposes only `--include` (→ all-Include filters); CLI `--exclude` / `--exclude-dir` not yet wired.
+- Directories: `DirectoryDisposition` (Error default / Skip / ReadImmediateFiles / RecurseNoLinks /
+  RecurseWithLinks) replaced the `Recurse` bool. Error reports `IOException("Is a directory")`.
+  RecurseNoLinks skips reparse-point dirs; RecurseWithLinks follows them (cycle prevention TODO). All
+  `ReportError` paths (enumeration + per-file) now count toward `Summary.Errors`. The walk uses a single
+  streaming `DirectoryInfo.EnumerateFileSystemInfos()` pass per directory: each entry's attributes come
+  from the enumeration (no second scan, and the RecurseNoLinks reparse-point check reads `entry.Attributes`
+  with no per-subdir `GetAttributes`).
+- Tests: 292 managed + 61 native (lib) passing.

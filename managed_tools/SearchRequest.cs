@@ -63,15 +63,33 @@ namespace UnicodeRegEx.Tools
         /// </summary>
         public bool Apply { get; set; }
 
-        /// <summary>When true, directory roots are searched recursively; otherwise only their immediate files are considered.</summary>
-        public bool Recurse { get; set; }
+        /// <summary>
+        /// What to do with a directory encountered during the search — applied uniformly to both
+        /// directories named on input and directories discovered while recursing, after the
+        /// <see cref="DirectoryFilters"/> verdict (a directory the filters exclude is pruned silently,
+        /// regardless of this). Defaults to <see cref="DirectoryDisposition.Error"/>.
+        /// </summary>
+        public DirectoryDisposition Directories { get; set; } = DirectoryDisposition.Error;
 
         /// <summary>
-        /// Semicolon-separated filename glob list (e.g. <c>*.cs;*.txt</c>) applied to the file name of
-        /// each file found by walking a directory; null or empty means "all files". Explicitly named
-        /// files are not filtered by this. Compiled via <see cref="GlobToRegex"/>.
+        /// Ordered list of filename include/exclude filters applied to the file name of each file found
+        /// by walking a directory (explicitly named files bypass them). Evaluated with grep's rule: the
+        /// last matching filter wins; if none match, a file is included unless the first filter is an
+        /// include. Empty means "all files". Use <see cref="AddIncludeFileGlobs"/> to append a semicolon glob
+        /// list as include filters. Compiled and evaluated by <see cref="GlobFilterSet"/>.
         /// </summary>
-        public string? Include { get; set; }
+        public List<GlobFilter> FileNameFilters { get; } = new List<GlobFilter>();
+
+        /// <summary>
+        /// Ordered list of include/exclude filters applied to every directory name encountered — both
+        /// directories named on input and subdirectories discovered while recursing — to decide whether
+        /// it is considered at all. Last matching filter wins; unlike <see cref="FileNameFilters"/>, a
+        /// directory that matches no filter is <b>always included</b> (never defaults to excluded, so a
+        /// leading include cannot silently prune everything). A directory the filters exclude is skipped
+        /// silently, before <see cref="Directories"/> is consulted. Use <see cref="AddExcludeDirGlobs"/>
+        /// for the common exclude case. Compiled and evaluated by <see cref="GlobFilterSet"/>.
+        /// </summary>
+        public List<GlobFilter> DirectoryFilters { get; } = new List<GlobFilter>();
 
         /// <summary>
         /// When true (the default), files that detection judges to be binary are skipped. Set false to
@@ -89,7 +107,7 @@ namespace UnicodeRegEx.Tools
         /// <summary>The regular expression pattern to search for.</summary>
         public string Pattern { get; set; } = string.Empty;
 
-        /// <summary>Files and/or directories to search. Directories are walked (recursively only when <see cref="Recurse"/> is set); explicitly named files are always included, bypassing <see cref="Include"/>.</summary>
+        /// <summary>Files and/or directories to search. Directories are handled per <see cref="Directories"/> and <see cref="DirectoryFilters"/>; explicitly named files are always included, bypassing <see cref="FileNameFilters"/>.</summary>
         public List<string> Paths { get; } = new List<string>();
 
         // All object state (i.e. fields and Properties with implicit backing fields) go above this line.
@@ -125,8 +143,51 @@ namespace UnicodeRegEx.Tools
             Verb = settings.Replace.Value != null ? SearchVerb.Replace : SearchVerb.Search;
             SetSyntaxFlags(settings.Syntax.Value, ignoreCase: settings.IgnoreCase.Value);
             Apply = settings.Apply.Value;
-            Recurse = settings.Recurse.Value;
-            Include = settings.Include.Value;
+            // grep semantics: -r recurses without following symlinks; without it, a directory argument is
+            // reported ("Is a directory") rather than searched.
+            Directories = settings.Recurse.Value ? DirectoryDisposition.RecurseNoLinks : DirectoryDisposition.Error;
+            FileNameFilters.Clear();
+            AddIncludeFileGlobs(settings.Include.Value);
+        }
+
+        /// <summary>
+        /// Appends an include filter for each glob in a semicolon-separated list (e.g. <c>*.cs;*.txt</c>),
+        /// ignoring null/empty entries. A convenience for front-ends that express includes as a single
+        /// string (such as the CLI's <c>--include</c>); it preserves order and leaves any existing
+        /// filters in place.
+        /// </summary>
+        public void AddIncludeFileGlobs(string? semicolonGlobList)
+        {
+            AddGlobs(FileNameFilters, FilterKind.Include, semicolonGlobList);
+        }
+
+        /// <summary>
+        /// Appends an exclude <see cref="DirectoryFilters">directory filter</see> for each glob in a
+        /// semicolon-separated list, ignoring null/empty entries. The directory analogue of
+        /// <see cref="AddIncludeFileGlobs"/> for the common "prune these subdirectories" case (grep's
+        /// <c>--exclude-dir</c>); a caller wanting a directory <em>include</em> adds a
+        /// <see cref="GlobFilter"/> to <see cref="DirectoryFilters"/> directly.
+        /// </summary>
+        public void AddExcludeDirGlobs(string? semicolonGlobList)
+        {
+            AddGlobs(DirectoryFilters, FilterKind.Exclude, semicolonGlobList);
+        }
+
+        private static void AddGlobs(List<GlobFilter> target, FilterKind kind, string? semicolonGlobList)
+        {
+            if (semicolonGlobList == null)
+            {
+                return;
+            }
+
+            foreach (var glob in semicolonGlobList.Split(';'))
+            {
+                var trimmed = glob.Trim();
+                if (trimmed.Length != 0)
+                {
+                    target.Add(new GlobFilter(kind, trimmed));
+                }
+            }
         }
 
         /// <summary>
@@ -167,14 +228,15 @@ namespace UnicodeRegEx.Tools
                 SyntaxFlags = SyntaxFlags,
                 MatchFlags = MatchFlags,
                 Apply = Apply,
-                Recurse = Recurse,
-                Include = Include,
+                Directories = Directories,
                 SkipBinaryFiles = SkipBinaryFiles,
                 EncodingDetection = EncodingDetection,
                 Pattern = Pattern,
             };
 
             copy.Paths.AddRange(Paths);
+            copy.FileNameFilters.AddRange(FileNameFilters);
+            copy.DirectoryFilters.AddRange(DirectoryFilters);
             return copy;
         }
 
@@ -327,5 +389,53 @@ namespace UnicodeRegEx.Tools
 
         /// <summary>Replace matches using <see cref="SearchRequest.ReplaceTemplate"/> (preview unless <see cref="SearchRequest.Apply"/>).</summary>
         Replace,
+    }
+
+    /// <summary>What the search does with a directory it encounters (a search target or a discovered subdirectory).</summary>
+    public enum DirectoryDisposition
+    {
+        /// <summary>Report the directory as an error (an <see cref="System.IO.IOException"/> "Is a directory") and do not search it. The default, matching grep's <c>-d read</c>.</summary>
+        Error,
+
+        /// <summary>Silently ignore the directory.</summary>
+        Skip,
+
+        /// <summary>Search the directory's immediate files but do not descend into subdirectories.</summary>
+        ReadImmediateFiles,
+
+        /// <summary>Recurse into the directory, but do not descend into subdirectories that are reparse points (symbolic links / junctions).</summary>
+        RecurseNoLinks,
+
+        /// <summary>Recurse into the directory, descending into reparse-point (symlink / junction) subdirectories too. (Cycle prevention is not yet implemented.)</summary>
+        RecurseWithLinks,
+    }
+
+    /// <summary>Whether a <see cref="GlobFilter"/> includes or excludes matching names.</summary>
+    public enum FilterKind
+    {
+        /// <summary>Names matching the glob are eligible to be searched.</summary>
+        Include,
+
+        /// <summary>Names matching the glob are not searched.</summary>
+        Exclude,
+    }
+
+    /// <summary>
+    /// A single ordered glob filter (used for both file names and directory names): a glob and whether a
+    /// match includes or excludes the name.
+    /// </summary>
+    public readonly struct GlobFilter
+    {
+        public GlobFilter(FilterKind kind, string glob)
+        {
+            Kind = kind;
+            Glob = glob;
+        }
+
+        /// <summary>Whether a name matching <see cref="Glob"/> is included or excluded.</summary>
+        public FilterKind Kind { get; }
+
+        /// <summary>The glob (<c>*</c> and <c>?</c> wildcards), matched against a bare file or directory name.</summary>
+        public string Glob { get; }
     }
 }

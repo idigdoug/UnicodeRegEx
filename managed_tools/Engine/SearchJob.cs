@@ -4,7 +4,6 @@ namespace UnicodeRegEx.Tools.Engine
     using System.Collections.Generic;
     using System.IO;
     using System.IO.MemoryMappedFiles;
-    using System.Text.RegularExpressions;
     using System.Threading;
     using System.Threading.Tasks;
     using UnicodeRegEx;
@@ -32,7 +31,7 @@ namespace UnicodeRegEx.Tools.Engine
     }
 
     /// <summary>
-    /// A single, stateful, one-shot search (or search+replace) over a set of paths. Construct it with a
+    /// A single, stateful, one-shot search (or search+replace) over a set of roots. Construct it with a
     /// <see cref="SearchRequest"/> (which it snapshots), call <see cref="RunAsync"/> once, observe
     /// progress via <see cref="State"/>/<see cref="TotalFileCount"/>/<see cref="CompletedFileCount"/>
     /// and the <see cref="ProgressChanged"/> event, and stop it early with <see cref="Cancel"/>.
@@ -82,7 +81,7 @@ namespace UnicodeRegEx.Tools.Engine
         /// <summary>The number of files processed so far. Grows while <see cref="State"/> is <see cref="SearchJobState.Processing"/>.</summary>
         public int CompletedFileCount => Volatile.Read(ref completedFileCount);
 
-        /// <summary>The number of files reported as errors so far (missing paths, access failures, or per-file faults).</summary>
+        /// <summary>The number of files reported as errors so far (missing roots, access failures, or per-file faults).</summary>
         public int ErrorCount => Volatile.Read(ref errorCount);
 
         /// <summary>The aggregate outcome. Meaningful once the job reaches a terminal state.</summary>
@@ -166,9 +165,15 @@ namespace UnicodeRegEx.Tools.Engine
         {
             SetState(SearchJobState.Enumerating);
 
-            var include = GlobToRegex.Compile(request.Include);
+            var fileFilterList = request.FileNameFilters;
+            // grep's rule for filenames: if no filter matches, include unless the first filter is an include.
+            var fileDefaultInclude = fileFilterList.Count == 0 || fileFilterList[0].Kind != FilterKind.Include;
+            var fileFilters = GlobFilterSet.Compile(fileFilterList, fileDefaultInclude);
+            // Directories: an unmatched directory is always included (Option B), so a leading include
+            // never prunes everything. Applied uniformly to roots and discovered subdirectories.
+            var directoryFilters = GlobFilterSet.Compile(request.DirectoryFilters, defaultIncludeWhenNoMatch: true);
             var files = new List<string>();
-            foreach (var path in EnumerateFiles(request.Paths, include))
+            foreach (var path in EnumerateFiles(request.Paths, fileFilters, directoryFilters))
             {
                 if (cancellation.IsCancellationRequested)
                 {
@@ -222,7 +227,6 @@ namespace UnicodeRegEx.Tools.Engine
                 }
                 catch (Exception ex)
                 {
-                    Interlocked.Increment(ref errorCount);
                     ReportError(path, ex);
                 }
 
@@ -297,6 +301,7 @@ namespace UnicodeRegEx.Tools.Engine
 
         private void ReportError(string path, Exception exception)
         {
+            Interlocked.Increment(ref errorCount);
             lock (sinkGate)
             {
                 try
@@ -507,77 +512,139 @@ namespace UnicodeRegEx.Tools.Engine
             }
         }
 
-        private IEnumerable<string> EnumerateFiles(IEnumerable<string> paths, Regex? include)
+        private IEnumerable<string> EnumerateFiles(IEnumerable<string> roots, GlobFilterSet? fileFilters, GlobFilterSet? directoryFilters)
         {
-            foreach (var path in paths)
+            // Directories (roots and discovered subdirectories alike) run the same rule: the directory
+            // filter decides whether the directory is considered at all, then the disposition decides
+            // what to do with it. Error/Skip never enumerate contents and Recurse* is the only disposition
+            // that pushes subdirectories, so those two can only ever apply to a root -- a directory popped
+            // from the stack is always a Read/Recurse case. The disposition is fixed for the whole run, so
+            // the recurse decision is computed once here rather than per popped directory.
+            var recurse = request.Directories == DirectoryDisposition.RecurseNoLinks ||
+                request.Directories == DirectoryDisposition.RecurseWithLinks;
+            var followLinks = request.Directories == DirectoryDisposition.RecurseWithLinks;
+
+            // The stack holds DirectoryInfo objects so that each discovered subdirectory reuses the one
+            // the enumeration already produced (no fresh DirectoryInfo per directory). NOTE: a popped
+            // DirectoryInfo's own cached attributes are enumeration-time snapshots and are NOT relied on
+            // here -- we always re-enumerate it, and the reparse-point check reads each *child's*
+            // attributes, so staleness never matters.
+            var stack = new Stack<DirectoryInfo>();
+            foreach (var root in roots)
             {
                 FileAttributes attributes;
                 try
                 {
                     // One metadata probe instead of File.Exists + Directory.Exists.
-                    attributes = File.GetAttributes(path);
+                    attributes = File.GetAttributes(root);
                 }
                 catch (Exception ex)
                 {
-                    ReportError(path, ex);
+                    ReportError(root, ex);
                     continue;
                 }
 
-                if ((attributes & FileAttributes.Directory) != 0)
+                if ((attributes & FileAttributes.Directory) == 0)
                 {
-                    foreach (var file in EnumerateDirectory(path, include))
-                    {
-                        yield return file;
-                    }
+                    // An explicitly named file is always searched, bypassing the file-name filters.
+                    yield return root;
+                    continue;
                 }
-                else
+
+                if (!DirectoryIsIncluded(directoryFilters, Path.GetFileName(root)))
                 {
-                    // An explicitly named file is always searched, bypassing the include filter.
-                    yield return path;
+                    continue;
+                }
+
+                // Error/Skip apply only to a directory given as a search target; they never recurse, so
+                // they are handled here and the walk loop below is entered only for Read/Recurse roots.
+                if (request.Directories == DirectoryDisposition.Error)
+                {
+                    ReportError(root, new IOException("Is a directory"));
+                    continue;
+                }
+
+                if (request.Directories == DirectoryDisposition.Skip)
+                {
+                    continue;
+                }
+
+                stack.Push(new DirectoryInfo(root));
+                while (stack.Count > 0)
+                {
+                    if (cancellation.IsCancellationRequested)
+                    {
+                        yield break;
+                    }
+
+                    var current = stack.Pop();
+
+                    // A single streaming enumeration: each FileSystemInfo already carries the attributes
+                    // from the underlying directory scan (no second scan, and no per-subdirectory
+                    // GetAttributes for the reparse-point check). When not recursing, EnumerateFiles skips
+                    // materializing subdirectories entirely (they would only be discarded). MoveNext can
+                    // throw mid-stream (an entry vanished, access denied), so it runs under a try; a
+                    // failure reports the directory and moves on to the next stacked directory, matching
+                    // the whole-directory catch the eager GetFiles/GetDirectories form had.
+                    IEnumerator<FileSystemInfo> entries;
+                    try
+                    {
+                        entries = recurse
+                            ? current.EnumerateFileSystemInfos().GetEnumerator()
+                            : ((IEnumerable<FileSystemInfo>)current.EnumerateFiles()).GetEnumerator();
+                    }
+                    catch (Exception ex)
+                    {
+                        ReportError(current.FullName, ex);
+                        continue;
+                    }
+
+                    try
+                    {
+                        while (true)
+                        {
+                            FileSystemInfo entry;
+                            try
+                            {
+                                if (!entries.MoveNext())
+                                {
+                                    break;
+                                }
+
+                                entry = entries.Current;
+                            }
+                            catch (Exception ex)
+                            {
+                                ReportError(current.FullName, ex);
+                                break;
+                            }
+
+                            // Directory entries only arrive from the recursing (EnumerateFileSystemInfos)
+                            // path, so reaching this branch already implies recursion.
+                            if (entry is DirectoryInfo subdirectory)
+                            {
+                                if (DirectoryIsIncluded(directoryFilters, subdirectory.Name) &&
+                                    (followLinks || (subdirectory.Attributes & FileAttributes.ReparsePoint) == 0))
+                                {
+                                    stack.Push(subdirectory);
+                                }
+                            }
+                            else if (fileFilters == null || fileFilters.ShouldInclude(entry.Name))
+                            {
+                                yield return entry.FullName;
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        entries.Dispose();
+                    }
                 }
             }
         }
 
-        private IEnumerable<string> EnumerateDirectory(string root, Regex? include)
-        {
-            var stack = new Stack<string>();
-            stack.Push(root);
-
-            while (stack.Count > 0)
-            {
-                if (cancellation.IsCancellationRequested)
-                {
-                    yield break;
-                }
-
-                var current = stack.Pop();
-                string[] files;
-                string[] subdirectories;
-                try
-                {
-                    files = Directory.GetFiles(current);
-                    subdirectories = request.Recurse ? Directory.GetDirectories(current) : Array.Empty<string>();
-                }
-                catch (Exception ex)
-                {
-                    ReportError(current, ex);
-                    continue;
-                }
-
-                foreach (var file in files)
-                {
-                    if (include == null || include.IsMatch(Path.GetFileName(file)))
-                    {
-                        yield return file;
-                    }
-                }
-
-                foreach (var subdirectory in subdirectories)
-                {
-                    stack.Push(subdirectory);
-                }
-            }
-        }
+        private static bool DirectoryIsIncluded(GlobFilterSet? directoryFilters, string name) =>
+            directoryFilters == null || directoryFilters.ShouldInclude(name);
 
         // Marks an exception as having come from a sink callback (a bug) rather than from file/IO work,
         // so the per-file handler re-throws it to fault the job instead of reporting it as a file error.

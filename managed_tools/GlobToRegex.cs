@@ -38,7 +38,7 @@ namespace UnicodeRegEx.Tools
                 var trimmed = pattern.Trim();
                 if (trimmed.Length != 0)
                 {
-                    alternatives.Add(TranslatePattern(trimmed));
+                    alternatives.Add(TranslateGlobToAlternative(trimmed));
                 }
             }
 
@@ -51,10 +51,15 @@ namespace UnicodeRegEx.Tools
             return new Regex(combined, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         }
 
-        private static string TranslatePattern(string pattern)
+        /// <summary>
+        /// Translates a single glob into a regex alternative body (no anchors), suitable for combining
+        /// several globs into one alternation. <c>*</c> matches any run of characters and <c>?</c> a
+        /// single character; neither crosses a path separator, and every other character is literal.
+        /// </summary>
+        internal static string TranslateGlobToAlternative(string glob)
         {
-            var sb = new StringBuilder(pattern.Length * 2);
-            foreach (var c in pattern)
+            var sb = new StringBuilder(glob.Length * 2);
+            foreach (var c in glob)
             {
                 switch (c)
                 {

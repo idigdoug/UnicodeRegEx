@@ -159,12 +159,13 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         [TestMethod]
-        public async Task Search_Directory_NonRecursive_OnlyTopLevel()
+        public async Task Search_Directory_ReadImmediateFiles_OnlyTopLevel()
         {
             WriteFile("top.txt", "match");
             WriteFile("sub\\nested.txt", "match");
 
-            var request = Request("match", tempDir); // Recurse defaults to false
+            var request = Request("match", tempDir);
+            request.Directories = DirectoryDisposition.ReadImmediateFiles;
             var (sink, summary, _) = await RunAsync(request);
 
             Assert.IsTrue(summary.AnyMatch);
@@ -178,7 +179,7 @@ namespace UnicodeRegEx.Tests.Tools
             WriteFile("sub\\nested.txt", "match");
 
             var request = Request("match", tempDir);
-            request.Recurse = true;
+            request.Directories = DirectoryDisposition.RecurseNoLinks;
             var (sink, summary, _) = await RunAsync(request);
 
             Assert.IsTrue(summary.AnyMatch);
@@ -192,10 +193,186 @@ namespace UnicodeRegEx.Tests.Tools
             WriteFile("skip.txt", "match");
 
             var request = Request("match", tempDir);
-            request.Include = "*.cs";
+            request.Directories = DirectoryDisposition.ReadImmediateFiles;
+            request.AddIncludeFileGlobs("*.cs");
             var (sink, _, _) = await RunAsync(request);
 
             Assert.AreEqual(1, sink.Hits.Count);
+        }
+
+        [TestMethod]
+        public async Task Search_ExcludeFilter_PrunesMatchingFiles()
+        {
+            WriteFile("keep.cs", "match");
+            WriteFile("skip.txt", "match");
+
+            var request = Request("match", tempDir);
+            request.Directories = DirectoryDisposition.ReadImmediateFiles;
+            // First filter is Exclude, so unmatched names default to included: keep.cs is searched, skip.txt is not.
+            request.FileNameFilters.Add(new GlobFilter(FilterKind.Exclude, "*.txt"));
+            var (sink, _, _) = await RunAsync(request);
+
+            Assert.AreEqual(1, sink.Hits.Count);
+            Assert.IsTrue(sink.Files[0].Path.EndsWith("keep.cs"));
+        }
+
+        [TestMethod]
+        public async Task Recurse_ExcludeDir_PrunesSubtree()
+        {
+            WriteFile("top.cs", "match");
+            WriteFile("skip\\inner.cs", "match");
+            WriteFile("keep\\inner.cs", "match");
+
+            var request = Request("match", tempDir);
+            request.Directories = DirectoryDisposition.RecurseNoLinks;
+            request.AddExcludeDirGlobs("skip");
+            var (sink, _, _) = await RunAsync(request);
+
+            // top.cs + keep/inner.cs are searched; skip/ is never descended.
+            Assert.AreEqual(2, sink.Hits.Count);
+            Assert.IsFalse(sink.Files.Exists(f => f.Path.Contains("skip")));
+        }
+
+        [TestMethod]
+        public async Task Recurse_DirFilters_UnmatchedDirectoryStillDescended()
+        {
+            // Option B: a leading include must NOT default-exclude descent, so a sibling directory that
+            // doesn't match the include is still walked.
+            WriteFile("onlythis\\a.cs", "match");
+            WriteFile("sibling\\b.cs", "match");
+
+            var request = Request("match", tempDir);
+            request.Directories = DirectoryDisposition.RecurseNoLinks;
+            request.DirectoryFilters.Add(new GlobFilter(FilterKind.Include, "onlythis"));
+            var (sink, _, _) = await RunAsync(request);
+
+            Assert.AreEqual(2, sink.Hits.Count); // both subdirectories are descended
+        }
+
+        [TestMethod]
+        public async Task ReadImmediateFiles_DoesNotRecurse()
+        {
+            WriteFile("top.cs", "match");
+            WriteFile("sub\\inner.cs", "match");
+
+            var request = Request("match", tempDir);
+            request.Directories = DirectoryDisposition.ReadImmediateFiles;
+            var (sink, _, _) = await RunAsync(request);
+
+            // Only the top-level file; subdirectories are not descended.
+            Assert.AreEqual(1, sink.Hits.Count);
+            Assert.IsTrue(sink.Files[0].Path.EndsWith("top.cs"));
+        }
+
+        [TestMethod]
+        public async Task Recurse_Root_IsFilteredByDirectoryFilters()
+        {
+            WriteFile("top.cs", "match");
+            WriteFile("child\\inner.cs", "match");
+
+            var request = Request("match", tempDir);
+            request.Directories = DirectoryDisposition.RecurseNoLinks;
+            // Directory filters apply to the root too (matching grep): an exclude that matches the root's
+            // own name prunes the whole search, so nothing is searched.
+            request.DirectoryFilters.Add(new GlobFilter(FilterKind.Exclude, "*"));
+            var (sink, _, _) = await RunAsync(request);
+
+            Assert.AreEqual(0, sink.Files.Count);
+        }
+
+        [TestMethod]
+        public async Task Directory_DefaultDisposition_ReportsIsADirectory()
+        {
+            WriteFile("top.cs", "match");
+
+            var request = Request("match", tempDir); // Directories defaults to Error
+
+            var (sink, summary, _) = await RunAsync(request);
+
+            Assert.AreEqual(0, sink.Hits.Count);
+            Assert.AreEqual(1, sink.Errors.Count);
+            Assert.AreEqual(tempDir, sink.Errors[0].Path);
+            Assert.IsInstanceOfType(sink.Errors[0].Exception, typeof(IOException));
+            Assert.AreEqual("Is a directory", sink.Errors[0].Exception.Message);
+            Assert.AreEqual(1, summary.Errors);
+        }
+
+        [TestMethod]
+        public async Task Directory_Skip_IsSilentlyIgnored()
+        {
+            WriteFile("top.cs", "match");
+
+            var request = Request("match", tempDir);
+            request.Directories = DirectoryDisposition.Skip;
+
+            var (sink, _, _) = await RunAsync(request);
+
+            Assert.AreEqual(0, sink.Hits.Count);
+            Assert.AreEqual(0, sink.Errors.Count);
+        }
+
+        [TestMethod]
+        public async Task RecurseNoLinks_SkipsJunctionedDirectory()
+        {
+            WriteFile("real\\inner.cs", "match");
+            var target = Path.Combine(tempDir, "real");
+            var link = Path.Combine(tempDir, "link");
+            if (!TryCreateJunction(link, target))
+            {
+                Assert.Inconclusive("Could not create a directory junction on this system.");
+            }
+
+            var request = Request("match", tempDir);
+            request.Directories = DirectoryDisposition.RecurseNoLinks;
+
+            var (sink, _, _) = await RunAsync(request);
+
+            // real/inner.cs matches once; the junction is a reparse point and is not descended, so the
+            // same file is not found a second time through "link".
+            Assert.AreEqual(1, sink.Hits.Count);
+        }
+
+        [TestMethod]
+        public async Task RecurseWithLinks_FollowsJunctionedDirectory()
+        {
+            WriteFile("real\\inner.cs", "match");
+            var target = Path.Combine(tempDir, "real");
+            var link = Path.Combine(tempDir, "link");
+            if (!TryCreateJunction(link, target))
+            {
+                Assert.Inconclusive("Could not create a directory junction on this system.");
+            }
+
+            var request = Request("match", tempDir);
+            request.Directories = DirectoryDisposition.RecurseWithLinks;
+
+            var (sink, _, _) = await RunAsync(request);
+
+            // The file is reached both through "real" and through the followed junction "link".
+            Assert.AreEqual(2, sink.Hits.Count);
+        }
+
+        // Creates a directory junction (mklink /J) without requiring symlink privilege. Returns false if
+        // the OS/environment does not support it, so callers can mark the test inconclusive.
+        private static bool TryCreateJunction(string link, string target)
+        {
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c mklink /J \"{link}\" \"{target}\"")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                };
+                using var process = System.Diagnostics.Process.Start(psi);
+                process!.WaitForExit();
+                return process.ExitCode == 0 && Directory.Exists(link);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         [TestMethod]
@@ -204,7 +381,7 @@ namespace UnicodeRegEx.Tests.Tools
             // An explicitly named file is always searched, even if it doesn't match --include.
             var file = WriteFile("data.txt", "match");
             var request = Request("match", file);
-            request.Include = "*.cs";
+            request.AddIncludeFileGlobs("*.cs");
             var (sink, _, _) = await RunAsync(request);
 
             Assert.AreEqual(1, sink.Hits.Count);
@@ -380,6 +557,7 @@ namespace UnicodeRegEx.Tests.Tools
             WriteFile("b.txt", "match");
 
             var request = Request("match", tempDir);
+            request.Directories = DirectoryDisposition.RecurseNoLinks;
             var sink = new RecordingSink();
             using var job = new SearchJob(request, sink);
             await job.RunAsync();
@@ -600,7 +778,9 @@ namespace UnicodeRegEx.Tests.Tools
 
             // Stop the current file on its first hit.
             var sink = new SteeringSink(onHit: _ => SearchResponse.StopFile);
-            using var job = new SearchJob(Request("m", tempDir), sink);
+            var request = Request("m", tempDir);
+            request.Directories = DirectoryDisposition.RecurseNoLinks;
+            using var job = new SearchJob(request, sink);
             await job.RunAsync();
 
             Assert.AreEqual(SearchJobState.Completed, job.State);
@@ -615,7 +795,9 @@ namespace UnicodeRegEx.Tests.Tools
             WriteFile("b.txt", "m m m");
 
             var sink = new SteeringSink(onHit: _ => SearchResponse.StopAll);
-            using var job = new SearchJob(Request("m", tempDir), sink);
+            var request = Request("m", tempDir);
+            request.Directories = DirectoryDisposition.RecurseNoLinks;
+            using var job = new SearchJob(request, sink);
             await job.RunAsync();
 
             Assert.AreEqual(SearchJobState.Canceled, job.State);
@@ -642,7 +824,9 @@ namespace UnicodeRegEx.Tests.Tools
             WriteFile("a.txt", "m");
 
             var sink = new SteeringSink(throwOnHit: true);
-            using var job = new SearchJob(Request("m", tempDir), sink);
+            var request = Request("m", tempDir);
+            request.Directories = DirectoryDisposition.RecurseNoLinks;
+            using var job = new SearchJob(request, sink);
 
             Exception? caught = null;
             try
