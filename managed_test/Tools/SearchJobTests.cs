@@ -125,6 +125,89 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         [TestMethod]
+        public async Task ZeroLengthFile_ZeroLengthPattern_Matches()
+        {
+            var file = WriteFile("empty.txt", string.Empty); // 0 bytes
+
+            var (sink, summary, state) = await RunAsync(Request("^", file));
+
+            Assert.AreEqual(SearchJobState.Completed, state);
+            Assert.AreEqual(1, sink.Hits.Count); // "^" matches the single empty position
+            Assert.AreEqual(0, summary.Errors);  // an empty regular file is not an error
+        }
+
+        [TestMethod]
+        public async Task ZeroLengthFile_NonMatchingPattern_NoHitsNoErrors()
+        {
+            var file = WriteFile("empty.txt", string.Empty);
+
+            var (sink, summary, _) = await RunAsync(Request("zzz", file));
+
+            Assert.AreEqual(0, sink.Hits.Count);
+            Assert.AreEqual(0, summary.Errors);
+        }
+
+        [TestMethod]
+        public async Task ZeroLengthFile_Replace_ProducesReplacement()
+        {
+            var file = WriteFile("empty.txt", string.Empty);
+            var request = Request("^", file);
+            request.Verb = SearchVerb.Replace;
+            request.ReplaceTemplate = "X";
+            request.Apply = true;
+
+            var (_, summary, _) = await RunAsync(request);
+
+            Assert.AreEqual(1, summary.FilesChanged);
+            Assert.AreEqual("X", File.ReadAllText(file)); // the empty file gains the replacement
+        }
+
+        [TestMethod]
+        public async Task SpecialFile_IsReportedAsError()
+        {
+            // A named pipe is a non-disk file: the engine must report it as an error rather than treat it
+            // as a searchable (empty) file. Requires the server to be listening for the search's open.
+            var pipeName = "urex_test_" + Guid.NewGuid().ToString("N");
+            var pipePath = @"\\.\pipe\" + pipeName;
+
+            System.IO.Pipes.NamedPipeServerStream server;
+            try
+            {
+                server = new System.IO.Pipes.NamedPipeServerStream(
+                    pipeName, System.IO.Pipes.PipeDirection.Out, 1);
+            }
+            catch
+            {
+                Assert.Inconclusive("Could not create a named pipe on this system.");
+                return;
+            }
+
+            try
+            {
+                var waitForConnection = server.WaitForConnectionAsync();
+
+                var (sink, summary, _) = await RunAsync(Request("anything", pipePath));
+
+                // The pipe is a non-disk file: it is reported as an error, never searched as a file.
+                Assert.AreEqual(0, sink.Hits.Count);
+                Assert.AreEqual(1, sink.Errors.Count);
+                Assert.IsInstanceOfType(sink.Errors[0].Exception, typeof(IOException));
+                Assert.AreEqual(1, summary.Errors);
+
+                if (server.IsConnected)
+                {
+                    server.Disconnect();
+                }
+
+                _ = waitForConnection;
+            }
+            finally
+            {
+                server.Dispose();
+            }
+        }
+
+        [TestMethod]
         public async Task MatchFlags_NotBol_SuppressesCaretAtBufferStart()
         {
             var file = WriteFile("a.txt", "b"); // "^b" would match at the buffer start by default

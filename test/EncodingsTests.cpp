@@ -263,7 +263,8 @@ namespace CodePointTests
             auto data = "ABCDE"sv;
             for (size_t i = 0; i <= data.size(); i += 1)
             {
-                auto [pos, begin, end] = Latin1().MakeCodePointRangeAndPos(data, i);
+                auto [posValid, pos, begin, end] = Latin1().MakeCodePointRangeAndPos(data, i);
+                Assert::IsTrue(posValid);
                 Assert::IsTrue(pos == begin + static_cast<ptrdiff_t>(i));
             }
         }
@@ -271,14 +272,16 @@ namespace CodePointTests
         TEST_METHOD(FromSpanAndByteOffset_PastEnd)
         {
             auto data = "ABCDE"sv;
-            auto [pos, begin, end] = Latin1().MakeCodePointRangeAndPos(data, 6);
+            auto [posValid, pos, begin, end] = Latin1().MakeCodePointRangeAndPos(data, 6);
+            Assert::IsFalse(posValid);
             Assert::IsTrue(pos == Latin1::CodePointIterator());
         }
 
         TEST_METHOD(FromSpanAndByteOffset_Empty)
         {
             auto data = ""sv;
-            auto [pos, begin, end] = Latin1().MakeCodePointRangeAndPos(data, 0);
+            auto [posValid, pos, begin, end] = Latin1().MakeCodePointRangeAndPos(data, 0);
+            Assert::IsTrue(posValid);
             Assert::IsTrue(pos == begin);
             Assert::IsTrue(begin == end);
         }
@@ -577,7 +580,8 @@ namespace CodePointTests
             size_t validOffsets[] = { 0, 1, 3, 6 };
             for (auto offset : validOffsets)
             {
-                auto [pos, begin, end] = Utf8().MakeCodePointRangeAndPos(data, offset);
+                auto [posValid, pos, begin, end] = Utf8().MakeCodePointRangeAndPos(data, offset);
+                Assert::IsTrue(posValid, L"Offset should be valid.");
                 Assert::IsTrue(pos != Utf8::CodePointIterator(),
                     (std::wstring(L"Expected valid pos at offset ") + std::to_wstring(offset)).c_str());
                 Assert::AreEqual(offset, pos.ByteOffset(data.data()));
@@ -590,7 +594,8 @@ namespace CodePointTests
             size_t invalidOffsets[] = { 2, 4, 5 };
             for (auto offset : invalidOffsets)
             {
-                auto [pos, begin, end] = Utf8().MakeCodePointRangeAndPos(data, offset);
+                auto [posValid, pos, begin, end] = Utf8().MakeCodePointRangeAndPos(data, offset);
+                Assert::IsFalse(posValid, L"Offset should be invalid.");
                 Assert::IsTrue(pos == Utf8::CodePointIterator(),
                     (std::wstring(L"Expected invalid pos at offset ") + std::to_wstring(offset)).c_str());
             }
@@ -599,13 +604,15 @@ namespace CodePointTests
         TEST_METHOD(FromSpanAndByteOffset_PastEnd)
         {
             auto data = u8"Aé€"sv;
-            auto [pos, begin, end] = Utf8().MakeCodePointRangeAndPos(data, 7);
+            auto [posValid, pos, begin, end] = Utf8().MakeCodePointRangeAndPos(data, 7);
+            Assert::IsFalse(posValid, L"Offset should be invalid.");
             Assert::IsTrue(pos == Utf8::CodePointIterator());
         }
 
         TEST_METHOD(FromSpanAndByteOffset_Empty)
         {
-            auto [pos, begin, end] = Utf8().MakeCodePointRangeAndPos({}, 0);
+            auto [posValid, pos, begin, end] = Utf8().MakeCodePointRangeAndPos({}, 0);
+            Assert::IsTrue(posValid, L"Offset should be valid.");
             Assert::IsTrue(pos == begin);
             Assert::IsTrue(begin == end);
         }
@@ -616,13 +623,15 @@ namespace CodePointTests
             size_t validOffsets[] = { 0, 4, 5 };
             for (auto offset : validOffsets)
             {
-                auto [pos, begin, end] = Utf8().MakeCodePointRangeAndPos(data, offset);
+                auto [posValid, pos, begin, end] = Utf8().MakeCodePointRangeAndPos(data, offset);
+                Assert::IsTrue(posValid, L"Offset should be valid.");
                 Assert::IsTrue(pos != Utf8::CodePointIterator());
             }
             size_t invalidOffsets[] = { 1, 2, 3 };
             for (auto offset : invalidOffsets)
             {
-                auto [pos, begin, end] = Utf8().MakeCodePointRangeAndPos(data, offset);
+                auto [posValid, pos, begin, end] = Utf8().MakeCodePointRangeAndPos(data, offset);
+                Assert::IsFalse(posValid, L"Offset should be invalid.");
                 Assert::IsTrue(pos == Utf8::CodePointIterator());
             }
         }
@@ -639,7 +648,8 @@ namespace CodePointTests
                 // Test the invalid offsets.
                 while (testOffset < goodOffset)
                 {
-                    auto [pos, begin2, end2] = Utf8().MakeCodePointRangeAndPos(tortureTest, testOffset);
+                    auto [posValid, pos, begin2, end2] = Utf8().MakeCodePointRangeAndPos(tortureTest, testOffset);
+                    Assert::IsFalse(posValid, L"Offset should be invalid.");
                     Assert::IsTrue(pos == Utf8::CodePointIterator(),
                         (std::wstring(L"Expected invalid pos at offset ") + std::to_wstring(testOffset)).c_str());
                     testOffset += 1;
@@ -647,7 +657,8 @@ namespace CodePointTests
 
                 // Now test the valid offset.
                 {
-                    auto [pos, begin2, end2] = Utf8().MakeCodePointRangeAndPos(tortureTest, testOffset);
+                    auto [posValid, pos, begin2, end2] = Utf8().MakeCodePointRangeAndPos(tortureTest, testOffset);
+                    Assert::IsTrue(posValid, L"Offset should be valid.");
                     Assert::IsTrue(pos != Utf8::CodePointIterator(),
                         (std::wstring(L"Expected valid pos at offset ") + std::to_wstring(testOffset)).c_str());
                     Assert::AreEqual(goodOffset, pos.ByteOffset(tortureTest.data()));
@@ -802,16 +813,18 @@ namespace CodePointTests
             size_t validOffsets[] = { 0, 2, 6, 8 };
             for (size_t offset = 0; offset != data.size(); offset += 1)
             {
-                auto [pos, begin, end] = Utf16LE().MakeCodePointRangeAndPos(data, offset);
+                auto [posValid, pos, begin, end] = Utf16LE().MakeCodePointRangeAndPos(data, offset);
                 Assert::AreEqual(size_t(0), begin.ByteOffset(data.data()));
                 Assert::AreEqual(data.size() * sizeof(char16_t), end.ByteOffset(data.data()));
                 if (std::find(std::begin(validOffsets), std::end(validOffsets), offset) != std::end(validOffsets))
                 {
+                    Assert::IsTrue(posValid);
                     Assert::IsTrue(pos != Utf16LE::CodePointIterator());
                     Assert::AreEqual(offset, pos.ByteOffset(data.data()));
                 }
                 else
                 {
+                    Assert::IsFalse(posValid);
                     Assert::IsTrue(pos == Utf16LE::CodePointIterator());
                 }
             }
@@ -820,7 +833,8 @@ namespace CodePointTests
         TEST_METHOD(FromSpanAndByteOffset_InvalidLowSurrogate)
         {
             auto data = u"A😀B"sv; // offset 4 = low surrogate
-            auto [pos, begin, end] = Utf16LE().MakeCodePointRangeAndPos(data, 4);
+            auto [posValid, pos, begin, end] = Utf16LE().MakeCodePointRangeAndPos(data, 4);
+            Assert::IsFalse(posValid);
             Assert::IsTrue(pos == Utf16LE::CodePointIterator());
         }
 
@@ -828,27 +842,31 @@ namespace CodePointTests
         {
             // Surrogate pair only: offset 2 = low surrogate at element index 1.
             auto data = u"😀"sv;
-            auto [pos, begin, end] = Utf16LE().MakeCodePointRangeAndPos(data, 2);
+            auto [posValid, pos, begin, end] = Utf16LE().MakeCodePointRangeAndPos(data, 2);
+            Assert::IsFalse(posValid);
             Assert::IsTrue(pos == Utf16LE::CodePointIterator());
         }
 
         TEST_METHOD(FromSpanAndByteOffset_OddByteOffset)
         {
             auto data = u"AB"sv;
-            auto [pos, begin, end] = Utf16LE().MakeCodePointRangeAndPos(data, 1);
+            auto [posValid, pos, begin, end] = Utf16LE().MakeCodePointRangeAndPos(data, 1);
+            Assert::IsFalse(posValid);
             Assert::IsTrue(pos == Utf16LE::CodePointIterator());
         }
 
         TEST_METHOD(FromSpanAndByteOffset_PastEnd)
         {
             auto data = u"AB"sv;
-            auto [pos, begin, end] = Utf16LE().MakeCodePointRangeAndPos(data, 6);
+            auto [posValid, pos, begin, end] = Utf16LE().MakeCodePointRangeAndPos(data, 6);
+            Assert::IsFalse(posValid);
             Assert::IsTrue(pos == Utf16LE::CodePointIterator());
         }
 
         TEST_METHOD(FromSpanAndByteOffset_Empty)
         {
-            auto [pos, begin, end] = Utf16LE().MakeCodePointRangeAndPos({}, 0);
+            auto [posValid, pos, begin, end] = Utf16LE().MakeCodePointRangeAndPos({}, 0);
+            Assert::IsTrue(posValid);
             Assert::IsTrue(pos == begin);
             Assert::IsTrue(begin == end);
         }

@@ -4,8 +4,10 @@ namespace UnicodeRegEx.Tools.Engine
     using System.Collections.Generic;
     using System.IO;
     using System.IO.MemoryMappedFiles;
+    using System.Runtime.InteropServices;
     using System.Threading;
     using System.Threading.Tasks;
+    using Microsoft.Win32.SafeHandles;
     using UnicodeRegEx;
 
     /// <summary>The lifecycle phase of a <see cref="SearchJob"/>.</summary>
@@ -315,28 +317,35 @@ namespace UnicodeRegEx.Tools.Engine
             }
         }
 
-        private unsafe bool MatchFile(RegEx regex, string path)
+        // The verb-specific body invoked by ProcessFile once the input is ready. A named delegate is
+        // required because RegExInput is a ref struct and so cannot be a Func<> type argument.
+        private delegate bool FileProcessor(RegExInput input, SearchFile file, int codePage);
+
+        // Shared file handling for both verbs: opens the file, rejects anything that is not a regular
+        // on-disk file (device / pipe / socket -> reported as an error, never a silent zero-length
+        // "success"), runs encoding/binary detection, reports OnFile, and hands a ready RegExInput to
+        // 'process'. A zero-length file is handled with an empty (null pointer / zero length) input
+        // rather than a memory map, since an empty file cannot be mapped -- this lets zero-length
+        // patterns match and empty replacements run. Returns process's result, or false when the file is
+        // skipped (binary, or an OnFile Stop response). Genuine failures throw and are reported by the
+        // per-file handler in Process.
+        private unsafe bool ProcessFile(string path, FileProcessor process)
         {
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            var length = stream.Length;
-            if (length == 0)
+
+            // Only regular on-disk files are searchable: the engine memory-maps a real file. A device,
+            // pipe, or socket is reported as an error rather than silently treated as an empty file.
+            if (NativeMethods.GetFileType(stream.SafeFileHandle) != NativeMethods.FILE_TYPE_DISK)
             {
-                return false;
+                throw new IOException("Not a regular file");
             }
 
-            using var mmf = MemoryMappedFile.CreateFromFile(
-                stream, null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, leaveOpen: true);
-            using var view = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
-            var handle = view.SafeMemoryMappedViewHandle;
+            var length = stream.Length;
 
-            byte* basePtr = null;
-            try
+            // Detection + OnFile + the verb body, shared by the empty and memory-mapped paths.
+            bool RunDetected(RegExPinnedBytes bytes)
             {
-                handle.AcquirePointer(ref basePtr);
-                var data = basePtr + view.PointerOffset;
-
-                var detection = EncodingDetector.Detect(
-                    new RegExPinnedBytes((void*)data, (nuint)length), length, request.ResolvedDefaultCodePage, request.EncodingDetection);
+                var detection = EncodingDetector.Detect(bytes, length, request.ResolvedDefaultCodePage, request.EncodingDetection);
                 if (detection.LooksBinary && request.SkipBinaryFiles)
                 {
                     return false;
@@ -356,39 +365,28 @@ namespace UnicodeRegEx.Tools.Engine
                     return false;
                 }
 
-                var replaceTemplate = request.Verb == SearchVerb.Replace ? request.ReplaceTemplate : null;
-                var enumerateOptions = new RegExEnumerateOptions
-                {
-                    MatchFlags = request.MatchFlags,
-                    FormatTemplate = replaceTemplate,
-                };
+                return process(new RegExInput(bytes, codePage), file, codePage);
+            }
 
-                return regex.EnumerateMatches(
-                    new RegExInput(handle, (nuint)view.PointerOffset, (nuint)length, codePage),
-                    enumerateOptions,
-                    matches =>
-                    {
-                        var matched = false;
-                        foreach (var match in matches)
-                        {
-                            var hit = new SearchHit(file, match, replaceTemplate != null);
-                            var response = ReportHit(hit);
-                            matched = true;
+            if (length == 0)
+            {
+                // An empty file cannot be memory-mapped; feed the regex a null / zero-length input (the
+                // native layer accepts it). Detection over the zero-length descriptor is safe -- it is
+                // never dereferenced at size 0.
+                return RunDetected(new RegExPinnedBytes());
+            }
 
-                            if (response == SearchResponse.StopAll)
-                            {
-                                cancellation.Cancel();
-                                break;
-                            }
+            using var mmf = MemoryMappedFile.CreateFromFile(
+                stream, null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, leaveOpen: true);
+            using var view = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
+            var handle = view.SafeMemoryMappedViewHandle;
 
-                            if (response == SearchResponse.StopFile)
-                            {
-                                break;
-                            }
-                        }
-
-                        return matched;
-                    });
+            byte* basePtr = null;
+            try
+            {
+                handle.AcquirePointer(ref basePtr);
+                var data = basePtr + view.PointerOffset;
+                return RunDetected(new RegExPinnedBytes(data, (nuint)length));
             }
             finally
             {
@@ -399,53 +397,52 @@ namespace UnicodeRegEx.Tools.Engine
             }
         }
 
+        private bool MatchFile(RegEx regex, string path)
+        {
+            return ProcessFile(path, (input, file, codePage) =>
+            {
+                var replaceTemplate = request.Verb == SearchVerb.Replace ? request.ReplaceTemplate : null;
+                var enumerateOptions = new RegExEnumerateOptions
+                {
+                    MatchFlags = request.MatchFlags,
+                    FormatTemplate = replaceTemplate,
+                };
+
+                return regex.EnumerateMatches(input, enumerateOptions, matches =>
+                {
+                    var matched = false;
+                    foreach (var match in matches)
+                    {
+                        var hit = new SearchHit(file, match, replaceTemplate != null);
+                        var response = ReportHit(hit);
+                        matched = true;
+
+                        if (response == SearchResponse.StopAll)
+                        {
+                            cancellation.Cancel();
+                            break;
+                        }
+
+                        if (response == SearchResponse.StopFile)
+                        {
+                            break;
+                        }
+                    }
+
+                    return matched;
+                });
+            });
+        }
+
         // Streams the file through the regex segment-by-segment into a replacement file: unmatched
         // runs are copied verbatim and matches are written as their formatted replacement, all in the
         // file's detected code page (no intermediate string, no added BOM). The result is committed
         // atomically only if at least one match was found; otherwise the temporary file is abandoned
         // (it is delete-on-close) and the original is left untouched.
-        private unsafe bool ApplyReplaceFile(RegEx regex, string path)
+        private bool ApplyReplaceFile(RegEx regex, string path)
         {
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            var length = stream.Length;
-            if (length == 0)
+            return ProcessFile(path, (input, file, codePage) =>
             {
-                return false;
-            }
-
-            using var mmf = MemoryMappedFile.CreateFromFile(
-                stream, null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, leaveOpen: true);
-            using var view = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
-            var handle = view.SafeMemoryMappedViewHandle;
-
-            byte* basePtr = null;
-            try
-            {
-                handle.AcquirePointer(ref basePtr);
-                var data = basePtr + view.PointerOffset;
-
-                var detection = EncodingDetector.Detect(
-                    new RegExPinnedBytes((void*)data, (nuint)length), length, request.ResolvedDefaultCodePage, request.EncodingDetection);
-                if (detection.LooksBinary && request.SkipBinaryFiles)
-                {
-                    return false;
-                }
-
-                var codePage = detection.CodePage;
-                var file = new SearchFile(path, codePage, detection.LooksBinary);
-                var fileResponse = ReportFile(file);
-                if (fileResponse == SearchResponse.StopAll)
-                {
-                    cancellation.Cancel();
-                    return false;
-                }
-
-                if (fileResponse == SearchResponse.StopFile)
-                {
-                    return false;
-                }
-
-                var input = new RegExInput(handle, (nuint)view.PointerOffset, (nuint)length, codePage);
                 var options = new RegExEnumerateOptions
                 {
                     MatchFlags = request.MatchFlags,
@@ -502,14 +499,7 @@ namespace UnicodeRegEx.Tools.Engine
                 ReportFileChanged(path);
 
                 return true;
-            }
-            finally
-            {
-                if (basePtr != null)
-                {
-                    handle.ReleasePointer();
-                }
-            }
+            });
         }
 
         private IEnumerable<string> EnumerateFiles(IEnumerable<string> roots, GlobFilterSet? fileFilters, GlobFilterSet? directoryFilters)
@@ -654,6 +644,16 @@ namespace UnicodeRegEx.Tools.Engine
                 : base("A search sink callback threw.", inner)
             {
             }
+        }
+
+        private static class NativeMethods
+        {
+            // GetFileType return values (winbase.h). Only FILE_TYPE_DISK is a searchable regular file;
+            // FILE_TYPE_CHAR (console/LPT), FILE_TYPE_PIPE (pipe/socket/FIFO), and FILE_TYPE_UNKNOWN are not.
+            public const uint FILE_TYPE_DISK = 0x0001;
+
+            [DllImport("kernel32.dll", SetLastError = true)]
+            public static extern uint GetFileType(SafeFileHandle hFile);
         }
     }
 }

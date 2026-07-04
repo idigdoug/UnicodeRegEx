@@ -125,13 +125,24 @@ Locked-in facts:
   `GetFileInformationByHandle`'s 64-bit `nFileIndex` is the NTFS-only fallback). Track ancestor identities
   in a set; refuse to descend into one already an ancestor. One dir-handle open per descent, only when
   following links. (`LinkTarget`/`ResolveLinkTarget` are .NET 6+, unavailable here.)
-- **Special files (`-D`): OUT OF SCOPE (won't do).** Devices / FIFOs / pipes / sockets are structurally
-  unsupported: the engine mmaps a real file (`FileStream` → `MemoryMappedFile.CreateFromFile`), so there
-  is nothing to stream from — and the library's point is in-place *replace* of files, which a stream can't
-  be. Current behavior: a special file fails to open or fails to mmap → `ReportError` (or reports
-  `length == 0` and is skipped). Acceptable. A `-D` option would only toggle Error-vs-Skip (log verbosity,
-  not capability), and even a clean pre-open Skip would need the same `GetFileType`/interop tier as the
-  reparse-tag/cycle work. Not worthwhile. (grep's `-D` matters only because grep can *read* a FIFO.)
+- **Special files (`-D`): OUT OF SCOPE, but now consistently an error.** Devices / FIFOs / pipes /
+  sockets are structurally unsupported: the engine mmaps a real file, so there is nothing to stream from
+  — and the library's point is in-place *replace* of files, which a stream can't be. `ProcessFile` does a
+  pre-open `GetFileType` check and reports anything that is not `FILE_TYPE_DISK` as an
+  `IOException("Not a regular file")` via `OnError` (counts toward `Summary.Errors`) — so a special file
+  is never silently mistaken for a successfully-searched empty file. A `-D` option would only toggle
+  Error-vs-Skip (log verbosity, not capability), and we've chosen consistent-Error, so it stays won't-do.
+  (grep's `-D` matters only because grep can *read* a FIFO.)
+- **Zero-length regular files ARE searched/replaced** (bug fixed). An empty file can't be memory-mapped
+  (`CreateFromFile` throws), so the empty case feeds the regex a plain **null / zero-length** input
+  (`new RegExPinnedBytes()`, i.e. `{ data = 0, size = 0 }`). The native layer now accepts this: the
+  root-cause bug was in `MakeCodePointRangeAndPos`, whose `nullptr` "out-of-range" pos sentinel collided
+  with a *valid empty span* (whose begin is also `nullptr`), so `MatchEnumerator` threw `E_INVALIDARG`.
+  Fixed by adding a `bool posValid` field to `CodePointRangeAndPos` (an empty span at offset 0 is now
+  `posValid == true`) and changing `MatchEnumerator` to throw only when `!posValid`. So `^`/`a*`/`^$`
+  match the single empty position and empty replacements run. `MatchFile`/`ApplyReplaceFile` now share one
+  `ProcessFile` helper (open → GetFileType → detect → OnFile → verb body via a `FileProcessor` delegate,
+  since `RegExInput` is a ref struct and can't be a `Func<>` arg).
 
 ### Line terminators / binary edges
 - **Binary handling is a fact + one convenience bool, not a policy enum.** Detection reports the fact
@@ -226,4 +237,8 @@ Also still open (CLI surfacing; engine side is done):
   streaming `DirectoryInfo.EnumerateFileSystemInfos()` pass per directory: each entry's attributes come
   from the enumeration (no second scan, and the RecurseNoLinks reparse-point check reads `entry.Attributes`
   with no per-subdir `GetAttributes`).
-- Tests: 292 managed + 61 native (lib) passing.
+- Files: `MatchFile`/`ApplyReplaceFile` share one `ProcessFile` (open → `GetFileType` special-file
+  rejection → detect → `OnFile` → verb body). Non-`FILE_TYPE_DISK` inputs (device/pipe/socket) are
+  reported as `IOException("Not a regular file")`; zero-length regular files are searched/replaced via a
+  plain null / zero-length input (empty files can't be mmap'd; the native `posValid` fix accepts it).
+- Tests: 296 managed + 470 native (lib) passing.

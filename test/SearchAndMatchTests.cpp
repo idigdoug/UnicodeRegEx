@@ -243,6 +243,42 @@ namespace RegExTests
             Assert::IsNull(results.get());
         }
 
+        TEST_METHOD(Match_NullZeroLengthInput_ZeroLengthPattern_Matches)
+        {
+            // A null / zero-length input descriptor ({ data = 0, size = 0 }) is the exact shape
+            // the managed layer passes for an empty file. A zero-length pattern must still match.
+            auto regex = MakeRegEx(L"^");
+
+            RegExBytes inputBytes = {}; // data == 0, size == 0.
+
+            wil::com_ptr<IRegExMatchResults> results;
+            Assert::AreEqual(
+                S_OK,
+                regex->Match(inputBytes, RegExCodePage_utf8, 0, RegExMatchFlag_default, results.put()));
+            Assert::IsNotNull(results.get());
+
+            RegExSubMatch sub = {};
+            Assert::AreEqual(S_OK, results->GetSubMatch(0, &sub));
+            Assert::AreEqual(LONGLONG(0), sub.offset);
+            Assert::AreEqual(LONGLONG(0), sub.size);
+            Assert::AreEqual(VARIANT_TRUE, sub.matched);
+        }
+
+        TEST_METHOD(Match_NullZeroLengthInput_NonMatch_ReturnsNull)
+        {
+            // A null / zero-length input with a pattern that cannot match must report no match
+            // (not an error) -- previously the null pointer was misread as an out-of-range offset.
+            auto regex = MakeRegEx(L"\\d+");
+
+            RegExBytes inputBytes = {}; // data == 0, size == 0.
+
+            wil::com_ptr<IRegExMatchResults> results;
+            Assert::AreEqual(
+                S_OK,
+                regex->Match(inputBytes, RegExCodePage_utf8, 0, RegExMatchFlag_default, results.put()));
+            Assert::IsNull(results.get());
+        }
+
         TEST_METHOD(Match_StartByteOffset)
         {
             // With startByteOffset = 4, regex_match should match only the suffix "def".

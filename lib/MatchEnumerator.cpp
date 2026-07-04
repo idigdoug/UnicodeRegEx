@@ -29,7 +29,7 @@ MatchEnumerator<EncodingT>::MatchEnumerator(
     auto rangeAndPos = encoding.MakeCodePointRangeAndPos(
         std::span(static_cast<CharT const*>(data), size / sizeof(CharT)),
         startByteOffset);
-    if (rangeAndPos.pos == IteratorT())
+    if (!rangeAndPos.posValid)
     {
         // startByteOffset was out of range or at an invalid position.
         THROW_HR(E_INVALIDARG);

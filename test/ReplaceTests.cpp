@@ -139,6 +139,29 @@ namespace RegExTests
             Assert::AreEqual(L""sv, MakeView(output.get()));
         }
 
+        TEST_METHOD(Replace_NullZeroLengthInput)
+        {
+            // A null / zero-length input descriptor ({ data = 0, size = 0 }) -- the shape the managed
+            // layer passes for an empty file -- must replace successfully and yield empty output.
+            auto regex = MakeRegEx(L"\\d+");
+
+            RegExBytes inputBytes = {}; // data == 0, size == 0.
+            wil::unique_bstr formatTemplate(SysAllocString(L"#"));
+
+            wil::unique_bstr output;
+            Assert::AreEqual(
+                S_OK,
+                regex->Replace(
+                    inputBytes,
+                    RegExCodePage_utf8,
+                    0,
+                    RegExMatchFlag_default,
+                    formatTemplate.get(),
+                    RegExFormatFlag_perl,
+                    output.put()));
+            Assert::AreEqual(L""sv, MakeView(output.get()));
+        }
+
         TEST_METHOD(Replace_Utf16Input)
         {
             auto regex = MakeRegEx(L"\\d+");

@@ -87,7 +87,8 @@ namespace _textEncodingDetail
     template<typename IteratorT>
     struct CodePointRangeAndPos
     {
-        IteratorT pos; // May be IteratorT() if the specified position was invalid.
+        bool posValid;
+        IteratorT pos; // If !posValid then pos == IteratorT().
         IteratorT begin;
         IteratorT end;
     };
@@ -116,10 +117,10 @@ namespace _textEncodingDetail
             return { CodePointIterator(pBegin, pBegin, pEnd), CodePointIterator(pEnd, pBegin, pEnd) };
         }
 
-        // Returns begin and end like FromSpan.
-        // Also returns a position iterator for begin + byteOffset, or CodePointIterator() if the
-        // byteOffset is past the end of the span or if it points at an invalid position in the
-        // input byte sequence (e.g. middle of a char16_t, middle of a UTF-8 sequence, etc.).
+        // Returns begin and end like MakeCodePointRange.
+        // Also returns posValid and a position iterator for begin + byteOffset. posValid is false (and
+        // pos is CodePointIterator()) if byteOffset is past the end of the span or points at an invalid
+        // position in the input byte sequence (e.g. middle of a char16_t, middle of a UTF-8 sequence).
         static constexpr CodePointRangeAndPos<CodePointIterator>
         MakeCodePointRangeAndPos(std::span<EncodedCharT const> chars, size_t byteOffset) noexcept
         {
@@ -128,18 +129,18 @@ namespace _textEncodingDetail
             if (byteOffset <= chars.size_bytes() && byteOffset % sizeof(EncodedCharT) == 0)
             {
                 auto const pPos = chars.data() + byteOffset / sizeof(EncodedCharT);
-                auto const pos = CodePointIterator(pPos, pBegin, pEnd);
+                auto const posIt = CodePointIterator(pPos, pBegin, pEnd);
 
                 // Verify that we're not on an invalid position. If we're on a valid position (other
                 // than begin or end) then going backwards one position and then forwards one position
                 // should will always yield the starting position (for UTF-8 or UTF-16).
-                if (auto pos2 = pos; pPos == pBegin || pPos == pEnd || ++(--(pos2)) == pos)
+                if (auto it2 = posIt; pPos == pBegin || pPos == pEnd || ++(--(it2)) == posIt)
                 {
-                    return { pos, CodePointIterator(pBegin, pBegin, pEnd), CodePointIterator(pEnd, pBegin, pEnd) };
+                    return { true, posIt, CodePointIterator(pBegin, pBegin, pEnd), CodePointIterator(pEnd, pBegin, pEnd) };
                 }
             }
 
-            return { CodePointIterator(), CodePointIterator(pBegin, pBegin, pEnd), CodePointIterator(pEnd, pBegin, pEnd) };
+            return { false, CodePointIterator(), CodePointIterator(pBegin, pBegin, pEnd), CodePointIterator(pEnd, pBegin, pEnd) };
         }
 
     public:
@@ -156,7 +157,7 @@ namespace _textEncodingDetail
             : EncodingT::_codePointIterator(nullptr, nullptr, nullptr) {}
 
         // Returns the number of bytes between begin and the current iterator position.
-        // The begin value should be chars.data() from the chars value passed to FromSpan.
+        // The begin value should be chars.data() from the chars value passed to MakeCodePointRange.
         constexpr size_t
         ByteOffset(void const* begin) const noexcept
         {
@@ -259,7 +260,7 @@ struct Latin1
         {}
 
         // Returns the number of bytes between begin and the current iterator position.
-        // The begin value should be chars.data() from the chars value passed to FromSpan.
+        // The begin value should be chars.data() from the chars value passed to MakeCodePointRange.
         constexpr size_t
         ByteOffset(void const* begin) const noexcept
         {
@@ -418,16 +419,17 @@ struct Latin1
         return { CodePointIterator(pBegin), CodePointIterator(pEnd) };
     }
 
-    // Returns begin and end like FromSpan.
-    // Also returns a position iterator for begin + byteOffset, or CodePointIterator() if the
-    // byteOffset is past the end of the span.
+    // Returns begin and end like MakeCodePointRange.
+    // Also returns posValid and a position iterator for begin + byteOffset. posValid is false (and pos
+    // is CodePointIterator()) if byteOffset is past the end of the span.
     constexpr CodePointRangeAndPos
     MakeCodePointRangeAndPos(std::span<encoded_char const> chars, size_t byteOffset) const noexcept
     {
         auto const pBegin = chars.data();
         auto const pEnd = chars.data() + chars.size();
-        auto const pos = byteOffset <= chars.size_bytes() ? chars.data() + byteOffset : nullptr;
-        return { CodePointIterator(pos), CodePointIterator(pBegin), CodePointIterator(pEnd) };
+        auto const posValid = byteOffset <= chars.size_bytes();
+        auto const pos = posValid ? chars.data() + byteOffset : nullptr;
+        return { posValid, CodePointIterator(pos), CodePointIterator(pBegin), CodePointIterator(pEnd) };
     }
 
     // Converts a sequence of code points into a Latin1 string.
@@ -510,7 +512,7 @@ public:
         {}
 
         // Returns the number of bytes between begin and the current iterator position.
-        // The begin value should be chars.data() from the chars value passed to FromSpan.
+        // The begin value should be chars.data() from the chars value passed to MakeCodePointRange.
         constexpr size_t
         ByteOffset(void const* begin) const noexcept
         {
@@ -662,16 +664,17 @@ public:
         return { CodePointIterator(pBegin, m_table), CodePointIterator(pEnd, m_table) };
     }
 
-    // Returns begin and end like FromSpan.
-    // Also returns a position iterator for begin + byteOffset, or CodePointIterator() if the
-    // byteOffset is past the end of the span.
+    // Returns begin and end like MakeCodePointRange.
+    // Also returns posValid and a position iterator for begin + byteOffset. posValid is false (and pos
+    // is CodePointIterator()) if byteOffset is past the end of the span.
     CodePointRangeAndPos
     MakeCodePointRangeAndPos(std::span<encoded_char const> chars, size_t byteOffset) const noexcept
     {
         auto const pBegin = chars.data();
         auto const pEnd = chars.data() + chars.size();
-        auto const pos = byteOffset <= chars.size_bytes() ? chars.data() + byteOffset : nullptr;
-        return { CodePointIterator(pos, m_table), CodePointIterator(pBegin, m_table), CodePointIterator(pEnd, m_table) };
+        auto const posValid = byteOffset <= chars.size_bytes();
+        auto const pos = posValid ? chars.data() + byteOffset : nullptr;
+        return { posValid, CodePointIterator(pos, m_table), CodePointIterator(pBegin, m_table), CodePointIterator(pEnd, m_table) };
     }
 
     // Converts a sequence of code points into an SBCS string.
@@ -700,10 +703,10 @@ struct Utf8
     // Invalid sequences are returned as U+FFFD.
     using CodePointIterator = _textEncodingDetail::CodePointIterator<Utf8>;
 
-    // A begin/end iterator pair, created by CodePointIterator::FromSpan.
+    // A begin/end iterator pair, created by CodePointIterator::MakeCodePointRange.
     using CodePointRange = _textEncodingDetail::CodePointRange<CodePointIterator>;
 
-    // A begin/end/pos iterator triple, created by CodePointIterator::FromSpanAndByteOffset.
+    // A begin/end/pos iterator triple, created by CodePointIterator::MakeCodePointRangeAndPos.
     using CodePointRangeAndPos = _textEncodingDetail::CodePointRangeAndPos<CodePointIterator>;
 
     constexpr bool
@@ -735,7 +738,7 @@ struct Utf8
         return CodePointIterator::MakeCodePointRange(chars);
     }
 
-    // Returns begin and end like FromSpan.
+    // Returns begin and end like MakeCodePointRange.
     // Also returns a position iterator for begin + byteOffset, or CodePointIterator() if the
     // byteOffset is past the end of the span or if it points at an invalid position in the
     // input byte sequence (e.g. middle of a char16_t, middle of a UTF-8 sequence, etc.).
@@ -1008,10 +1011,10 @@ struct Utf16
     // Handles surrogate pairs. Invalid sequences (lone surrogates) are returned as U+FFFD.
     using CodePointIterator = _textEncodingDetail::CodePointIterator<Utf16>;
 
-    // A begin/end iterator pair, created by CodePointIterator::FromSpan.
+    // A begin/end iterator pair, created by CodePointIterator::MakeCodePointRange.
     using CodePointRange = _textEncodingDetail::CodePointRange<CodePointIterator>;
 
-    // A begin/end/pos iterator triple, created by CodePointIterator::FromSpanAndByteOffset.
+    // A begin/end/pos iterator triple, created by CodePointIterator::MakeCodePointRangeAndPos.
     using CodePointRangeAndPos = _textEncodingDetail::CodePointRangeAndPos<CodePointIterator>;
 
     constexpr bool
@@ -1043,7 +1046,7 @@ struct Utf16
         return CodePointIterator::MakeCodePointRange(chars);
     }
 
-    // Returns begin and end like FromSpan.
+    // Returns begin and end like MakeCodePointRange.
     // Also returns a position iterator for begin + byteOffset, or CodePointIterator() if the
     // byteOffset is past the end of the span or if it points at an invalid position in the
     // input byte sequence (e.g. middle of a char16_t, middle of a UTF-8 sequence, etc.).
