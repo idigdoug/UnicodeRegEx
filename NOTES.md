@@ -101,21 +101,30 @@ Locked-in facts:
   and only Recurse* push subdirectories, so a discovered directory only ever exists under a Recurse* run.
 - **Roots are NOT special** (matches grep 3.11): directory filters apply to command-line directories too,
   and a directory arg with no recurse flag hits `Error`. CLI `-r` → `RecurseNoLinks`; no `-r` → `Error`.
-- **Link handling:** `RecurseNoLinks` skips subdirectories that are reparse points (checked via
-  `FileAttributes.ReparsePoint`, no interop); `RecurseWithLinks` follows them. **Cycle prevention is NOT
-  yet implemented** (RecurseWithLinks can loop through a self-referential junction).
-- **`RecurseNoLinks`'s reparse check is coarse (known limitation).** `FileAttributes.ReparsePoint` is set
-  for *every* reparse point, not just links, so NoLinks currently **over-skips** non-link reparse points:
-  OneDrive/cloud placeholders (`IO_REPARSE_TAG_CLOUD*`), Data Dedup stubs (`_DEDUP`), ProjFS/VFS-for-Git
-  working trees (`_PROJFS`), container isolation (`_WCI*`) — all normal directories wrongly treated as
-  links. The error is conservative (over-skip / miss content, never *follows* a real link it shouldn't).
-  Nuanced fix: classify by **reparse tag**, skipping only *name-surrogate* tags
-  (`IsReparseTagNameSurrogate(tag)` — true for symlink/junction/mount-point, false for cloud/dedup/ProjFS;
-  future-proof vs. a tag blocklist). The tag is only obtainable via interop on these frameworks:
-  `WIN32_FIND_DATA.dwReserved0` carries it during a `FindFirstFileEx` enumeration (the BCL doesn't surface
-  it through `FileSystemInfo`), or `DeviceIoControl(FSCTL_GET_REPARSE_POINT)` per handle. So this means
-  replacing `EnumerateFileSystemInfos` with a `FindFirstFileEx`-based enumerator — bundle it with the
-  cycle-prevention P/Invoke pass below (both need a Win32 enumeration/handle layer).
+- **Link handling:** the directory walk enumerates with `NativeDir` (a `FindFirstFileEx`
+  wrapper, `Engine\NativeDir.cs`), which yields lightweight `NativeDirEntry` values carrying
+  each child's name, attributes, and reparse **tag** (`dwReserved0`) straight from the directory scan.
+  `RecurseNoLinks` skips subdirectories that are *name-surrogate* reparse points (real links);
+  `RecurseWithLinks` follows them. **Cycle prevention is NOT yet implemented** (RecurseWithLinks can loop
+  through a self-referential junction).
+- **Reparse classification is by tag (DONE — was a coarse-check limitation).** The old check used
+  `FileAttributes.ReparsePoint`, which is set for *every* reparse point, so `RecurseNoLinks` over-skipped
+  non-link reparse points: OneDrive/cloud placeholders (`IO_REPARSE_TAG_CLOUD*`), Data Dedup stubs
+  (`_DEDUP`), ProjFS/VFS-for-Git working trees (`_PROJFS`), container isolation (`_WCI*`). Now
+  `NativeDirEntry.IsNameSurrogate` classifies by tag via `IsReparseTagNameSurrogate` (the `0x20000000` bit;
+  future-proof vs. a tag blocklist), so only real links (symlink/junction/mount point) are skipped and
+  non-link reparse points are walked like ordinary directories. The tag rides in `WIN32_FIND_DATA.dwReserved0`
+  for free with the `FindFirstFileEx` enumerator (the BCL does not surface it through `FileSystemInfo`).
+- **`NativeDir` notes.** `WIN32_FIND_DATA` uses blittable `fixed char` buffers (not
+  `[MarshalAs(ByValTStr)]` strings), so out-marshalling is a raw copy and no name string is allocated per
+  entry; the name is built on demand only for entries the walk keeps. `Enumerate(dir, skipDirectories)`
+  gates directory entries on `dwFileAttributes` *before* the name is materialized (the non-recursing path
+  passes `skipDirectories: true`, matching the old `EnumerateFiles` fast path that never turned skipped
+  entries into objects). Paths are extended-length (`\\?\`) prefixed for MAX_PATH parity; `.`/`..` are
+  filtered from the fixed buffer without allocating. The walk stack is now `Stack<string>` (directory
+  paths); child paths are composed with `Path.Combine` on demand. `SearchJobTests` (47 tests, incl.
+  `RecurseNoLinks_SkipsJunctionedDirectory` / `RecurseWithLinks_FollowsJunctionedDirectory`) validates the
+  rewrite is behavior-preserving.
 - **Cycle prevention (still to do): very-nice-to-have.** Only possible when following links (NTFS/ReFS
   loops only through a directory reparse point; hardlinked dirs aren't allowed), so only `RecurseWithLinks`
   needs it. Must be **identity-based, not path-based**. On the target frameworks (netstandard2.0 / net48)
@@ -124,7 +133,9 @@ Locked-in facts:
   `GetFileInformationByHandleEx(FileIdInfo)` → `FILE_ID_INFO` (128-bit id, ReFS-correct;
   `GetFileInformationByHandle`'s 64-bit `nFileIndex` is the NTFS-only fallback). Track ancestor identities
   in a set; refuse to descend into one already an ancestor. One dir-handle open per descent, only when
-  following links. (`LinkTarget`/`ResolveLinkTarget` are .NET 6+, unavailable here.)
+  following links. (`LinkTarget`/`ResolveLinkTarget` are .NET 6+, unavailable here.) **Independent of the
+  reparse-tag classification above** — different disposition (`RecurseWithLinks`, where the reparse-skip
+  guard is already bypassed), handle-based (not enumeration-based), keyed on identity (not tag).
 - **Special files (`-D`): OUT OF SCOPE, but now consistently an error.** Devices / FIFOs / pipes /
   sockets are structurally unsupported: the engine mmaps a real file, so there is nothing to stream from
   — and the library's point is in-place *replace* of files, which a stream can't be. `ProcessFile` does a
@@ -178,16 +189,16 @@ last-match-wins), and **`DirectoryDisposition`** (replaced the `Recurse` bool; E
 ReadImmediateFiles/RecurseNoLinks/RecurseWithLinks). Directory filters use the **same include/exclude
 rules** but pass `defaultIncludeWhenNoMatch: true` (Option B). Filters apply **uniformly to roots and
 discovered dirs** (roots not special — matches grep 3.11); the disposition then decides Error/Skip/read/
-recurse. `RecurseNoLinks` skips reparse-point subdirs; `RecurseWithLinks` follows them (no cycle
-prevention yet). CLI `-r` → `RecurseNoLinks`, no `-r` → `Error`; still `--include`-only otherwise.
+recurse. `RecurseNoLinks` skips *name-surrogate* reparse-point subdirs; `RecurseWithLinks` follows them
+(no cycle prevention yet). The walk now enumerates with a `FindFirstFileEx`-based
+`NativeDir` (reparse-tag classification done). CLI `-r` → `RecurseNoLinks`, no `-r` →
+`Error`; still `--include`-only otherwise.
 Remaining:
 
-1. **Win32 interop pass for `RecurseWithLinks`** (nice-to-have; single P/Invoke layer covers both):
-   (a) **cycle prevention** — identity-based ancestor tracking
+1. **Cycle prevention for `RecurseWithLinks`** (nice-to-have): identity-based ancestor tracking
    (`CreateFile(FILE_FLAG_BACKUP_SEMANTICS)` + `GetFileInformationByHandleEx(FileIdInfo)`), only when
-   following links; (b) **reparse-tag classification** — replace `EnumerateFileSystemInfos` with a
-   `FindFirstFileEx` enumerator to read `dwReserved0` and skip only name-surrogate tags
-   (`IsReparseTagNameSurrogate`), fixing NoLinks' over-skip of cloud/dedup/ProjFS dirs.
+   following links. Independent of the (now-done) reparse-tag classification: different disposition,
+   handle-based not enumeration-based, keyed on file identity not tag.
 
 (Special-file `-D` disposition is **out of scope** — see Directories & links above.)
 
@@ -232,11 +243,13 @@ Also still open (CLI surfacing; engine side is done):
   exposes only `--include` (→ all-Include filters); CLI `--exclude` / `--exclude-dir` not yet wired.
 - Directories: `DirectoryDisposition` (Error default / Skip / ReadImmediateFiles / RecurseNoLinks /
   RecurseWithLinks) replaced the `Recurse` bool. Error reports `IOException("Is a directory")`.
-  RecurseNoLinks skips reparse-point dirs; RecurseWithLinks follows them (cycle prevention TODO). All
-  `ReportError` paths (enumeration + per-file) now count toward `Summary.Errors`. The walk uses a single
-  streaming `DirectoryInfo.EnumerateFileSystemInfos()` pass per directory: each entry's attributes come
-  from the enumeration (no second scan, and the RecurseNoLinks reparse-point check reads `entry.Attributes`
-  with no per-subdir `GetAttributes`).
+  RecurseNoLinks skips *name-surrogate* reparse-point dirs (real links); RecurseWithLinks follows them
+  (cycle prevention TODO). All `ReportError` paths (enumeration + per-file) now count toward
+  `Summary.Errors`. The walk enumerates with `NativeDir` (a `FindFirstFileEx` wrapper,
+  blittable `fixed`-buffer `WIN32_FIND_DATA`): each `NativeDirEntry` carries name + attributes + reparse
+  **tag** from the scan (no second probe), the tag drives `IsNameSurrogate` classification, and the
+  non-recursing path passes `skipDirectories: true` to skip directory entries before their name is even
+  materialized.
 - Files: `MatchFile`/`ApplyReplaceFile` share one `ProcessFile` (open → `GetFileType` special-file
   rejection → detect → `OnFile` → verb body). Non-`FILE_TYPE_DISK` inputs (device/pipe/socket) are
   reported as `IOException("Not a regular file")`; zero-length regular files are searched/replaced via a

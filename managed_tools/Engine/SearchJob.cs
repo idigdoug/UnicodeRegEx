@@ -514,12 +514,12 @@ namespace UnicodeRegEx.Tools.Engine
                 request.Directories == DirectoryDisposition.RecurseWithLinks;
             var followLinks = request.Directories == DirectoryDisposition.RecurseWithLinks;
 
-            // The stack holds DirectoryInfo objects so that each discovered subdirectory reuses the one
-            // the enumeration already produced (no fresh DirectoryInfo per directory). NOTE: a popped
-            // DirectoryInfo's own cached attributes are enumeration-time snapshots and are NOT relied on
-            // here -- we always re-enumerate it, and the reparse-point check reads each *child's*
-            // attributes, so staleness never matters.
-            var stack = new Stack<DirectoryInfo>();
+            // The stack holds directory paths. Enumeration is done with NativeDir (a
+            // FindFirstFileEx wrapper), which yields lightweight NativeDirEntry values carrying each child's
+            // name, attributes, and reparse tag straight from the directory scan -- no FileSystemInfo objects,
+            // and the reparse *tag* (which the BCL does not surface) lets the walk tell real links from
+            // non-link reparse points. Each child's path is composed from the popped directory path on demand.
+            var stack = new Stack<string>();
             foreach (var root in roots)
             {
                 FileAttributes attributes;
@@ -559,7 +559,7 @@ namespace UnicodeRegEx.Tools.Engine
                     continue;
                 }
 
-                stack.Push(new DirectoryInfo(root));
+                stack.Push(root);
                 while (stack.Count > 0)
                 {
                     if (cancellation.IsCancellationRequested)
@@ -569,31 +569,23 @@ namespace UnicodeRegEx.Tools.Engine
 
                     var current = stack.Pop();
 
-                    // A single streaming enumeration: each FileSystemInfo already carries the attributes
-                    // from the underlying directory scan (no second scan, and no per-subdirectory
-                    // GetAttributes for the reparse-point check). When not recursing, EnumerateFiles skips
-                    // materializing subdirectories entirely (they would only be discarded). MoveNext can
-                    // throw mid-stream (an entry vanished, access denied), so it runs under a try; a
-                    // failure reports the directory and moves on to the next stacked directory, matching
-                    // the whole-directory catch the eager GetFiles/GetDirectories form had.
-                    IEnumerator<FileSystemInfo> entries;
-                    try
-                    {
-                        entries = recurse
-                            ? current.EnumerateFileSystemInfos().GetEnumerator()
-                            : ((IEnumerable<FileSystemInfo>)current.EnumerateFiles()).GetEnumerator();
-                    }
-                    catch (Exception ex)
-                    {
-                        ReportError(current.FullName, ex);
-                        continue;
-                    }
-
+                    // A single streaming enumeration per directory. NativeDirEntry carries the attributes and
+                    // reparse tag from the underlying scan (no second probe per child). When not recursing,
+                    // skipDirectories short-circuits directory entries before their name string is even
+                    // materialized (matching the BCL EnumerateFiles fast path).
+                    //
+                    // NativeDir.Enumerate is a yield-based iterator, so its body (including the
+                    // FindFirstFileEx open and any throw) runs lazily on the first MoveNext -- not on the call
+                    // or GetEnumerator. That means a single try around the MoveNext loop covers both opening
+                    // the directory and stepping it; a failure (directory gone, access denied, an entry
+                    // vanished mid-scan) reports the directory and moves on to the next stacked directory. (If
+                    // Enumerate ever becomes a non-iterator that opens eagerly, the open would need its own try.)
+                    var entries = NativeDir.Enumerate(current, skipDirectories: !recurse).GetEnumerator();
                     try
                     {
                         while (true)
                         {
-                            FileSystemInfo entry;
+                            NativeDirEntry entry;
                             try
                             {
                                 if (!entries.MoveNext())
@@ -605,23 +597,27 @@ namespace UnicodeRegEx.Tools.Engine
                             }
                             catch (Exception ex)
                             {
-                                ReportError(current.FullName, ex);
+                                ReportError(current, ex);
                                 break;
                             }
 
-                            // Directory entries only arrive from the recursing (EnumerateFileSystemInfos)
-                            // path, so reaching this branch already implies recursion.
-                            if (entry is DirectoryInfo subdirectory)
+                            // Directory entries only arrive from the recursing (skipDirectories: false) path,
+                            // so reaching this branch already implies recursion.
+                            if (entry.IsDirectory)
                             {
-                                if (DirectoryIsIncluded(directoryFilters, subdirectory.Name) &&
-                                    (followLinks || (subdirectory.Attributes & FileAttributes.ReparsePoint) == 0))
+                                // Follow a subdirectory unless it is a link we should not follow. The reparse
+                                // check is by *tag* (IsNameSurrogate): real links (symlink/junction/mount point)
+                                // are skipped under RecurseNoLinks, but non-link reparse points (cloud/dedup/
+                                // ProjFS/WCI placeholders) are walked like ordinary directories.
+                                if (DirectoryIsIncluded(directoryFilters, entry.Name) &&
+                                    (followLinks || !entry.IsNameSurrogate))
                                 {
-                                    stack.Push(subdirectory);
+                                    stack.Push(Path.Combine(current, entry.Name));
                                 }
                             }
                             else if (fileFilters == null || fileFilters.ShouldInclude(entry.Name))
                             {
-                                yield return entry.FullName;
+                                yield return Path.Combine(current, entry.Name);
                             }
                         }
                     }
