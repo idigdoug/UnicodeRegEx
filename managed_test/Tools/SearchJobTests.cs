@@ -416,7 +416,7 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         [TestMethod]
-        public async Task RecurseWithLinks_FollowsJunctionedDirectory()
+        public async Task RecurseWithLinks_FollowedJunction_IsDeduplicatedByIdentity()
         {
             WriteFile("real\\inner.cs", "match");
             var target = Path.Combine(tempDir, "real");
@@ -431,8 +431,38 @@ namespace UnicodeRegEx.Tests.Tools
 
             var (sink, _, _) = await RunAsync(request);
 
-            // The file is reached both through "real" and through the followed junction "link".
-            Assert.AreEqual(2, sink.Hits.Count);
+            // "real" and the junction "link" resolve to the same directory. RecurseWithLinks follows the
+            // link, but the walk de-duplicates by directory identity (volume serial + file id), so the target
+            // is searched exactly once regardless of how many links point at it -- inner.cs is found once, not
+            // once per path. (This is the deliberate visited-set policy: a search never reports the same
+            // file's matches twice. Cycle prevention falls out of the same mechanism.)
+            Assert.AreEqual(1, sink.Hits.Count);
+        }
+
+        [TestMethod]
+        public async Task RecurseWithLinks_CycleIsBroken()
+        {
+            // real/inner.cs plus a junction real/loop -> the search root, forming a cycle
+            // (root -> real -> loop -> root -> ...). RecurseWithLinks follows links, so without identity-based
+            // cycle detection this would recurse forever. It must instead terminate and search each real file
+            // a bounded number of times.
+            WriteFile("real\\inner.cs", "match");
+            var loop = Path.Combine(tempDir, "real", "loop");
+            if (!TryCreateJunction(loop, tempDir))
+            {
+                Assert.Inconclusive("Could not create a directory junction on this system.");
+            }
+
+            var request = Request("match", tempDir);
+            request.Directories = DirectoryDisposition.RecurseWithLinks;
+
+            var (sink, summary, state) = await RunAsync(request);
+
+            // The run completes (does not hang) and the cycle is cut by identity: the root is recorded, so
+            // when the junction "loop" (which resolves back to the root) is encountered it is recognized as
+            // already-visited and not descended. inner.cs is therefore found exactly once.
+            Assert.AreEqual(SearchJobState.Completed, state);
+            Assert.AreEqual(1, sink.Hits.Count);
         }
 
         // Creates a directory junction (mklink /J) without requiring symlink privilege. Returns false if

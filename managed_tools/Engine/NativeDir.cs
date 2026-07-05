@@ -5,6 +5,7 @@ namespace UnicodeRegEx.Tools.Engine
     using System.ComponentModel;
     using System.IO;
     using System.Runtime.InteropServices;
+    using Microsoft.Win32.SafeHandles;
 
     /// <summary>
     /// A single entry produced by <see cref="NativeDir.Enumerate(string)"/>. Carries only
@@ -49,6 +50,41 @@ namespace UnicodeRegEx.Tools.Engine
     }
 
     /// <summary>
+    /// A durable identity for a directory: its volume serial number plus its 128-bit file id. Two paths
+    /// that resolve to the same directory (e.g. one reached through a junction) share the same
+    /// <see cref="DirectoryId"/>, which is how the walk detects link cycles without relying on paths.
+    /// </summary>
+    internal readonly struct DirectoryId : IEquatable<DirectoryId>
+    {
+        private readonly ulong volumeSerialNumber;
+        private readonly ulong fileIdLow;
+        private readonly ulong fileIdHigh;
+
+        public DirectoryId(ulong volumeSerialNumber, ulong fileIdLow, ulong fileIdHigh)
+        {
+            this.volumeSerialNumber = volumeSerialNumber;
+            this.fileIdLow = fileIdLow;
+            this.fileIdHigh = fileIdHigh;
+        }
+
+        public bool Equals(DirectoryId other) =>
+            this.volumeSerialNumber == other.volumeSerialNumber &&
+            this.fileIdLow == other.fileIdLow &&
+            this.fileIdHigh == other.fileIdHigh;
+
+        public override bool Equals(object? obj) => obj is DirectoryId other && this.Equals(other);
+
+        public override int GetHashCode()
+        {
+            // Simple FNV-ish combine; the id components are already well-distributed.
+            var hash = this.volumeSerialNumber;
+            hash = (hash * 31) ^ this.fileIdLow;
+            hash = (hash * 31) ^ this.fileIdHigh;
+            return hash.GetHashCode();
+        }
+    }
+
+    /// <summary>
     /// A thin, allocation-light wrapper over the Win32 <c>FindFirstFileEx</c>/<c>FindNextFile</c> loop that
     /// yields <see cref="NativeDirEntry"/> values. Unlike <see cref="FileSystemInfo"/>, this surfaces the
     /// reparse <b>tag</b> (from <c>dwReserved0</c>), which the BCL does not expose on netstandard2.0/net48,
@@ -66,6 +102,51 @@ namespace UnicodeRegEx.Tools.Engine
         /// Mirrors the Win32 <c>IsReparseTagNameSurrogate</c> macro.
         /// </summary>
         public static bool IsNameSurrogateTag(uint reparseTag) => (reparseTag & ReparseTagNameSurrogateBit) != 0;
+
+        /// <summary>
+        /// Attempts to read the durable <see cref="DirectoryId"/> (volume serial + 128-bit file id) of the
+        /// directory at <paramref name="path"/>. Used for link-cycle detection: two paths that resolve to the
+        /// same directory share an id.
+        /// </summary>
+        /// <param name="path">The directory path to identify.</param>
+        /// <param name="id">On success, the directory's identity.</param>
+        /// <returns>
+        /// True if the id was obtained. False if the directory could not be opened, or the volume does not
+        /// provide a 128-bit file id (older/uncommon file systems). Callers treat false as "identity unknown".
+        /// </returns>
+        public static bool TryGetDirectoryId(string path, out DirectoryId id)
+        {
+            // FILE_FLAG_BACKUP_SEMANTICS is required to obtain a handle to a *directory*. Requesting no access
+            // (0 / dwDesiredAccess) with full sharing lets this succeed even while others use the directory,
+            // and needs no read permission on the contents. OPEN_EXISTING because the directory must exist.
+            using var handle = NativeMethods.CreateFile(
+                ToExtendedLengthPath(path),
+                0,
+                NativeMethods.FILE_SHARE_READ | NativeMethods.FILE_SHARE_WRITE | NativeMethods.FILE_SHARE_DELETE,
+                IntPtr.Zero,
+                NativeMethods.OPEN_EXISTING,
+                NativeMethods.FILE_FLAG_BACKUP_SEMANTICS,
+                IntPtr.Zero);
+
+            if (handle.IsInvalid)
+            {
+                id = default;
+                return false;
+            }
+
+            if (!NativeMethods.GetFileInformationByHandleEx(
+                    handle,
+                    NativeMethods.FILE_INFO_BY_HANDLE_CLASS.FileIdInfo,
+                    out var info,
+                    (uint)Marshal.SizeOf<NativeMethods.FILE_ID_INFO>()))
+            {
+                id = default;
+                return false;
+            }
+
+            id = new DirectoryId(info.VolumeSerialNumber, info.FileIdLow, info.FileIdHigh);
+            return true;
+        }
 
         /// <summary>
         /// Enumerates the immediate children of <paramref name="directory"/> (not recursive), yielding one
@@ -249,6 +330,48 @@ namespace UnicodeRegEx.Tools.Engine
             [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
             [return: MarshalAs(UnmanagedType.Bool)]
             public static extern bool FindNextFile(SafeFindHandle hFindFile, out WIN32_FIND_DATA lpFindFileData);
+
+            // CreateFile share modes and flags used to open a directory handle for identity (FileIdInfo).
+            public const uint FILE_SHARE_READ = 0x1;
+            public const uint FILE_SHARE_WRITE = 0x2;
+            public const uint FILE_SHARE_DELETE = 0x4;
+            public const uint OPEN_EXISTING = 3;
+
+            // Required to open a handle to a directory (rather than a file) with CreateFile.
+            public const uint FILE_FLAG_BACKUP_SEMANTICS = 0x02000000;
+
+            public enum FILE_INFO_BY_HANDLE_CLASS
+            {
+                FileIdInfo = 18, // Yields FILE_ID_INFO (volume serial + 128-bit file id).
+            }
+
+            [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+            public static extern SafeFileHandle CreateFile(
+                string lpFileName,
+                uint dwDesiredAccess,
+                uint dwShareMode,
+                IntPtr lpSecurityAttributes,
+                uint dwCreationDisposition,
+                uint dwFlagsAndAttributes,
+                IntPtr hTemplateFile);
+
+            [DllImport("kernel32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool GetFileInformationByHandleEx(
+                SafeFileHandle hFile,
+                FILE_INFO_BY_HANDLE_CLASS fileInformationClass,
+                out FILE_ID_INFO lpFileInformation,
+                uint dwBufferSize);
+
+            // FILE_ID_INFO: a volume serial number plus a 128-bit file id (FILE_ID_128, two 64-bit halves).
+            // The 128-bit id is ReFS-correct; on NTFS the high half is zero and the low half is the file index.
+            [StructLayout(LayoutKind.Sequential)]
+            public struct FILE_ID_INFO
+            {
+                public ulong VolumeSerialNumber;
+                public ulong FileIdLow;
+                public ulong FileIdHigh;
+            }
 
             // Blittable layout: cFileName/cAlternateFileName are fixed char buffers rather than
             // [MarshalAs(ByValTStr)] strings, so the runtime does NOT allocate a string per entry when the

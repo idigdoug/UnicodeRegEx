@@ -514,12 +514,45 @@ namespace UnicodeRegEx.Tools.Engine
                 request.Directories == DirectoryDisposition.RecurseWithLinks;
             var followLinks = request.Directories == DirectoryDisposition.RecurseWithLinks;
 
-            // The stack holds directory paths. Enumeration is done with NativeDir (a
-            // FindFirstFileEx wrapper), which yields lightweight NativeDirEntry values carrying each child's
-            // name, attributes, and reparse tag straight from the directory scan -- no FileSystemInfo objects,
-            // and the reparse *tag* (which the BCL does not surface) lets the walk tell real links from
-            // non-link reparse points. Each child's path is composed from the popped directory path on demand.
+            // The stack holds directory paths. Enumeration is done with NativeDir (a FindFirstFileEx
+            // wrapper), which yields lightweight NativeDirEntry values carrying each child's name, attributes,
+            // and reparse tag straight from the directory scan -- no FileSystemInfo objects, and the reparse
+            // *tag* (which the BCL does not surface) lets the walk tell real links from non-link reparse
+            // points. Each child's path is composed from the popped directory path on demand.
             var stack = new Stack<string>();
+
+            // Cycle prevention (only when following links -- RecurseNoLinks can't loop, and non-recursing
+            // dispositions don't descend). We record each descended directory's durable identity (volume
+            // serial + 128-bit file id); a directory whose identity was already seen is not descended again.
+            // This is a global visited-set, chosen deliberately: it breaks link cycles AND de-duplicates a
+            // directory reached by more than one link (a diamond), so the same directory's contents are never
+            // searched twice -- the behavior a search tool wants. (The alternative, ancestor-only tracking,
+            // would follow non-cycle re-visits and report the same file's matches multiple times.) Off (null)
+            // for every non-following disposition, so those paths pay nothing.
+            var visited = followLinks ? new HashSet<DirectoryId>() : null;
+
+            // Decides whether to descend into a directory, applying cycle prevention when following links.
+            // Returns true if the directory should be walked. When not following links this is a pass-through
+            // (no identity probe). When following links: probe the identity; if it was already seen, skip
+            // silently (a cycle or an already-searched directory); if the probe fails, skip and report (a
+            // followed directory we cannot identify is not descended, so an unresolvable link can't hang it).
+            bool TryEnterDirectory(string path)
+            {
+                if (visited == null)
+                {
+                    return true;
+                }
+
+                if (!NativeDir.TryGetDirectoryId(path, out var id))
+                {
+                    ReportError(path, new IOException("Could not determine directory identity for cycle detection."));
+                    return false;
+                }
+
+                // Add returns false if the id was already present -- a cycle or an already-visited directory.
+                return visited.Add(id);
+            }
+
             foreach (var root in roots)
             {
                 FileAttributes attributes;
@@ -557,6 +590,14 @@ namespace UnicodeRegEx.Tools.Engine
                 if (request.Directories == DirectoryDisposition.Skip)
                 {
                     continue;
+                }
+
+                // Seed the root's identity so a link back to it (the classic self-referential cycle) is
+                // caught. Unlike a discovered subdirectory, a root is walked even if its identity can't be
+                // read -- the user named it explicitly -- so this records opportunistically and never skips.
+                if (visited != null && NativeDir.TryGetDirectoryId(root, out var rootId))
+                {
+                    visited.Add(rootId);
                 }
 
                 stack.Push(root);
@@ -612,7 +653,15 @@ namespace UnicodeRegEx.Tools.Engine
                                 if (DirectoryIsIncluded(directoryFilters, entry.Name) &&
                                     (followLinks || !entry.IsNameSurrogate))
                                 {
-                                    stack.Push(Path.Combine(current, entry.Name));
+                                    var childPath = Path.Combine(current, entry.Name);
+
+                                    // When following links, TryEnterDirectory probes identity to break cycles
+                                    // (and skips a followed directory it cannot identify, reporting it). When
+                                    // not following links it is a no-op pass-through.
+                                    if (TryEnterDirectory(childPath))
+                                    {
+                                        stack.Push(childPath);
+                                    }
                                 }
                             }
                             else if (fileFilters == null || fileFilters.ShouldInclude(entry.Name))

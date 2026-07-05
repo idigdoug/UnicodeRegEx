@@ -105,8 +105,7 @@ Locked-in facts:
   wrapper, `Engine\NativeDir.cs`), which yields lightweight `NativeDirEntry` values carrying
   each child's name, attributes, and reparse **tag** (`dwReserved0`) straight from the directory scan.
   `RecurseNoLinks` skips subdirectories that are *name-surrogate* reparse points (real links);
-  `RecurseWithLinks` follows them. **Cycle prevention is NOT yet implemented** (RecurseWithLinks can loop
-  through a self-referential junction).
+  `RecurseWithLinks` follows them, with identity-based cycle prevention (see the Cycle prevention bullet).
 - **Reparse classification is by tag (DONE — was a coarse-check limitation).** The old check used
   `FileAttributes.ReparsePoint`, which is set for *every* reparse point, so `RecurseNoLinks` over-skipped
   non-link reparse points: OneDrive/cloud placeholders (`IO_REPARSE_TAG_CLOUD*`), Data Dedup stubs
@@ -122,20 +121,30 @@ Locked-in facts:
   passes `skipDirectories: true`, matching the old `EnumerateFiles` fast path that never turned skipped
   entries into objects). Paths are extended-length (`\\?\`) prefixed for MAX_PATH parity; `.`/`..` are
   filtered from the fixed buffer without allocating. The walk stack is now `Stack<string>` (directory
-  paths); child paths are composed with `Path.Combine` on demand. `SearchJobTests` (47 tests, incl.
-  `RecurseNoLinks_SkipsJunctionedDirectory` / `RecurseWithLinks_FollowsJunctionedDirectory`) validates the
-  rewrite is behavior-preserving.
-- **Cycle prevention (still to do): very-nice-to-have.** Only possible when following links (NTFS/ReFS
-  loops only through a directory reparse point; hardlinked dirs aren't allowed), so only `RecurseWithLinks`
-  needs it. Must be **identity-based, not path-based**. On the target frameworks (netstandard2.0 / net48)
-  there is **no BCL API** for directory identity, so it needs Win32 P/Invoke:
-  `CreateFile(path, 0, share, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS)` to get a directory handle, then
-  `GetFileInformationByHandleEx(FileIdInfo)` → `FILE_ID_INFO` (128-bit id, ReFS-correct;
-  `GetFileInformationByHandle`'s 64-bit `nFileIndex` is the NTFS-only fallback). Track ancestor identities
-  in a set; refuse to descend into one already an ancestor. One dir-handle open per descent, only when
-  following links. (`LinkTarget`/`ResolveLinkTarget` are .NET 6+, unavailable here.) **Independent of the
-  reparse-tag classification above** — different disposition (`RecurseWithLinks`, where the reparse-skip
-  guard is already bypassed), handle-based (not enumeration-based), keyed on identity (not tag).
+  paths); child paths are composed with `Path.Combine` on demand. `SearchJobTests` (48 tests, incl.
+  `RecurseNoLinks_SkipsJunctionedDirectory`, `RecurseWithLinks_FollowedJunction_IsDeduplicatedByIdentity`,
+  `RecurseWithLinks_CycleIsBroken`) validates the walk.
+- **Cycle prevention (DONE).** Only relevant when following links (NTFS/ReFS loop only through a directory
+  reparse point; hardlinked dirs aren't allowed), so only `RecurseWithLinks` uses it. It is **identity-based,
+  not path-based**. The BCL exposes no directory identity on netstandard2.0/net48, so `NativeDir`
+  `TryGetDirectoryId` does it via P/Invoke: `CreateFile(path, 0, FILE_SHARE_*, OPEN_EXISTING,
+  FILE_FLAG_BACKUP_SEMANTICS)` (backup semantics = open a *directory* handle) then
+  `GetFileInformationByHandleEx(FileIdInfo)` → `FILE_ID_INFO` (volume serial + 128-bit file id, ReFS-correct;
+  on NTFS the high 64 bits are 0). `DirectoryId` bundles those into an equatable/hashable value.
+  - **Policy = global visited-set (option A), chosen deliberately over ancestor-only (option B).** The walk
+    records every descended directory's `DirectoryId` in one `HashSet`; a directory whose id was already
+    seen is not descended again. This cuts cycles AND de-duplicates a directory reached via more than one
+    link (a diamond), so the same directory's contents are never searched twice and no file's matches are
+    reported twice. Option B (track only root→current ancestors; follow non-cycle re-visits) is the
+    grep/`find -L` behavior but would double-report; for a *search* tool, dedup is the better default. The
+    test `RecurseWithLinks_FollowedJunction_IsDeduplicatedByIdentity` pins A (a followed junction to `real`
+    yields 1 hit, not 2); `RecurseWithLinks_CycleIsBroken` pins termination.
+  - The root's id is seeded so a link straight back to the root is caught. A root is walked even if its id
+    can't be read (user named it explicitly). A discovered directory whose id probe **fails** is skipped and
+    reported (`IOException`) -- a followed directory we can't identify is never descended, so an
+    unresolvable link can't hang the walk. One `CreateFile` per descended directory, only under
+    `RecurseWithLinks` (an opt-in mode); zero cost otherwise. **Independent of reparse-tag classification** --
+    different disposition, handle-based (not enumeration-based), keyed on identity (not tag).
 - **Special files (`-D`): OUT OF SCOPE, but now consistently an error.** Devices / FIFOs / pipes /
   sockets are structurally unsupported: the engine mmaps a real file, so there is nothing to stream from
   — and the library's point is in-place *replace* of files, which a stream can't be. `ProcessFile` does a
@@ -190,15 +199,12 @@ ReadImmediateFiles/RecurseNoLinks/RecurseWithLinks). Directory filters use the *
 rules** but pass `defaultIncludeWhenNoMatch: true` (Option B). Filters apply **uniformly to roots and
 discovered dirs** (roots not special — matches grep 3.11); the disposition then decides Error/Skip/read/
 recurse. `RecurseNoLinks` skips *name-surrogate* reparse-point subdirs; `RecurseWithLinks` follows them
-(no cycle prevention yet). The walk now enumerates with a `FindFirstFileEx`-based
-`NativeDir` (reparse-tag classification done). CLI `-r` → `RecurseNoLinks`, no `-r` →
-`Error`; still `--include`-only otherwise.
-Remaining:
+with identity-based cycle prevention (visited-set of directory ids; option A -- dedups diamonds too). The
+walk enumerates with a `FindFirstFileEx`-based `NativeDir` (reparse-tag classification done). CLI `-r` →
+`RecurseNoLinks`, no `-r` → `Error`; still `--include`-only otherwise.
 
-1. **Cycle prevention for `RecurseWithLinks`** (nice-to-have): identity-based ancestor tracking
-   (`CreateFile(FILE_FLAG_BACKUP_SEMANTICS)` + `GetFileInformationByHandleEx(FileIdInfo)`), only when
-   following links. Independent of the (now-done) reparse-tag classification: different disposition,
-   handle-based not enumeration-based, keyed on file identity not tag.
+The directory-walk engine work is complete (filters, dispositions, reparse-tag classification, and cycle
+prevention all done). Remaining is CLI surfacing only:
 
 (Special-file `-D` disposition is **out of scope** — see Directories & links above.)
 
@@ -243,8 +249,10 @@ Also still open (CLI surfacing; engine side is done):
   exposes only `--include` (→ all-Include filters); CLI `--exclude` / `--exclude-dir` not yet wired.
 - Directories: `DirectoryDisposition` (Error default / Skip / ReadImmediateFiles / RecurseNoLinks /
   RecurseWithLinks) replaced the `Recurse` bool. Error reports `IOException("Is a directory")`.
-  RecurseNoLinks skips *name-surrogate* reparse-point dirs (real links); RecurseWithLinks follows them
-  (cycle prevention TODO). All `ReportError` paths (enumeration + per-file) now count toward
+  RecurseNoLinks skips *name-surrogate* reparse-point dirs (real links); RecurseWithLinks follows them with
+  identity-based cycle prevention (a visited-set of `DirectoryId` = volume serial + 128-bit file id via
+  `CreateFile(FILE_FLAG_BACKUP_SEMANTICS)` + `GetFileInformationByHandleEx(FileIdInfo)`; option A also
+  de-dups diamonds). All `ReportError` paths (enumeration + per-file) now count toward
   `Summary.Errors`. The walk enumerates with `NativeDir` (a `FindFirstFileEx` wrapper,
   blittable `fixed`-buffer `WIN32_FIND_DATA`): each `NativeDirEntry` carries name + attributes + reparse
   **tag** from the scan (no second probe), the tag drives `IsNameSurrogate` classification, and the
@@ -254,4 +262,4 @@ Also still open (CLI surfacing; engine side is done):
   rejection → detect → `OnFile` → verb body). Non-`FILE_TYPE_DISK` inputs (device/pipe/socket) are
   reported as `IOException("Not a regular file")`; zero-length regular files are searched/replaced via a
   plain null / zero-length input (empty files can't be mmap'd; the native `posValid` fix accepts it).
-- Tests: 296 managed + 470 native (lib) passing.
+- Tests: 297 managed + 470 native (lib) passing.
