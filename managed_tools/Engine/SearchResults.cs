@@ -37,6 +37,16 @@ namespace UnicodeRegEx.Tools.Engine
         SearchResponse OnFile(SearchFile file);
 
         /// <summary>
+        /// A file that was reported by <see cref="OnFile"/> (and not skipped by it) has finished being
+        /// processed — after its last hit. Paired one-to-one with a non-skipping <see cref="OnFile"/>:
+        /// it fires exactly for files whose <see cref="OnFile"/> returned <see cref="SearchResponse.Continue"/>,
+        /// and never for skipped/errored/empty files (which never raised <see cref="OnFile"/> at all).
+        /// Under parallel processing, files interleave; this bracket lets a sink group a file's hits (e.g.
+        /// buffer them at <see cref="OnFile"/> and flush the buffer here) so per-file output stays contiguous.
+        /// </summary>
+        void OnFileComplete(SearchFile file);
+
+        /// <summary>
         /// A search result (a match) or a replace-preview result (a match and its replacement). Return
         /// <see cref="SearchResponse.StopFile"/> to stop enumerating this file (e.g. after N matches), or
         /// <see cref="SearchResponse.StopAll"/> to end the run.

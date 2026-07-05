@@ -102,6 +102,21 @@ namespace UnicodeRegEx.Tools
         /// <summary>Which encoding/binary detection steps to run (default: <see cref="EncodingDetectionOptions.Default"/> — all steps).</summary>
         public EncodingDetectionOptions EncodingDetection { get; set; } = EncodingDetectionOptions.Default;
 
+        /// <summary>
+        /// The maximum number of files processed concurrently. <b>1</b> (the default) processes files
+        /// serially, preserving deterministic per-file ordering. <b>0</b> means "automatic" — the engine
+        /// picks a reasonable degree (currently <see cref="System.Environment.ProcessorCount"/>). Any value
+        /// &gt; 1 caps concurrency at that number. The same value applies to both search and replace.
+        /// <para>
+        /// Under concurrency, files interleave: the sink's callbacks are still serialized (never called
+        /// concurrently), but a file's <see cref="ISearchSink.OnFile"/>…hits…<see cref="ISearchSink.OnFileComplete"/>
+        /// bracket lets a front-end keep each file's output contiguous. Global ordering across files is the
+        /// sink's concern (buffer and sort, or use 1). The compiled regex is shared across workers (it is
+        /// immutable and free-threaded), so no per-file compilation cost is incurred.
+        /// </para>
+        /// </summary>
+        public int MaxDegreeOfParallelism { get; set; } = 1;
+
         // Pattern and Paths come last since they are positional (not read from SearchSettings).
 
         /// <summary>The regular expression pattern to search for.</summary>
@@ -231,6 +246,7 @@ namespace UnicodeRegEx.Tools
                 Directories = Directories,
                 SkipBinaryFiles = SkipBinaryFiles,
                 EncodingDetection = EncodingDetection,
+                MaxDegreeOfParallelism = MaxDegreeOfParallelism,
                 Pattern = Pattern,
             };
 

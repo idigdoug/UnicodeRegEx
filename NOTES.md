@@ -33,8 +33,10 @@ match flags, and ordered filters.
     Ordering: `OnFile` fires **after** detection + the binary gate; the override feeds the `RegExInput`
     that is then built.
 - **Stop swallowing callback exceptions.** A thrown sink exception is a bug → **fault the job**
-  (distinct from the deliberate StopFile/StopAll responses). Impl note: with future multithreading the
-  throw happens on a worker thread under the sink lock and must propagate out to fault the job.
+  (distinct from the deliberate StopFile/StopAll responses). Under parallel processing the throw happens on
+  a worker thread; it is wrapped as an internal `SinkException`, surfaced by `Parallel.ForEach` inside an
+  `AggregateException`, and unwrapped back to the original exception so the job faults identically to the
+  serial path.
 - **`OnError(path, Exception)` carries the exception, not a pre-baked string.** Every error the engine
   reports *has* an exception (missing path, access failure, per-file fault), so the sink gets it and
   decides how to present/classify it. The CLI turns `FileNotFound`/`DirectoryNotFound` into grep's
@@ -223,9 +225,10 @@ Also still open (CLI surfacing; engine side is done):
   built before `OnFile`; an override needs a rebuilt instance for the hits). Likely shape: a small
   `SearchFileResponse` struct (action + `int?` codePageOverride) instead of the bare `SearchResponse` enum.
 - **`OnDirectory` callback vs directory-disposition config:** a per-directory callback is flexible but
-  awkward under future multithreaded enumeration (synchronous per-directory decisions across workers).
-  Prefer config (recurse + exclude-dir + follow-links, plus a "report directory" option for `-d read`)
-  unless a concrete need survives.
+  awkward (synchronous per-directory decisions), and config has covered every need so far. Prefer config
+  (recurse + exclude-dir + follow-links, plus a "report directory" option for `-d read`) unless a concrete
+  need survives. (Enumeration is single-threaded, so a callback wouldn't face worker-thread races -- but
+  config is still preferred on simplicity grounds.)
 - **Manual/computed replacement (deferred):** letting the tool supply its own replacement bytes for a
   match (rather than the engine's `Format()` template). Lean: a **lambda** on the request/apply path,
   NOT a return value from `OnHit`. Revisit only if a real need appears.
@@ -233,12 +236,21 @@ Also still open (CLI surfacing; engine side is done):
 ## Status snapshot
 
 - Engine is `SearchJob` (async / cancel / progress / dispose; two-pass enumerate→process; sink
-  serialized; one-shot). Single-threaded now; multithreaded-processing groundwork (file list + sink
-  lock) in place.
+  serialized; one-shot). Phase 2 (file processing) parallelizes across files via
+  `SearchRequest.MaxDegreeOfParallelism` (1 = serial default; 0 = auto = `ProcessorCount`; >1 = capped).
+  The compiled `RegEx` is shared across workers (immutable + free-threaded via the native FTM; each
+  `Match`/`Replace` builds a fresh `MatchEnumerator`), and each file's work is independent (own handle /
+  mmap / enumerator / replacement temp file), so the only shared state is the sink (serialized by
+  `sinkGate`), the `CancellationTokenSource`, and interlocked counters. A throwing sink faults the job with
+  the ORIGINAL exception on both paths (serial rethrow; parallel unwraps `AggregateException` →
+  `SinkException` → inner). Enumeration (Phase 1) stays single-threaded (fast; parallelizing it would
+  complicate the cycle-prevention visited-set for little gain).
 - Encoding/binary detection: `EncodingDetector`, ordered per-step-toggleable heuristics (BOM, UTF-16
   NUL-parity, strict UTF-8, binary NUL + control-ratio); `EncodingDetectionOptions` + a `SkipBinaryFiles`
   bool on `SearchRequest`; per-file results via `SearchFile` + `ISearchSink.OnFile`.
-- Callbacks: `OnFile`/`OnHit` return `SearchResponse`; `OnFileChanged`; `OnError(path, Exception)`.
+- Callbacks: `OnFile`/`OnHit` return `SearchResponse`; `OnFileComplete` (closes the `OnFile` bracket --
+  fires once per file `OnFile` accepted, after its last hit, not for skipped/errored/empty files -- so a
+  sink can group a file's output under parallelism); `OnFileChanged`; `OnError(path, Exception)`.
   `SearchHit` is a `readonly ref struct { SearchFile File; RegExMatch Match; }` (+ lazy `Text`/`Replacement`).
 - Syntax + match flags: `SearchRequest.SyntaxFlags` / `.MatchFlags` (single raw masks), validated by C++
   allow-masks; `ComposeSyntaxFlags`/`SetSyntaxFlags` helpers. Not on the CLI yet (see to-do).
@@ -262,4 +274,4 @@ Also still open (CLI surfacing; engine side is done):
   rejection → detect → `OnFile` → verb body). Non-`FILE_TYPE_DISK` inputs (device/pipe/socket) are
   reported as `IOException("Not a regular file")`; zero-length regular files are searched/replaced via a
   plain null / zero-length input (empty files can't be mmap'd; the native `posValid` fix accepts it).
-- Tests: 297 managed + 470 native (lib) passing.
+- Tests: 303 managed + 470 native (lib) passing.

@@ -92,6 +92,12 @@ Search files (default) or preview/apply replacements with a Unicode-aware regex.
             // The CLI streams hits and does not surface per-file metadata, so OnFile is a no-op.
             public SearchResponse OnFile(SearchFile file) => SearchResponse.Continue;
 
+            // The CLI streams hits as they arrive (default serial processing keeps them ordered), so it
+            // has no per-file buffer to flush.
+            public void OnFileComplete(SearchFile file)
+            {
+            }
+
             public SearchResponse OnHit(in SearchHit hit)
             {
                 Console.Out.WriteLine(hit.Replacement == null

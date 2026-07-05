@@ -6,7 +6,8 @@ namespace UnicodeRegEx.Tests.Tools
 
     /// <summary>
     /// Records everything a <see cref="SearchJob"/> reports through <see cref="ISearchSink"/>. The job
-    /// serializes its callbacks, and a test reads these lists only after awaiting the run, so no extra
+    /// serializes its callbacks under a single lock (never invoking two concurrently, even when files are
+    /// processed in parallel), and a test reads these lists only after awaiting the run, so no extra
     /// synchronization is needed here. A <see cref="SearchHit"/> is a ref struct valid only during the
     /// callback, so <see cref="OnHit"/> copies out what tests need into a <see cref="RecordedHit"/>.
     /// </summary>
@@ -15,6 +16,8 @@ namespace UnicodeRegEx.Tests.Tools
         public List<SearchFile> Files { get; } = new List<SearchFile>();
 
         public List<RecordedHit> Hits { get; } = new List<RecordedHit>();
+
+        public List<SearchFile> CompletedFiles { get; } = new List<SearchFile>();
 
         public List<string> ChangedFiles { get; } = new List<string>();
 
@@ -31,6 +34,8 @@ namespace UnicodeRegEx.Tests.Tools
             Hits.Add(new RecordedHit(hit.File, hit.Text, hit.Replacement));
             return SearchResponse.Continue;
         }
+
+        public void OnFileComplete(SearchFile file) => CompletedFiles.Add(file);
 
         public void OnFileChanged(string path) => ChangedFiles.Add(path);
 

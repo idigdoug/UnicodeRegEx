@@ -40,16 +40,19 @@ namespace UnicodeRegEx.Tools.Engine
     /// Results stream through the <see cref="ISearchSink"/> passed to <see cref="RunAsync"/>.
     /// </summary>
     /// <remarks>
-    /// Front-end-neutral and intended to move into the shared core. This first version runs on a single
-    /// background thread in two passes — enumerate the full file list (so progress is determinate), then
-    /// process it — and is structured so multi-threaded enumeration/processing can be added later without
-    /// changing this surface. <see cref="ISearchSink"/> calls are serialized by the job, so a sink need
-    /// not be thread-safe. <see cref="ProgressChanged"/> and the sink callbacks are raised on the job's
-    /// background thread; a UI consumer is responsible for marshaling to its own thread. The event is a
-    /// "something changed, read the current values" signal (no payload), so it can be coalesced later.
-    /// Owns a <see cref="CancellationTokenSource"/>, so it is <see cref="IDisposable"/>; dispose it once
-    /// the run has completed (the usual <c>using</c> + <c>await RunAsync</c> pattern). Disposing while a
-    /// run is still in flight is a misuse — call <see cref="Cancel"/> and await the run first.
+    /// Front-end-neutral and intended to move into the shared core. It runs on a background thread in two
+    /// passes — enumerate the full file list (so progress is determinate), then process it. Processing is
+    /// serial by default and can be parallelized across files via
+    /// <see cref="SearchRequest.MaxDegreeOfParallelism"/>. <see cref="ISearchSink"/> calls are always
+    /// serialized by the job (never invoked concurrently), so a sink need not be thread-safe; under
+    /// parallel processing, however, different files' callbacks interleave — use the
+    /// <see cref="ISearchSink.OnFile"/>…<see cref="ISearchSink.OnFileComplete"/> bracket to group a file's
+    /// output. <see cref="ProgressChanged"/> and the sink callbacks are raised on the job's worker
+    /// thread(s); a UI consumer is responsible for marshaling to its own thread. The event is a "something
+    /// changed, read the current values" signal (no payload), so it can be coalesced. Owns a
+    /// <see cref="CancellationTokenSource"/>, so it is <see cref="IDisposable"/>; dispose it once the run
+    /// has completed (the usual <c>using</c> + <c>await RunAsync</c> pattern). Disposing while a run is
+    /// still in flight is a misuse — call <see cref="Cancel"/> and await the run first.
     /// </remarks>
     public sealed class SearchJob : IDisposable
     {
@@ -61,6 +64,10 @@ namespace UnicodeRegEx.Tools.Engine
         private int totalFileCount;
         private int completedFileCount;
         private int errorCount;
+        // Accumulated across (possibly parallel) file processing. anyMatchFlag is 0/1; filesChangedCount
+        // counts rewritten files. Both are updated with interlocked ops so the parallel path is safe.
+        private int anyMatchFlag;
+        private int filesChangedCount;
         private volatile SearchJobState state = SearchJobState.Created;
         private int started;
         private bool disposed;
@@ -155,6 +162,14 @@ namespace UnicodeRegEx.Tools.Engine
 
                 Process(regex, files);
             }
+            catch (SinkException ex)
+            {
+                // A sink callback threw. The job faults with the ORIGINAL exception (with its stack),
+                // not the internal SinkException wrapper. Both the serial and parallel processing paths
+                // funnel here, so unwrapping in one place keeps their behavior identical.
+                SetState(SearchJobState.Faulted);
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex.InnerException!).Throw();
+            }
             catch (Exception)
             {
                 SetState(SearchJobState.Faulted);
@@ -190,53 +205,152 @@ namespace UnicodeRegEx.Tools.Engine
             return files;
         }
 
-        // PHASE 2: process each file, reporting results through the sink and ticking progress.
+        // PHASE 2: process each file, reporting results through the sink and ticking progress. Files are
+        // processed serially when the resolved degree of parallelism is 1 (the default -- deterministic
+        // ordering, no parallel overhead), or concurrently otherwise. The compiled regex is shared across
+        // workers (it is immutable and free-threaded), and every file's work is independent (its own file
+        // handle, memory map, and match enumerator), so the only shared mutable state is the sink (already
+        // serialized by sinkGate), the cancellation source, and the interlocked counters.
         private void Process(RegEx regex, List<string> files)
         {
             SetState(SearchJobState.Processing);
 
-            var anyMatch = false;
-            var filesChanged = 0;
+            var dop = ResolveDegreeOfParallelism();
 
-            foreach (var path in files)
+            if (dop == 1)
             {
-                if (cancellation.IsCancellationRequested)
+                foreach (var path in files)
                 {
-                    Finish(SearchJobState.Canceled, new SearchSummary(anyMatch, filesChanged, Volatile.Read(ref errorCount), cancelled: true));
-                    return;
+                    if (cancellation.IsCancellationRequested)
+                    {
+                        Finish(SearchJobState.Canceled, BuildSummary(cancelled: true));
+                        return;
+                    }
+
+                    ProcessOne(regex, path);
                 }
 
-                try
-                {
-                    if (request.Apply)
-                    {
-                        if (ApplyReplaceFile(regex, path))
-                        {
-                            filesChanged++;
-                            anyMatch = true;
-                        }
-                    }
-                    else if (MatchFile(regex, path))
-                    {
-                        anyMatch = true;
-                    }
-                }
-                catch (SinkException ex)
-                {
-                    // A sink callback threw — treat as a bug and fault the whole job, surfacing the
-                    // original exception (with its stack) rather than the wrapper.
-                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex.InnerException!).Throw();
-                }
-                catch (Exception ex)
-                {
-                    ReportError(path, ex);
-                }
-
-                Interlocked.Increment(ref completedFileCount);
-                RaiseProgress();
+                Finish(SearchJobState.Completed, BuildSummary(cancelled: false));
+                return;
             }
 
-            Finish(SearchJobState.Completed, new SearchSummary(anyMatch, filesChanged, Volatile.Read(ref errorCount), cancelled: false));
+            // Parallel path. The cancellation token stops in-flight workers promptly; a StopAll response or
+            // an explicit Cancel trips it. A sink that throws is a bug: ProcessOne wraps it as a
+            // SinkException, which Parallel.ForEach surfaces inside an AggregateException -- unwrap it back to
+            // the SinkException and rethrow so Run's catch faults the job with the original exception, exactly
+            // as the serial path does.
+            var options = new ParallelOptions
+            {
+                MaxDegreeOfParallelism = dop,
+                CancellationToken = cancellation.Token,
+            };
+
+            try
+            {
+                Parallel.ForEach(files, options, path => ProcessOne(regex, path));
+            }
+            catch (OperationCanceledException)
+            {
+                Finish(SearchJobState.Canceled, BuildSummary(cancelled: true));
+                return;
+            }
+            catch (AggregateException ex)
+            {
+                var sinkException = FindSinkException(ex);
+                if (sinkException != null)
+                {
+                    throw sinkException;
+                }
+
+                throw;
+            }
+
+            // A StopAll response cancels via the token without throwing (Parallel.ForEach only throws
+            // OperationCanceledException when the token was passed and a body observes it after the loop
+            // decides to stop); reflect the cancellation in the terminal state.
+            if (cancellation.IsCancellationRequested)
+            {
+                Finish(SearchJobState.Canceled, BuildSummary(cancelled: true));
+                return;
+            }
+
+            Finish(SearchJobState.Completed, BuildSummary(cancelled: false));
+        }
+
+        // Processes a single file: runs the verb, updates the shared match/changed counters, reports
+        // per-file errors, and ticks progress. Safe to call from multiple threads concurrently. A sink
+        // callback that throws is surfaced as a SinkException (a bug that faults the whole job); genuine
+        // per-file IO failures are reported via OnError and do not stop other files.
+        private void ProcessOne(RegEx regex, string path)
+        {
+            if (cancellation.IsCancellationRequested)
+            {
+                return;
+            }
+
+            try
+            {
+                if (request.Apply)
+                {
+                    if (ApplyReplaceFile(regex, path))
+                    {
+                        Interlocked.Increment(ref filesChangedCount);
+                        Volatile.Write(ref anyMatchFlag, 1);
+                    }
+                }
+                else if (MatchFile(regex, path))
+                {
+                    Volatile.Write(ref anyMatchFlag, 1);
+                }
+            }
+            catch (SinkException)
+            {
+                // A sink callback threw. Let it propagate: on the serial path it faults the job directly;
+                // on the parallel path Parallel.ForEach collects it into an AggregateException, which
+                // Process unwraps back to the original.
+                throw;
+            }
+            catch (Exception ex)
+            {
+                ReportError(path, ex);
+            }
+
+            Interlocked.Increment(ref completedFileCount);
+            RaiseProgress();
+        }
+
+        // Resolves the request's MaxDegreeOfParallelism: 0 => automatic (ProcessorCount), otherwise the
+        // requested value clamped to at least 1.
+        private int ResolveDegreeOfParallelism()
+        {
+            var requested = request.MaxDegreeOfParallelism;
+            if (requested == 0)
+            {
+                return Math.Max(1, Environment.ProcessorCount);
+            }
+
+            return Math.Max(1, requested);
+        }
+
+        private SearchSummary BuildSummary(bool cancelled) => new SearchSummary(
+            Volatile.Read(ref anyMatchFlag) != 0,
+            Volatile.Read(ref filesChangedCount),
+            Volatile.Read(ref errorCount),
+            cancelled);
+
+        // Finds the first SinkException within an AggregateException's flattened inner exceptions (the
+        // parallel path collects worker exceptions here). Returns null if none is a SinkException.
+        private static SinkException? FindSinkException(AggregateException aggregate)
+        {
+            foreach (var inner in aggregate.Flatten().InnerExceptions)
+            {
+                if (inner is SinkException sinkException)
+                {
+                    return sinkException;
+                }
+            }
+
+            return null;
         }
 
         private void Finish(SearchJobState terminal, SearchSummary summary)
@@ -293,6 +407,21 @@ namespace UnicodeRegEx.Tools.Engine
                 try
                 {
                     sink.OnFileChanged(path);
+                }
+                catch (Exception ex)
+                {
+                    throw new SinkException(ex);
+                }
+            }
+        }
+
+        private void ReportFileComplete(SearchFile file)
+        {
+            lock (sinkGate)
+            {
+                try
+                {
+                    sink.OnFileComplete(file);
                 }
                 catch (Exception ex)
                 {
@@ -365,7 +494,13 @@ namespace UnicodeRegEx.Tools.Engine
                     return false;
                 }
 
-                return process(new RegExInput(bytes, codePage), file, codePage);
+                // OnFile returned Continue and the verb body runs to completion here. OnFileComplete is
+                // the matching close of the OnFile bracket: it fires only for a file OnFile accepted, and
+                // only on normal completion (if the verb body throws, the file is reported via OnError
+                // instead, so OnFileComplete does not fire for a faulted file).
+                var result = process(new RegExInput(bytes, codePage), file, codePage);
+                ReportFileComplete(file);
+                return result;
             }
 
             if (length == 0)

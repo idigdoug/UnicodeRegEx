@@ -78,6 +78,148 @@ namespace UnicodeRegEx.Tests.Tools
             Assert.AreEqual(0, summary.Errors);
         }
 
+        [TestMethod]
+        public async Task Parallel_ProducesSameAggregateResults_AsSerial()
+        {
+            // A spread of files, each with a known number of matches. The aggregate outcome must be
+            // independent of the degree of parallelism (only per-file ordering may differ, which this
+            // asserts against as a multiset).
+            const int fileCount = 40;
+            var expectedHits = 0;
+            for (var i = 0; i < fileCount; i++)
+            {
+                var matches = (i % 3) + 1; // 1..3 matches per file
+                WriteFile($"dir{i % 4}\\file{i}.txt", string.Join(" ", System.Linq.Enumerable.Repeat("m", matches)));
+                expectedHits += matches;
+            }
+
+            async Task<int> RunWithDop(int dop)
+            {
+                var request = Request("m", tempDir);
+                request.Directories = DirectoryDisposition.RecurseNoLinks;
+                request.MaxDegreeOfParallelism = dop;
+                var (sink, summary, state) = await RunAsync(request);
+                Assert.AreEqual(SearchJobState.Completed, state);
+                Assert.AreEqual(0, summary.Errors);
+                return sink.Hits.Count;
+            }
+
+            var serial = await RunWithDop(1);
+            var parallel = await RunWithDop(4);
+
+            Assert.AreEqual(expectedHits, serial);
+            Assert.AreEqual(expectedHits, parallel);
+        }
+
+        [TestMethod]
+        public async Task Parallel_Automatic_FindsAllMatches()
+        {
+            for (var i = 0; i < 16; i++)
+            {
+                WriteFile($"file{i}.txt", "m m");
+            }
+
+            var request = Request("m", tempDir);
+            request.Directories = DirectoryDisposition.RecurseNoLinks;
+            request.MaxDegreeOfParallelism = 0; // automatic (ProcessorCount)
+            var (sink, summary, state) = await RunAsync(request);
+
+            Assert.AreEqual(SearchJobState.Completed, state);
+            Assert.AreEqual(32, sink.Hits.Count);
+            Assert.AreEqual(0, summary.Errors);
+        }
+
+        [TestMethod]
+        public async Task Parallel_Replace_ChangesAllFiles()
+        {
+            for (var i = 0; i < 16; i++)
+            {
+                WriteFile($"file{i}.txt", "aaa");
+            }
+
+            var request = Request("a", tempDir);
+            request.Directories = DirectoryDisposition.RecurseNoLinks;
+            request.ReplaceTemplate = "b";
+            request.Verb = SearchVerb.Replace;
+            request.Apply = true;
+            request.MaxDegreeOfParallelism = 4;
+            var (_, summary, state) = await RunAsync(request);
+
+            Assert.AreEqual(SearchJobState.Completed, state);
+            Assert.AreEqual(16, summary.FilesChanged);
+            for (var i = 0; i < 16; i++)
+            {
+                Assert.AreEqual("bbb", System.IO.File.ReadAllText(System.IO.Path.Combine(tempDir, $"file{i}.txt")));
+            }
+        }
+
+        [TestMethod]
+        public async Task Parallel_SinkThrows_FaultsTheJob_WithOriginalException()
+        {
+            for (var i = 0; i < 16; i++)
+            {
+                WriteFile($"file{i}.txt", "m");
+            }
+
+            var sink = new SteeringSink(throwOnHit: true);
+            var request = Request("m", tempDir);
+            request.Directories = DirectoryDisposition.RecurseNoLinks;
+            request.MaxDegreeOfParallelism = 4;
+            using var job = new SearchJob(request, sink);
+
+            Exception? caught = null;
+            try
+            {
+                await job.RunAsync();
+            }
+            catch (Exception ex)
+            {
+                caught = ex;
+            }
+
+            // Even under parallelism, a throwing sink faults the job with the original exception (unwrapped
+            // from the internal SinkException and from Parallel.ForEach's AggregateException).
+            Assert.IsInstanceOfType(caught, typeof(InvalidOperationException));
+            Assert.AreEqual("boom", caught!.Message);
+            Assert.AreEqual(SearchJobState.Faulted, job.State);
+        }
+
+        [TestMethod]
+        public async Task OnFileComplete_PairsWithNonSkippedOnFile()
+        {
+            WriteFile("match1.txt", "m");
+            WriteFile("match2.txt", "m");
+            WriteFile("nomatch.txt", "zzz"); // reported by OnFile, zero hits, still completes
+
+            var request = Request("m", tempDir);
+            request.Directories = DirectoryDisposition.RecurseNoLinks;
+            var (sink, _, _) = await RunAsync(request);
+
+            // Every file OnFile accepted (returned Continue) is closed by exactly one OnFileComplete, over
+            // the same SearchFile instances -- including the file that produced no hits.
+            Assert.AreEqual(sink.Files.Count, sink.CompletedFiles.Count);
+            CollectionAssert.AreEquivalent(sink.Files, sink.CompletedFiles);
+            Assert.AreEqual(3, sink.CompletedFiles.Count);
+        }
+
+        [TestMethod]
+        public async Task OnFileComplete_DoesNotFireForSkippedFile()
+        {
+            WriteFile("a.txt", "m");
+            WriteFile("b.txt", "m");
+
+            // Skip a.txt from OnFile; it must not receive an OnFileComplete (the bracket never opened).
+            var aPath = System.IO.Path.Combine(tempDir, "a.txt");
+            var sink = new SteeringSink(onFile: f => f.Path == aPath ? SearchResponse.StopFile : SearchResponse.Continue);
+            var request = Request("m", tempDir);
+            request.Directories = DirectoryDisposition.RecurseNoLinks;
+            using var job = new SearchJob(request, sink);
+            await job.RunAsync();
+
+            CollectionAssert.DoesNotContain(sink.CompletedPaths, aPath);
+            Assert.IsTrue(sink.CompletedPaths.Contains(System.IO.Path.Combine(tempDir, "b.txt")));
+        }
+
         // ---- Syntax-flag tuning (to-do #3)
 
         [TestMethod]
@@ -815,6 +957,10 @@ namespace UnicodeRegEx.Tests.Tools
                 return SearchResponse.Continue;
             }
 
+            public void OnFileComplete(SearchFile file)
+            {
+            }
+
             public void OnFileChanged(string path)
             {
             }
@@ -856,6 +1002,7 @@ namespace UnicodeRegEx.Tests.Tools
 
             public List<string> HitTexts { get; } = new List<string>();
             public List<string> FilePaths { get; } = new List<string>();
+            public List<string> CompletedPaths { get; } = new List<string>();
 
             public SearchResponse OnFile(SearchFile file)
             {
@@ -873,6 +1020,8 @@ namespace UnicodeRegEx.Tests.Tools
                 HitTexts.Add(hit.Text);
                 return onHit?.Invoke(hit.Text) ?? SearchResponse.Continue;
             }
+
+            public void OnFileComplete(SearchFile file) => CompletedPaths.Add(file.Path);
 
             public void OnFileChanged(string path)
             {
