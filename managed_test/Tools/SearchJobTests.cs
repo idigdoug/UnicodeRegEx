@@ -944,29 +944,15 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         // Captures each hit's match byte-offset span during OnHit (the ref-struct hit can't be stored).
-        private sealed class OffsetCapturingSink : ISearchSink
+        private sealed class OffsetCapturingSink : SearchSinkBase
         {
             public List<(nuint Begin, nuint Size)> Spans { get; } = new List<(nuint, nuint)>();
 
-            public SearchResponse OnFile(SearchFile file) => SearchResponse.Continue;
-
-            public SearchResponse OnHit(in SearchHit hit)
+            public override SearchResponse OnHit(in SearchHit hit)
             {
                 var whole = hit.Match.GetSubMatch(0);
                 Spans.Add((whole.Begin, whole.Size));
                 return SearchResponse.Continue;
-            }
-
-            public void OnFileComplete(SearchFile file)
-            {
-            }
-
-            public void OnFileChanged(string path)
-            {
-            }
-
-            public void OnError(string path, Exception exception)
-            {
             }
         }
 
@@ -984,7 +970,7 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         // A sink whose OnHit/OnFile responses (and optional throws) are driven by the test.
-        private sealed class SteeringSink : ISearchSink
+        private sealed class SteeringSink : SearchSinkBase
         {
             private readonly Func<string, SearchResponse>? onHit;
             private readonly Func<SearchFile, SearchResponse>? onFile;
@@ -1004,13 +990,13 @@ namespace UnicodeRegEx.Tests.Tools
             public List<string> FilePaths { get; } = new List<string>();
             public List<string> CompletedPaths { get; } = new List<string>();
 
-            public SearchResponse OnFile(SearchFile file)
+            public override SearchResponse OnFile(SearchFile file)
             {
                 FilePaths.Add(file.Path);
                 return onFile?.Invoke(file) ?? SearchResponse.Continue;
             }
 
-            public SearchResponse OnHit(in SearchHit hit)
+            public override SearchResponse OnHit(in SearchHit hit)
             {
                 if (throwOnHit)
                 {
@@ -1021,15 +1007,7 @@ namespace UnicodeRegEx.Tests.Tools
                 return onHit?.Invoke(hit.Text) ?? SearchResponse.Continue;
             }
 
-            public void OnFileComplete(SearchFile file) => CompletedPaths.Add(file.Path);
-
-            public void OnFileChanged(string path)
-            {
-            }
-
-            public void OnError(string path, Exception exception)
-            {
-            }
+            public override void OnFileComplete(SearchFile file) => CompletedPaths.Add(file.Path);
         }
 
         [TestMethod]

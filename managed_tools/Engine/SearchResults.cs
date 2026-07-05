@@ -61,6 +61,43 @@ namespace UnicodeRegEx.Tools.Engine
     }
 
     /// <summary>
+    /// A convenience base for <see cref="ISearchSink"/> that implements every callback as an inert default:
+    /// the steering callbacks (<see cref="OnFile"/>, <see cref="OnHit"/>) return
+    /// <see cref="SearchResponse.Continue"/> and the notification callbacks do nothing. Derive from it and
+    /// override only the callbacks you care about — useful for a sink that, say, only reacts to hits.
+    /// </summary>
+    /// <remarks>
+    /// TRADEOFF: because this supplies a default for every member, a callback added to
+    /// <see cref="ISearchSink"/> in a future version is <b>silently no-op'd</b> on derived sinks rather than
+    /// producing a compile error. That is convenient but can hide a callback you would have wanted to handle.
+    /// If you prefer the compiler to flag new callbacks so you consciously handle them, implement
+    /// <see cref="ISearchSink"/> directly instead of deriving from this.
+    /// </remarks>
+    public abstract class SearchSinkBase : ISearchSink
+    {
+        /// <inheritdoc/>
+        public virtual SearchResponse OnFile(SearchFile file) => SearchResponse.Continue;
+
+        /// <inheritdoc/>
+        public virtual void OnFileComplete(SearchFile file)
+        {
+        }
+
+        /// <inheritdoc/>
+        public virtual SearchResponse OnHit(in SearchHit hit) => SearchResponse.Continue;
+
+        /// <inheritdoc/>
+        public virtual void OnFileChanged(string path)
+        {
+        }
+
+        /// <inheritdoc/>
+        public virtual void OnError(string path, Exception exception)
+        {
+        }
+    }
+
+    /// <summary>
     /// A file that the engine searched, with the metadata detection produced for it. Created once per
     /// processed file and shared (by reference) with every <see cref="SearchHit"/> from that file, so a
     /// hit always knows the file it came from even when results from several files interleave.

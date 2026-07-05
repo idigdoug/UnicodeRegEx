@@ -245,6 +245,15 @@ Also still open (CLI surfacing; engine side is done):
   the ORIGINAL exception on both paths (serial rethrow; parallel unwraps `AggregateException` →
   `SinkException` → inner). Enumeration (Phase 1) stays single-threaded (fast; parallelizing it would
   complicate the cycle-prevention visited-set for little gain).
+  - **Perf benchmark**: `SearchJobPerfTests` (`[TestCategory("Perf")]`, excluded from the normal run --
+    filter `TestCategory!=Perf`). Synthetic corpus (consts; fixed seed), sweeps DOP {1,2,4,8,auto},
+    asserts only correctness (identical match count + 0 errors per DOP) and **reports** wall-clock /
+    files-s / MB-s / speedup via `TestContext`. Self-guards to host-native: uses `IsWow64Process2`'s
+    nativeMachine (NOT `RuntimeInformation.OSArchitecture`, which is masked under emulation) and marks
+    itself `Inconclusive` if the process arch != true host. Run it with the **arm64-native** runner
+    (`vstest.console.arm64.exe`); the x64 `vstest.console.exe` runs emulated and self-skips. Baseline
+    (arm64, 20 procs, Debug native): DOP 1\u21924.01x at auto (2.11x @2, 3.07x @4, 3.68x @8) -- threading
+    confirmed working.
 - Encoding/binary detection: `EncodingDetector`, ordered per-step-toggleable heuristics (BOM, UTF-16
   NUL-parity, strict UTF-8, binary NUL + control-ratio); `EncodingDetectionOptions` + a `SkipBinaryFiles`
   bool on `SearchRequest`; per-file results via `SearchFile` + `ISearchSink.OnFile`.
@@ -252,6 +261,10 @@ Also still open (CLI surfacing; engine side is done):
   fires once per file `OnFile` accepted, after its last hit, not for skipped/errored/empty files -- so a
   sink can group a file's output under parallelism); `OnFileChanged`; `OnError(path, Exception)`.
   `SearchHit` is a `readonly ref struct { SearchFile File; RegExMatch Match; }` (+ lazy `Text`/`Replacement`).
+  `SearchSinkBase` is an opt-in adapter (defaults steering callbacks to `Continue`, notifications to no-op)
+  for consumers that override only what they need; deliberately NOT used by first-party production sinks
+  so an `ISearchSink` change stays a compile error there (the base would silently no-op new callbacks --
+  documented tradeoff).
 - Syntax + match flags: `SearchRequest.SyntaxFlags` / `.MatchFlags` (single raw masks), validated by C++
   allow-masks; `ComposeSyntaxFlags`/`SetSyntaxFlags` helpers. Not on the CLI yet (see to-do).
 - Filters: request holds ordered `FileNameFilters` and `DirectoryFilters` lists (`List<GlobFilter>`);
