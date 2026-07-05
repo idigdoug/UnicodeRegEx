@@ -18,7 +18,7 @@ namespace UnicodeRegEx.Tests
         {
             fixed (byte* p = data)
             {
-                return EncodingDetector.Detect(new RegExPinnedBytes(p, (nuint)data.Length), data.Length, defaultCodePage, options);
+                return EncodingDetector.Detect(new RegExPinnedBytes(p, (nuint)data.Length), defaultCodePage, options);
             }
         }
 

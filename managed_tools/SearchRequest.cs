@@ -29,16 +29,26 @@ namespace UnicodeRegEx.Tools
         /// </summary>
         public int ResolvedDefaultCodePage { get; private set; } = RegExCodePage.Utf8;
 
-        /// <summary>Replacement template, or null for search-only (no replacement).</summary>
-        public string? ReplaceTemplate { get; set; }
+        /// <summary>
+        /// The replacement template applied to each match in <see cref="SearchVerb.Apply"/> (and available
+        /// as a preview in <see cref="SearchVerb.Match"/>). This is data, not a mode — it never affects
+        /// whether the run matches or applies; only <see cref="Verb"/> does. Defaults to the empty string;
+        /// an empty template replaces each match with nothing. (It is passed to the engine as a BSTR, which
+        /// does not distinguish empty from null, so the model uses a non-null empty string throughout.)
+        /// </summary>
+        public string ReplaceTemplate { get; set; } = string.Empty;
 
         /// <summary>
-        /// The operation to perform. An explicit capability rather than something inferred from
-        /// <see cref="ReplaceTemplate"/> presence: a GUI keeps an always-present (possibly empty)
-        /// replace box, so presence cannot imply the verb. Each front-end sets this from its own idiom
-        /// (the CLI from whether <c>--replace</c> was given; a GUI from a mode control).
+        /// The operation to perform — the single, authoritative switch between the engine's two actions:
+        /// <see cref="SearchVerb.Match"/> (find and report matches) and <see cref="SearchVerb.Apply"/>
+        /// (write replacements to files). Set explicitly by each front-end from its own idiom (the CLI from
+        /// whether <c>--apply</c> was given; a GUI from a mode control); it is never inferred from
+        /// <see cref="ReplaceTemplate"/>. The rule that an apply needs a replacement template is a front-end
+        /// concern (see <see cref="SearchSettings.Validate"/>), not a property of this model — an
+        /// <see cref="SearchVerb.Apply"/> with an empty template is well-defined (it replaces each match with
+        /// nothing).
         /// </summary>
-        public SearchVerb Verb { get; set; } = SearchVerb.Search;
+        public SearchVerb Verb { get; set; } = SearchVerb.Match;
 
         /// <summary>
         /// The full, unvalidated syntax-flags mask handed directly to the compiler (<c>RegEx.Create</c>).
@@ -57,11 +67,6 @@ namespace UnicodeRegEx.Tools
         /// </summary>
         public RegExMatchFlags MatchFlags { get; set; } = RegExMatchFlags.Default;
 
-        /// <summary>
-        /// True to write replacements back to files in place; false to preview only. Only meaningful
-        /// when <see cref="ReplaceTemplate"/> is non-null (see <see cref="Validate"/>).
-        /// </summary>
-        public bool Apply { get; set; }
 
         /// <summary>
         /// What to do with a directory encountered during the search — applied uniformly to both
@@ -151,13 +156,12 @@ namespace UnicodeRegEx.Tools
         {
             DefaultCodePage = settings.Encoding.Value;
             // ResolvedDefaultCodePage is updated by the DefaultCodePage setter.
-            ReplaceTemplate = settings.Replace.Value;
-            // The CLI's flag grammar: presence of --replace selects the replace verb. This
-            // presence-implies-verb rule is a command-line idiom, so it lives in this translation
-            // step rather than in the shared model (a GUI sets Verb from a mode control instead).
-            Verb = settings.Replace.Value != null ? SearchVerb.Replace : SearchVerb.Search;
+            // ReplaceTemplate is pure data (empty ≡ null for a BSTR); the verb, not the template, decides
+            // match-vs-apply. The CLI grammar (--apply selects the apply verb; --apply requires --replace)
+            // is validated in SearchSettings.Validate before this mapping runs.
+            ReplaceTemplate = settings.Replace.Value ?? string.Empty;
+            Verb = settings.Apply.Value ? SearchVerb.Apply : SearchVerb.Match;
             SetSyntaxFlags(settings.Syntax.Value, ignoreCase: settings.IgnoreCase.Value);
-            Apply = settings.Apply.Value;
             // grep semantics: -r recurses without following symlinks; without it, a directory argument is
             // reported ("Is a directory") rather than searched.
             Directories = settings.Recurse.Value ? DirectoryDisposition.RecurseNoLinks : DirectoryDisposition.Error;
@@ -242,7 +246,6 @@ namespace UnicodeRegEx.Tools
                 Verb = Verb,
                 SyntaxFlags = SyntaxFlags,
                 MatchFlags = MatchFlags,
-                Apply = Apply,
                 Directories = Directories,
                 SkipBinaryFiles = SkipBinaryFiles,
                 EncodingDetection = EncodingDetection,
@@ -341,11 +344,6 @@ namespace UnicodeRegEx.Tools
                 problems.Add(SearchRequestProblem.PathRequired);
             }
 
-            if (Apply && Verb != SearchVerb.Replace)
-            {
-                problems.Add(SearchRequestProblem.ApplyRequiresReplace);
-            }
-
             if (!CodePages.IsSupported(ResolvedDefaultCodePage))
             {
                 problems.Add(SearchRequestProblem.UnsupportedCodePage);
@@ -374,7 +372,6 @@ namespace UnicodeRegEx.Tools
             {
                 SearchRequestProblem.PatternRequired => "no pattern given",
                 SearchRequestProblem.PathRequired => "no paths given",
-                SearchRequestProblem.ApplyRequiresReplace => "--apply requires --replace",
                 SearchRequestProblem.UnsupportedCodePage =>
                     $"unsupported encoding '{CodePages.GetName(ResolvedDefaultCodePage)}'",
             };
@@ -390,21 +387,20 @@ namespace UnicodeRegEx.Tools
         /// <summary>No <see cref="SearchRequest.Paths"/> were given.</summary>
         PathRequired,
 
-        /// <summary><see cref="SearchRequest.Apply"/> is set but the verb is not <see cref="SearchVerb.Replace"/>.</summary>
-        ApplyRequiresReplace,
-
         /// <summary><see cref="SearchRequest.ResolvedDefaultCodePage"/> is not one the engine can decode.</summary>
         UnsupportedCodePage,
     }
 
-    /// <summary>The operation a <see cref="SearchRequest"/> performs.</summary>
+    /// <summary>The operation a <see cref="SearchRequest"/> performs — the engine's two actions.</summary>
     public enum SearchVerb
     {
-        /// <summary>Find matches and report them (no file modification).</summary>
-        Search,
+        /// <summary>Find matches and report them (no file modification). A replacement template, if set, is
+        /// still formatted and offered as a preview, but nothing is written.</summary>
+        Match,
 
-        /// <summary>Replace matches using <see cref="SearchRequest.ReplaceTemplate"/> (preview unless <see cref="SearchRequest.Apply"/>).</summary>
-        Replace,
+        /// <summary>Write replacements to files in place, applying <see cref="SearchRequest.ReplaceTemplate"/>
+        /// to each match (an empty template deletes matches).</summary>
+        Apply,
     }
 
     /// <summary>What the search does with a directory it encounters (a search target or a discovered subdirectory).</summary>

@@ -37,45 +37,70 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         [TestMethod]
-        public void Validate_ApplyWithoutReplaceVerb_ReportsApplyRequiresReplace()
+        public void Settings_ApplyWithoutReplace_ReportsError()
         {
-            var request = Valid();
-            request.Apply = true;
-            request.Verb = SearchVerb.Search;
-            CollectionAssert.Contains(new List<SearchRequestProblem>(request.Validate()), SearchRequestProblem.ApplyRequiresReplace);
+            // The --apply/--replace grammar rule lives in the settings layer now: --apply writes
+            // replacements, so it needs --replace to have supplied a template.
+            var settings = new SearchSettings();
+            var errors = new List<string>();
+            CommandLine.Parse(new[] { "--apply", "p", "x" }, settings, errors);
+            settings.Validate(errors);
+
+            CollectionAssert.Contains(errors, "--apply requires --replace");
         }
 
         [TestMethod]
-        public void Validate_ApplyWithReplaceVerb_IsAllowed()
+        public void Settings_ApplyWithReplace_IsAllowed()
         {
+            var settings = new SearchSettings();
+            var errors = new List<string>();
+            CommandLine.Parse(new[] { "--apply", "--replace", "X", "p", "x" }, settings, errors);
+            settings.Validate(errors);
+
+            CollectionAssert.AreEqual(new List<string>(), errors);
+        }
+
+        [TestMethod]
+        public void Verb_IsExplicit_NotDerivedFromTemplate()
+        {
+            // The verb is the single authority on match-vs-apply; the template is pure data. A non-empty
+            // template under the Match verb is a preview, never an implicit apply.
             var request = Valid();
-            request.Apply = true;
-            request.Verb = SearchVerb.Replace;
             request.ReplaceTemplate = "X";
-            CollectionAssert.DoesNotContain(new List<SearchRequestProblem>(request.Validate()), SearchRequestProblem.ApplyRequiresReplace);
+            request.Verb = SearchVerb.Match;
+
+            // No request-level problem: an in-model request cannot represent "apply without a template"
+            // (the verb is Match, and ReplaceTemplate is non-null anyway).
+            CollectionAssert.AreEqual(new List<SearchRequestProblem>(), new List<SearchRequestProblem>(request.Validate()));
+            Assert.AreEqual(SearchVerb.Match, request.Verb);
         }
 
         [TestMethod]
-        public void Verb_IsIndependentOfTemplatePresence()
+        public void ReplaceTemplate_DefaultsToEmpty_NotNull()
         {
-            // The whole point of the verb decoupling: a present-but-empty template under Search must
-            // NOT be treated as a replace (a GUI's always-present empty box). The verb is explicit,
-            // never derived from whether ReplaceTemplate is non-null.
-            var request = Valid();
-            request.ReplaceTemplate = string.Empty;
-            request.Verb = SearchVerb.Search;
-            // Apply requires the Replace verb, so a present-but-empty template under Search does not
-            // satisfy it — proving the verb, not template presence, drives replacement.
-            request.Apply = true;
-            CollectionAssert.Contains(new List<SearchRequestProblem>(request.Validate()), SearchRequestProblem.ApplyRequiresReplace);
-
-            request.Verb = SearchVerb.Replace;
-            CollectionAssert.DoesNotContain(new List<SearchRequestProblem>(request.Validate()), SearchRequestProblem.ApplyRequiresReplace);
+            var request = new SearchRequest();
+            Assert.AreEqual(string.Empty, request.ReplaceTemplate);
         }
 
         [TestMethod]
-        public void ApplySettings_ReplacePresent_SelectsReplaceVerb()
+        public void ApplySettings_Apply_SelectsApplyVerb()
         {
+            var settings = new SearchSettings();
+            var errors = new List<string>();
+            CommandLine.Parse(new[] { "--apply", "--replace", "X", "p", "x" }, settings, errors);
+            CollectionAssert.AreEqual(new List<string>(), errors);
+
+            var request = new SearchRequest();
+            request.ApplySettings(settings);
+
+            Assert.AreEqual(SearchVerb.Apply, request.Verb);
+            Assert.AreEqual("X", request.ReplaceTemplate);
+        }
+
+        [TestMethod]
+        public void ApplySettings_ReplaceWithoutApply_SelectsMatchVerb()
+        {
+            // --replace without --apply is a preview: the Match verb with the template as data.
             var settings = new SearchSettings();
             var errors = new List<string>();
             CommandLine.Parse(new[] { "--replace", "X", "p", "x" }, settings, errors);
@@ -84,19 +109,19 @@ namespace UnicodeRegEx.Tests.Tools
             var request = new SearchRequest();
             request.ApplySettings(settings);
 
-            Assert.AreEqual(SearchVerb.Replace, request.Verb);
+            Assert.AreEqual(SearchVerb.Match, request.Verb);
             Assert.AreEqual("X", request.ReplaceTemplate);
         }
 
         [TestMethod]
-        public void ApplySettings_NoReplace_SelectsSearchVerb()
+        public void ApplySettings_NoReplace_SelectsMatchVerb_WithEmptyTemplate()
         {
             var settings = new SearchSettings();
             var request = new SearchRequest();
             request.ApplySettings(settings);
 
-            Assert.AreEqual(SearchVerb.Search, request.Verb);
-            Assert.IsNull(request.ReplaceTemplate);
+            Assert.AreEqual(SearchVerb.Match, request.Verb);
+            Assert.AreEqual(string.Empty, request.ReplaceTemplate);
         }
 
         [TestMethod]
@@ -190,7 +215,7 @@ namespace UnicodeRegEx.Tests.Tools
         public void Clone_ProducesIndependentPathsList()
         {
             var original = Valid();
-            original.Verb = SearchVerb.Replace;
+            original.Verb = SearchVerb.Apply;
             original.ReplaceTemplate = "X";
 
             var copy = original.Clone();
@@ -198,7 +223,7 @@ namespace UnicodeRegEx.Tests.Tools
 
             Assert.AreEqual(1, original.Paths.Count, "original's list must not be affected by the clone");
             Assert.AreEqual(2, copy.Paths.Count);
-            Assert.AreEqual(SearchVerb.Replace, copy.Verb);
+            Assert.AreEqual(SearchVerb.Apply, copy.Verb);
             Assert.AreEqual("X", copy.ReplaceTemplate);
         }
 

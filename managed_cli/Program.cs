@@ -2,6 +2,7 @@ namespace UnicodeRegEx.Cli
 {
     using System;
     using System.Threading.Tasks;
+    using UnicodeRegEx;
     using UnicodeRegEx.Tools;
     using UnicodeRegEx.Tools.Engine;
     using UnicodeRegEx.Tools.Settings;
@@ -24,6 +25,7 @@ Search files (default) or preview/apply replacements with a Unicode-aware regex.
                 var settings = new SearchSettings();
                 AppConfigSource.Apply(settings, errors);
                 var commandLineParse = CommandLine.Parse(args, settings, errors);
+                settings.Validate(errors); // cross-flag grammar (e.g. --apply requires --replace)
 
                 if (commandLineParse.HelpRequested)
                 {
@@ -62,7 +64,10 @@ Search files (default) or preview/apply replacements with a Unicode-aware regex.
                     return 2;
                 }
 
-                using var job = new SearchJob(request, new ConsoleSink());
+                // Only the settings layer knows whether a replacement argument was actually supplied
+                // (--replace); the request's ReplaceTemplate is coerced to "" and can't distinguish
+                // "no --replace" from "--replace with an empty template".
+                using var job = new SearchJob(request, new ConsoleSink(showReplacement: settings.Replace.Value != null));
                 Console.CancelKeyPress += (_, e) =>
                 {
                     e.Cancel = true;
@@ -89,8 +94,15 @@ Search files (default) or preview/apply replacements with a Unicode-aware regex.
         /// <summary>Writes engine results and status to the console in grep-like form.</summary>
         private sealed class ConsoleSink : ISearchSink
         {
+            private readonly bool showReplacement;
+
+            // showReplacement: whether the run has a replacement to display (a template was given). When
+            // false (a plain search), only the matched text is printed; SearchHit.Replacement is always
+            // non-null (an empty template formats to empty), so the decision is the CLI's, from the request.
+            public ConsoleSink(bool showReplacement) => this.showReplacement = showReplacement;
+
             // The CLI streams hits and does not surface per-file metadata, so OnFile is a no-op.
-            public SearchResponse OnFile(SearchFile file) => SearchResponse.Continue;
+            public SearchResponse OnFile(SearchFile file, RegExPinnedBytes fileBytes) => SearchResponse.Continue;
 
             // The CLI streams hits as they arrive (default serial processing keeps them ordered), so it
             // has no per-file buffer to flush.
@@ -100,9 +112,9 @@ Search files (default) or preview/apply replacements with a Unicode-aware regex.
 
             public SearchResponse OnHit(in SearchHit hit)
             {
-                Console.Out.WriteLine(hit.Replacement == null
-                    ? $"{hit.File.Path}: {hit.Text}"
-                    : $"{hit.File.Path}: {hit.Text} => {hit.Replacement}");
+                Console.Out.WriteLine(showReplacement
+                    ? $"{hit.File.Path}: {hit.Text} => {hit.Replacement}"
+                    : $"{hit.File.Path}: {hit.Text}");
                 return SearchResponse.Continue;
             }
 

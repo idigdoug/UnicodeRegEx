@@ -43,13 +43,21 @@ namespace UnicodeRegEx.Tools.Engine
     /// Front-end-neutral and intended to move into the shared core. It runs on a background thread in two
     /// passes — enumerate the full file list (so progress is determinate), then process it. Processing is
     /// serial by default and can be parallelized across files via
-    /// <see cref="SearchRequest.MaxDegreeOfParallelism"/>. <see cref="ISearchSink"/> calls are always
-    /// serialized by the job (never invoked concurrently), so a sink need not be thread-safe; under
-    /// parallel processing, however, different files' callbacks interleave — use the
-    /// <see cref="ISearchSink.OnFile"/>…<see cref="ISearchSink.OnFileComplete"/> bracket to group a file's
-    /// output. <see cref="ProgressChanged"/> and the sink callbacks are raised on the job's worker
-    /// thread(s); a UI consumer is responsible for marshaling to its own thread. The event is a "something
-    /// changed, read the current values" signal (no payload), so it can be coalesced. Owns a
+    /// <see cref="SearchRequest.MaxDegreeOfParallelism"/>.
+    /// <para>
+    /// THREADING: the job does <b>not</b> serialize <see cref="ISearchSink"/> callbacks. A single file's
+    /// callbacks (<see cref="ISearchSink.OnFile"/> → its <see cref="ISearchSink.OnHit"/>s →
+    /// <see cref="ISearchSink.OnFileComplete"/>) always run on one thread, in order, because one file is
+    /// processed by one worker — so a sink needs no synchronization for state scoped to a single file (use
+    /// <see cref="SearchFile.Context"/> to carry it). But under parallel processing DIFFERENT files run on
+    /// different threads concurrently, so a sink <b>is</b> responsible for the thread-safety of any state it
+    /// shares across files (counters, output streams, collections). At
+    /// <see cref="SearchRequest.MaxDegreeOfParallelism"/> = 1 (the default) everything runs on one thread and
+    /// no synchronization is needed at all.
+    /// </para>
+    /// <see cref="ProgressChanged"/> and the sink callbacks are raised on the job's worker thread(s); a UI
+    /// consumer is responsible for marshaling to its own thread. The event is a "something changed, read the
+    /// current values" signal (no payload), so it can be coalesced. Owns a
     /// <see cref="CancellationTokenSource"/>, so it is <see cref="IDisposable"/>; dispose it once the run
     /// has completed (the usual <c>using</c> + <c>await RunAsync</c> pattern). Disposing while a run is
     /// still in flight is a misuse — call <see cref="Cancel"/> and await the run first.
@@ -58,7 +66,6 @@ namespace UnicodeRegEx.Tools.Engine
     {
         private readonly SearchRequest request;
         private readonly CancellationTokenSource cancellation = new CancellationTokenSource();
-        private readonly object sinkGate = new object();
         private readonly ISearchSink sink;
 
         private int totalFileCount;
@@ -209,8 +216,10 @@ namespace UnicodeRegEx.Tools.Engine
         // processed serially when the resolved degree of parallelism is 1 (the default -- deterministic
         // ordering, no parallel overhead), or concurrently otherwise. The compiled regex is shared across
         // workers (it is immutable and free-threaded), and every file's work is independent (its own file
-        // handle, memory map, and match enumerator), so the only shared mutable state is the sink (already
-        // serialized by sinkGate), the cancellation source, and the interlocked counters.
+        // handle, memory map, and match enumerator). Sink callbacks are NOT serialized by the job: a single
+        // file's callbacks run on one worker thread in order, but different files run concurrently, so the
+        // sink owns the thread-safety of any cross-file state. The engine's own shared state (the cancellation
+        // source and the counters) is thread-safe (interlocked).
         private void Process(RegEx regex, List<string> files)
         {
             SetState(SearchJobState.Processing);
@@ -290,7 +299,7 @@ namespace UnicodeRegEx.Tools.Engine
 
             try
             {
-                if (request.Apply)
+                if (request.Verb == SearchVerb.Apply)
                 {
                     if (ApplyReplaceFile(regex, path))
                     {
@@ -367,88 +376,75 @@ namespace UnicodeRegEx.Tools.Engine
 
         private void RaiseProgress() => ProgressChanged?.Invoke(this, EventArgs.Empty);
 
-        // Sink calls run under the gate so a sink need not be thread-safe. A sink that throws is a bug,
-        // not a per-file error: wrap the throw as a SinkException so the per-file handler re-throws it
-        // (faulting the job) instead of reporting it as a file error.
-        private SearchResponse ReportFile(SearchFile file)
+        // Invokes the sink for a file. Callbacks are NOT serialized across files: a file's own callbacks
+        // all run on one thread (one file = one processing iteration), but different files may run
+        // concurrently, so a sink owns the thread-safety of any state it shares across files. A sink that
+        // throws is a bug, not a per-file error: wrap the throw as a SinkException so the per-file handler
+        // re-throws it (faulting the job) instead of reporting it as a file error.
+        private SearchResponse ReportFile(SearchFile file, RegExPinnedBytes bytes)
         {
-            lock (sinkGate)
+            try
             {
-                try
-                {
-                    return sink.OnFile(file);
-                }
-                catch (Exception ex)
-                {
-                    throw new SinkException(ex);
-                }
+                return sink.OnFile(file, bytes);
+            }
+            catch (Exception ex)
+            {
+                throw new SinkException(ex);
             }
         }
 
         private SearchResponse ReportHit(in SearchHit hit)
         {
-            lock (sinkGate)
+            try
             {
-                try
-                {
-                    return sink.OnHit(hit);
-                }
-                catch (Exception ex)
-                {
-                    throw new SinkException(ex);
-                }
+                return sink.OnHit(hit);
+            }
+            catch (Exception ex)
+            {
+                throw new SinkException(ex);
             }
         }
 
         private void ReportFileChanged(string path)
         {
-            lock (sinkGate)
+            try
             {
-                try
-                {
-                    sink.OnFileChanged(path);
-                }
-                catch (Exception ex)
-                {
-                    throw new SinkException(ex);
-                }
+                sink.OnFileChanged(path);
+            }
+            catch (Exception ex)
+            {
+                throw new SinkException(ex);
             }
         }
 
         private void ReportFileComplete(SearchFile file)
         {
-            lock (sinkGate)
+            try
             {
-                try
-                {
-                    sink.OnFileComplete(file);
-                }
-                catch (Exception ex)
-                {
-                    throw new SinkException(ex);
-                }
+                sink.OnFileComplete(file);
+            }
+            catch (Exception ex)
+            {
+                throw new SinkException(ex);
             }
         }
 
         private void ReportError(string path, Exception exception)
         {
             Interlocked.Increment(ref errorCount);
-            lock (sinkGate)
+            try
             {
-                try
-                {
-                    sink.OnError(path, exception);
-                }
-                catch (Exception ex)
-                {
-                    throw new SinkException(ex);
-                }
+                sink.OnError(path, exception);
+            }
+            catch (Exception ex)
+            {
+                throw new SinkException(ex);
             }
         }
 
         // The verb-specific body invoked by ProcessFile once the input is ready. A named delegate is
         // required because RegExInput is a ref struct and so cannot be a Func<> type argument.
-        private delegate bool FileProcessor(RegExInput input, SearchFile file, int codePage);
+        private delegate bool FileProcessor(RegExInput input, SearchFile file);
 
         // Shared file handling for both verbs: opens the file, rejects anything that is not a regular
         // on-disk file (device / pipe / socket -> reported as an error, never a silent zero-length
@@ -471,44 +467,12 @@ namespace UnicodeRegEx.Tools.Engine
 
             var length = stream.Length;
 
-            // Detection + OnFile + the verb body, shared by the empty and memory-mapped paths.
-            bool RunDetected(RegExPinnedBytes bytes)
-            {
-                var detection = EncodingDetector.Detect(bytes, length, request.ResolvedDefaultCodePage, request.EncodingDetection);
-                if (detection.LooksBinary && request.SkipBinaryFiles)
-                {
-                    return false;
-                }
-
-                var codePage = detection.CodePage;
-                var file = new SearchFile(path, codePage, detection.LooksBinary);
-                var fileResponse = ReportFile(file);
-                if (fileResponse == SearchResponse.StopAll)
-                {
-                    cancellation.Cancel();
-                    return false;
-                }
-
-                if (fileResponse == SearchResponse.StopFile)
-                {
-                    return false;
-                }
-
-                // OnFile returned Continue and the verb body runs to completion here. OnFileComplete is
-                // the matching close of the OnFile bracket: it fires only for a file OnFile accepted, and
-                // only on normal completion (if the verb body throws, the file is reported via OnError
-                // instead, so OnFileComplete does not fire for a faulted file).
-                var result = process(new RegExInput(bytes, codePage), file, codePage);
-                ReportFileComplete(file);
-                return result;
-            }
-
             if (length == 0)
             {
                 // An empty file cannot be memory-mapped; feed the regex a null / zero-length input (the
                 // native layer accepts it). Detection over the zero-length descriptor is safe -- it is
                 // never dereferenced at size 0.
-                return RunDetected(new RegExPinnedBytes());
+                return ProcessFileImpl(path, process, new RegExPinnedBytes());
             }
 
             using var mmf = MemoryMappedFile.CreateFromFile(
@@ -521,7 +485,7 @@ namespace UnicodeRegEx.Tools.Engine
             {
                 handle.AcquirePointer(ref basePtr);
                 var data = basePtr + view.PointerOffset;
-                return RunDetected(new RegExPinnedBytes(data, (nuint)length));
+                return ProcessFileImpl(path, process, new RegExPinnedBytes(data, (nuint)length));
             }
             finally
             {
@@ -532,15 +496,54 @@ namespace UnicodeRegEx.Tools.Engine
             }
         }
 
+        // Detection + OnFile + the verb body, shared by the empty and memory-mapped paths.
+        bool ProcessFileImpl(string path, FileProcessor process, RegExPinnedBytes bytes)
+        {
+            var detection = EncodingDetector.Detect(bytes, request.ResolvedDefaultCodePage, request.EncodingDetection);
+            if (detection.LooksBinary && request.SkipBinaryFiles)
+            {
+                return false;
+            }
+
+            var file = new SearchFile(path, detection.CodePage, detection.LooksBinary);
+            var fileResponse = ReportFile(file, bytes);
+
+            // OnFile has returned: the code page is now committed (a sink could have changed it via
+            // OverrideCodePage during the call). Lock it so any later OverrideCodePage throws.
+            file.Lock();
+
+            if (fileResponse == SearchResponse.StopAll)
+            {
+                cancellation.Cancel();
+                return false;
+            }
+
+            if (fileResponse == SearchResponse.StopFile)
+            {
+                return false;
+            }
+
+            // OnFile returned Continue and the verb body runs to completion here, decoding with the file's
+            // (possibly overridden) code page. OnFileComplete is the matching close of the OnFile bracket:
+            // it fires only for a file OnFile accepted, and only on normal completion (if the verb body
+            // throws, the file is reported via OnError instead, so OnFileComplete does not fire for a
+            // faulted file).
+            var result = process(new RegExInput(bytes, file.CodePage), file);
+            ReportFileComplete(file);
+            return result;
+        }
+
         private bool MatchFile(RegEx regex, string path)
         {
-            return ProcessFile(path, (input, file, codePage) =>
+            return ProcessFile(path, (input, file) =>
             {
-                var replaceTemplate = request.Verb == SearchVerb.Replace ? request.ReplaceTemplate : null;
+                // The Match verb reports matches, with each match's replacement available as a preview via
+                // SearchHit.Replacement. The template is always applied (empty by default -- an empty
+                // template previews an empty replacement); there is nothing special about an empty template.
                 var enumerateOptions = new RegExEnumerateOptions
                 {
                     MatchFlags = request.MatchFlags,
-                    FormatTemplate = replaceTemplate,
+                    FormatTemplate = request.ReplaceTemplate,
                 };
 
                 return regex.EnumerateMatches(input, enumerateOptions, matches =>
@@ -548,7 +551,7 @@ namespace UnicodeRegEx.Tools.Engine
                     var matched = false;
                     foreach (var match in matches)
                     {
-                        var hit = new SearchHit(file, match, replaceTemplate != null);
+                        var hit = new SearchHit(file, match);
                         var response = ReportHit(hit);
                         matched = true;
 
@@ -576,7 +579,7 @@ namespace UnicodeRegEx.Tools.Engine
         // (it is delete-on-close) and the original is left untouched.
         private bool ApplyReplaceFile(RegEx regex, string path)
         {
-            return ProcessFile(path, (input, file, codePage) =>
+            return ProcessFile(path, (input, file) =>
             {
                 var options = new RegExEnumerateOptions
                 {
@@ -597,7 +600,7 @@ namespace UnicodeRegEx.Tools.Engine
                             // Report the match before writing it, so a StopFile/StopAll response abandons
                             // the rewrite: we leave the loop without committing, the delete-on-close temp
                             // is discarded, and the original file is left untouched.
-                            var response = ReportHit(new SearchHit(file, segment.Match, isReplace: true));
+                            var response = ReportHit(new SearchHit(file, segment.Match));
                             if (response == SearchResponse.StopAll)
                             {
                                 cancellation.Cancel();
@@ -611,12 +614,12 @@ namespace UnicodeRegEx.Tools.Engine
                                 break;
                             }
 
-                            segment.Match.FormatTo(destination, codePage);
+                            segment.Match.FormatTo(destination, file.CodePage);
                             any = true;
                         }
                         else
                         {
-                            segment.CopyTo(destination, codePage);
+                            segment.CopyTo(destination, file.CodePage);
                         }
                     }
 

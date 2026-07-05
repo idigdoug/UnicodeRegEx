@@ -2,17 +2,21 @@ namespace UnicodeRegEx.Tests.Tools
 {
     using System;
     using System.Collections.Generic;
+    using UnicodeRegEx;
     using UnicodeRegEx.Tools.Engine;
 
     /// <summary>
-    /// Records everything a <see cref="SearchJob"/> reports through <see cref="ISearchSink"/>. The job
-    /// serializes its callbacks under a single lock (never invoking two concurrently, even when files are
-    /// processed in parallel), and a test reads these lists only after awaiting the run, so no extra
-    /// synchronization is needed here. A <see cref="SearchHit"/> is a ref struct valid only during the
-    /// callback, so <see cref="OnHit"/> copies out what tests need into a <see cref="RecordedHit"/>.
+    /// Records everything a <see cref="SearchJob"/> reports through <see cref="ISearchSink"/>. The engine
+    /// does NOT serialize callbacks, so under parallel processing different files' callbacks arrive on
+    /// different threads concurrently; this sink guards its collections with a lock so it is safe at any
+    /// degree of parallelism. A test reads these lists only after awaiting the run (no concurrent readers).
+    /// A <see cref="SearchHit"/> is a ref struct valid only during the callback, so <see cref="OnHit"/>
+    /// copies out what tests need into a <see cref="RecordedHit"/>.
     /// </summary>
     internal sealed class RecordingSink : ISearchSink
     {
+        private readonly object gate = new object();
+
         public List<SearchFile> Files { get; } = new List<SearchFile>();
 
         public List<RecordedHit> Hits { get; } = new List<RecordedHit>();
@@ -23,23 +27,50 @@ namespace UnicodeRegEx.Tests.Tools
 
         public List<(string Path, Exception Exception)> Errors { get; } = new List<(string, Exception)>();
 
-        public SearchResponse OnFile(SearchFile file)
+        public SearchResponse OnFile(SearchFile file, RegExPinnedBytes fileBytes)
         {
-            Files.Add(file);
+            lock (gate)
+            {
+                Files.Add(file);
+            }
+
             return SearchResponse.Continue;
         }
 
         public SearchResponse OnHit(in SearchHit hit)
         {
-            Hits.Add(new RecordedHit(hit.File, hit.Text, hit.Replacement));
+            var recorded = new RecordedHit(hit.File, hit.Text, hit.Replacement);
+            lock (gate)
+            {
+                Hits.Add(recorded);
+            }
+
             return SearchResponse.Continue;
         }
 
-        public void OnFileComplete(SearchFile file) => CompletedFiles.Add(file);
+        public void OnFileComplete(SearchFile file)
+        {
+            lock (gate)
+            {
+                CompletedFiles.Add(file);
+            }
+        }
 
-        public void OnFileChanged(string path) => ChangedFiles.Add(path);
+        public void OnFileChanged(string path)
+        {
+            lock (gate)
+            {
+                ChangedFiles.Add(path);
+            }
+        }
 
-        public void OnError(string path, Exception exception) => Errors.Add((path, exception));
+        public void OnError(string path, Exception exception)
+        {
+            lock (gate)
+            {
+                Errors.Add((path, exception));
+            }
+        }
 
         /// <summary>The matched text of every hit, in order.</summary>
         public List<string> HitTexts()

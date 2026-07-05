@@ -71,6 +71,22 @@ namespace UnicodeRegEx.Tools
                 new Choice<RegExSyntaxFlags>(RegExSyntaxFlags.Perl, "perl", 'P', "perl-regexp", "Perl/ECMAScript-compatible regular expressions."),
             });
 
+        /// <summary>
+        /// Validates cross-setting combinations that no single setting can catch, appending a message for
+        /// each violation to <paramref name="errors"/> (using the command line's flag vocabulary). This is
+        /// where the interaction between the replacement settings lives: <c>--apply</c> writes replacements,
+        /// so it requires <c>--replace</c> to have supplied a template. <see cref="SearchRequest"/> has no
+        /// equivalent invalid state to validate — its <see cref="SearchRequest.Verb"/> and non-null
+        /// <see cref="SearchRequest.ReplaceTemplate"/> cannot represent "apply without a template".
+        /// </summary>
+        public void Validate(List<string> errors)
+        {
+            if (Apply.Value && Replace.Value == null)
+            {
+                errors.Add("--apply requires --replace");
+            }
+        }
+
         private static int ParseCodePage(string spec) =>
             CodePages.TryParse(spec, out var codePage)
                 ? codePage

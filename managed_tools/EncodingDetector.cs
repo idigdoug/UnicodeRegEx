@@ -110,12 +110,12 @@ namespace UnicodeRegEx.Tools
 
         /// <summary>
         /// Detects the encoding and binary verdict for a file whose leading bytes are
-        /// <paramref name="leadingBytes"/> (typically the whole memory-mapped view) and whose full size
-        /// is <paramref name="fileLength"/>. <paramref name="defaultCodePage"/> is used when no encoding
+        /// <paramref name="leadingBytes"/> (typically the whole memory-mapped view).
+        /// <paramref name="defaultCodePage"/> is used when no encoding
         /// heuristic applies.
         /// </summary>
         public static unsafe EncodingDetectionResult Detect(
-            RegExPinnedBytes leadingBytes, long fileLength, int defaultCodePage, EncodingDetectionOptions options)
+            RegExPinnedBytes leadingBytes, int defaultCodePage, EncodingDetectionOptions options)
         {
             var data = leadingBytes.DataPtr;
             var available = (long)leadingBytes.Size;

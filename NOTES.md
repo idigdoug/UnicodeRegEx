@@ -220,10 +220,18 @@ Also still open (CLI surfacing; engine side is done):
 
 ## Open questions (to decide)
 
-- **`OnFile` code-page override (deferred):** would let the tool re-decode a file after seeing it, replacing
-  a request-level "search-with-specific-encoding". Tangles with `SearchFile` immutability/identity (it is
-  built before `OnFile`; an override needs a rebuilt instance for the hits). Likely shape: a small
-  `SearchFileResponse` struct (action + `int?` codePageOverride) instead of the bare `SearchResponse` enum.
+- **`OnFile` code-page override (DONE).** `ISearchSink.OnFile(SearchFile, RegExPinnedBytes)` now passes the
+  file's raw bytes (ref-struct param, valid only during the call, like `SearchHit`). During `OnFile` a sink
+  may call `SearchFile.OverrideCodePage(int)` (resolves the CP_ACP sentinel, validates via
+  `CodePages.IsSupported`, throws `ArgumentException` if unsupported) to re-decode the file, and set
+  `SearchFile.Context` (an `object?` the engine never reads) to thread arbitrary per-file state to `OnHit`/
+  `OnFileComplete`. The engine locks the file (`Lock()` / `IsLocked`) immediately after `OnFile` returns, so
+  a later `OverrideCodePage` (e.g. from `OnHit`) throws `InvalidOperationException`; `Context` is NOT locked
+  (no reason to restrict, and setters shouldn't throw -- `OnFile`/`OnHit`/`OnFileComplete` run on the same
+  thread per file, so no race). `LooksBinary` stays a read-only detector verdict (no override -- a sink that
+  disagrees uses `Context` and/or returns `StopFile`). The old `SearchFileResponse`-struct idea was dropped
+  in favor of mutating the `SearchFile` in place. NOT the same as the earlier "rebuild the instance" concern:
+  the input is built from `file.CodePage` after `OnFile`, so an in-place override just flows through.
 - **`OnDirectory` callback vs directory-disposition config:** a per-directory callback is flexible but
   awkward (synchronous per-directory decisions), and config has covered every need so far. Prefer config
   (recurse + exclude-dir + follow-links, plus a "report directory" option for `-d read`) unless a concrete
@@ -235,13 +243,16 @@ Also still open (CLI surfacing; engine side is done):
 
 ## Status snapshot
 
-- Engine is `SearchJob` (async / cancel / progress / dispose; two-pass enumerate→process; sink
-  serialized; one-shot). Phase 2 (file processing) parallelizes across files via
+- Engine is `SearchJob` (async / cancel / progress / dispose; two-pass enumerate→process; one-shot).
+  Phase 2 (file processing) parallelizes across files via
   `SearchRequest.MaxDegreeOfParallelism` (1 = serial default; 0 = auto = `ProcessorCount`; >1 = capped).
   The compiled `RegEx` is shared across workers (immutable + free-threaded via the native FTM; each
   `Match`/`Replace` builds a fresh `MatchEnumerator`), and each file's work is independent (own handle /
-  mmap / enumerator / replacement temp file), so the only shared state is the sink (serialized by
-  `sinkGate`), the `CancellationTokenSource`, and interlocked counters. A throwing sink faults the job with
+  mmap / enumerator / replacement temp file). Sink callbacks are NOT serialized by the job (the old
+  `sinkGate` was removed): a single file's callbacks run on one worker thread in order (one file = one
+  iteration), but different files run concurrently, so the sink owns the thread-safety of any cross-file
+  state; per-file state is race-free and rides on `SearchFile.Context`. The engine's own shared state
+  (`CancellationTokenSource`, counters) is interlocked. A throwing sink faults the job with
   the ORIGINAL exception on both paths (serial rethrow; parallel unwraps `AggregateException` →
   `SinkException` → inner). Enumeration (Phase 1) stays single-threaded (fast; parallelizing it would
   complicate the cycle-prevention visited-set for little gain).
@@ -257,9 +268,17 @@ Also still open (CLI surfacing; engine side is done):
 - Encoding/binary detection: `EncodingDetector`, ordered per-step-toggleable heuristics (BOM, UTF-16
   NUL-parity, strict UTF-8, binary NUL + control-ratio); `EncodingDetectionOptions` + a `SkipBinaryFiles`
   bool on `SearchRequest`; per-file results via `SearchFile` + `ISearchSink.OnFile`.
-- Callbacks: `OnFile`/`OnHit` return `SearchResponse`; `OnFileComplete` (closes the `OnFile` bracket --
+- Callbacks: `OnFile(SearchFile, RegExPinnedBytes)` (bytes = the file's raw content, ref-struct param valid
+  only during the call) / `OnHit` return `SearchResponse`; `OnFileComplete` (closes the `OnFile` bracket --
   fires once per file `OnFile` accepted, after its last hit, not for skipped/errored/empty files -- so a
   sink can group a file's output under parallelism); `OnFileChanged`; `OnError(path, Exception)`.
+  `SearchFile` lets a sink steer/annotate during `OnFile`: `OverrideCodePage(int)` re-decodes the file
+  (validated; throws once the file is `Lock()`ed right after `OnFile` returns) and `Context` (`object?`,
+  engine never reads it, unlocked) threads per-file state to `OnHit`/`OnFileComplete`; `LooksBinary` stays a
+  read-only detector verdict.
+  THREADING: callbacks are NOT serialized -- a file's callbacks run on one thread in order, but different
+  files run concurrently under `MaxDegreeOfParallelism > 1`, so a sink synchronizes only its cross-file
+  state (per-file state via `Context` is race-free). At the default degree of 1 it's all single-threaded.
   `SearchHit` is a `readonly ref struct { SearchFile File; RegExMatch Match; }` (+ lazy `Text`/`Replacement`).
   `SearchSinkBase` is an opt-in adapter (defaults steering callbacks to `Continue`, notifications to no-op)
   for consumers that override only what they need; deliberately NOT used by first-party production sinks
@@ -287,4 +306,16 @@ Also still open (CLI surfacing; engine side is done):
   rejection → detect → `OnFile` → verb body). Non-`FILE_TYPE_DISK` inputs (device/pipe/socket) are
   reported as `IOException("Not a regular file")`; zero-length regular files are searched/replaced via a
   plain null / zero-length input (empty files can't be mmap'd; the native `posValid` fix accepts it).
-- Tests: 303 managed + 470 native (lib) passing.
+- Verb / replacement model (cleaned up): the engine has exactly **two actions**, `SearchVerb.Match`
+  (report matches, with each match's replacement available as a preview via `SearchHit.Replacement`) and
+  `SearchVerb.Apply` (write replacements). The action is decided **solely by `SearchRequest.Verb`** --
+  never by `ReplaceTemplate` null-ness (which is gone: `ReplaceTemplate` is now a non-null `string`,
+  defaulting to `""`, since it is passed as a BSTR where empty ≡ null) and never by a separate flag (the old
+  `Apply` bool was deleted). `SearchHit.Replacement` is always non-null (empty template formats to `""`), so
+  there is no preview special-case. The `--apply`/`--replace` grammar (apply needs a supplied template)
+  lives in `SearchSettings.Validate` (CLI phase-1 errors); `SearchRequest.Validate` no longer has an
+  `ApplyRequiresReplace` problem (the model can't represent the invalid state). `ApplySettings` maps
+  `--apply` → `Verb`, `--replace` → `ReplaceTemplate`. The CLI shows `=>` based on `settings.Replace.Value
+  != null` (only settings knows whether `--replace` was supplied). (Future: likely split into per-verb
+  callbacks; a `SearchHit.Verb` was deliberately NOT added for now.)
+- Tests: 311 managed (+ 1 Perf, category-excluded) + 470 native (lib) passing.

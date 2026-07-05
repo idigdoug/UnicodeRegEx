@@ -2,6 +2,7 @@ namespace UnicodeRegEx.Tools.Engine
 {
     using System;
     using UnicodeRegEx;
+    using UnicodeRegEx.Tools;
 
     /// <summary>
     /// A sink's response to a callback, letting it steer the run. Applies to <see cref="ISearchSink.OnFile"/>
@@ -21,9 +22,16 @@ namespace UnicodeRegEx.Tools.Engine
 
     /// <summary>
     /// Receives results and status from a <see cref="SearchJob"/> run as they happen, so a
-    /// front-end can stream output (CLI) or update a live view (GUI). Implementations should be
-    /// cheap. The job serializes its callbacks, so a sink need not be thread-safe. A callback that
-    /// throws faults the whole job (a thrown sink is treated as a bug, not a per-file error).
+    /// front-end can stream output (CLI) or update a live view (GUI). Implementations should be cheap.
+    /// A callback that throws faults the whole job (a thrown sink is treated as a bug, not a per-file error).
+    /// <para>
+    /// THREADING: the job does not serialize callbacks. A single file's callbacks (<see cref="OnFile"/> →
+    /// its <see cref="OnHit"/>s → <see cref="OnFileComplete"/>) always run on one thread, in order, so no
+    /// synchronization is needed for per-file state (carry it via <see cref="SearchFile.Context"/>). Under
+    /// <see cref="SearchRequest.MaxDegreeOfParallelism"/> &gt; 1, callbacks for DIFFERENT files may run
+    /// concurrently on different threads, so an implementation must make any state it shares across files
+    /// thread-safe. At the default degree of 1 everything is single-threaded.
+    /// </para>
     /// </summary>
     public interface ISearchSink
     {
@@ -33,8 +41,15 @@ namespace UnicodeRegEx.Tools.Engine
         /// and binary verdict even when it produces no hits. Skipped, errored, and empty files are not
         /// reported here. Return <see cref="SearchResponse.StopFile"/> to skip this file, or
         /// <see cref="SearchResponse.StopAll"/> to end the run.
+        /// <para>
+        /// <paramref name="fileBytes"/> is the file's raw content (the same fileBytes the engine is about to
+        /// search), so a sink can inspect it to make its own decisions — e.g. call
+        /// <see cref="SearchFile.OverrideCodePage"/> to re-decode with a different code page, or record a
+        /// hint in <see cref="SearchFile.Context"/>. Like <see cref="SearchHit"/>, it is a
+        /// <see langword="ref"/> struct valid only for the duration of this call; a sink must not store it.
+        /// </para>
         /// </summary>
-        SearchResponse OnFile(SearchFile file);
+        SearchResponse OnFile(SearchFile file, RegExPinnedBytes fileBytes);
 
         /// <summary>
         /// A file that was reported by <see cref="OnFile"/> (and not skipped by it) has finished being
@@ -76,7 +91,7 @@ namespace UnicodeRegEx.Tools.Engine
     public abstract class SearchSinkBase : ISearchSink
     {
         /// <inheritdoc/>
-        public virtual SearchResponse OnFile(SearchFile file) => SearchResponse.Continue;
+        public virtual SearchResponse OnFile(SearchFile file, RegExPinnedBytes fileBytes) => SearchResponse.Continue;
 
         /// <inheritdoc/>
         public virtual void OnFileComplete(SearchFile file)
@@ -102,23 +117,87 @@ namespace UnicodeRegEx.Tools.Engine
     /// processed file and shared (by reference) with every <see cref="SearchHit"/> from that file, so a
     /// hit always knows the file it came from even when results from several files interleave.
     /// </summary>
+    /// <remarks>
+    /// A sink may, during <see cref="ISearchSink.OnFile"/>, adjust how the file is processed via
+    /// <see cref="OverrideCodePage"/> and attach arbitrary per-file state via <see cref="Context"/>. Once
+    /// <see cref="ISearchSink.OnFile"/> returns, the file is <see cref="IsLocked">locked</see> and
+    /// <see cref="OverrideCodePage"/> throws (the code page is consumed to decode the file immediately
+    /// after). The engine invokes <see cref="ISearchSink.OnFile"/>, <see cref="ISearchSink.OnHit"/>, and
+    /// <see cref="ISearchSink.OnFileComplete"/> for a given file on the same thread, so a sink needs no
+    /// synchronization to thread state through <see cref="Context"/> across them.
+    /// </remarks>
     public sealed class SearchFile
     {
+        private int codePage;
+
         public SearchFile(string path, int codePage, bool looksBinary)
         {
             Path = path;
-            CodePage = codePage;
+            this.codePage = codePage;
             LooksBinary = looksBinary;
         }
 
         /// <summary>The full path of the file.</summary>
         public string Path { get; }
 
-        /// <summary>The code page the file was decoded with.</summary>
-        public int CodePage { get; }
+        /// <summary>
+        /// The code page the file is decoded with. Reflects detection, or a sink's
+        /// <see cref="OverrideCodePage"/> if one was applied during <see cref="ISearchSink.OnFile"/>.
+        /// </summary>
+        public int CodePage => codePage;
 
-        /// <summary>True if detection judged the file to be binary.</summary>
+        /// <summary>
+        /// True if detection judged the file to be binary. This is the detector's verdict and is read-only;
+        /// a sink that disagrees can record its own opinion via <see cref="Context"/> (the engine does not
+        /// act on it) and/or return <see cref="SearchResponse.StopFile"/> from <see cref="ISearchSink.OnFile"/>.
+        /// </summary>
         public bool LooksBinary { get; }
+
+        /// <summary>
+        /// Arbitrary per-file state a sink may attach (typically during <see cref="ISearchSink.OnFile"/>) to
+        /// carry information forward to the file's <see cref="ISearchSink.OnHit"/> and
+        /// <see cref="ISearchSink.OnFileComplete"/> callbacks. The engine never reads or interprets this;
+        /// it is purely a channel for the sink's own use. Not locked — a sink may set it whenever it likes.
+        /// </summary>
+        public object? Context { get; set; }
+
+        /// <summary>
+        /// True once <see cref="ISearchSink.OnFile"/> has returned and the file's code page has been
+        /// committed. After this, <see cref="OverrideCodePage"/> throws.
+        /// </summary>
+        public bool IsLocked { get; private set; }
+
+        /// <summary>
+        /// Overrides the code page the engine will decode this file with. Callable only from within
+        /// <see cref="ISearchSink.OnFile"/> (before the file is locked); the new code page takes effect for
+        /// the file's search/replace immediately after <see cref="ISearchSink.OnFile"/> returns.
+        /// </summary>
+        /// <param name="codePage">
+        /// The code page to decode with. The CP_ACP sentinel (<see cref="RegExCodePage.SystemDefault"/>) is
+        /// resolved to the system ANSI code page.
+        /// </param>
+        /// <exception cref="InvalidOperationException">The file is already locked (called outside <see cref="ISearchSink.OnFile"/>).</exception>
+        /// <exception cref="ArgumentException">The (resolved) code page is not one the engine can decode.</exception>
+        public void OverrideCodePage(int codePage)
+        {
+            if (IsLocked)
+            {
+                throw new InvalidOperationException(
+                    "The code page can only be overridden from within ISearchSink.OnFile, before the file is locked.");
+            }
+
+            var resolved = CodePages.ResolveDefault(codePage);
+            if (!CodePages.IsSupported(resolved))
+            {
+                throw new ArgumentException($"Code page {codePage} is not supported.", nameof(codePage));
+            }
+
+            this.codePage = resolved;
+        }
+
+        // Commits the code page and prevents further OverrideCodePage calls. Called by the engine right
+        // after ISearchSink.OnFile returns.
+        internal void Lock() => IsLocked = true;
     }
 
     /// <summary>
@@ -129,35 +208,34 @@ namespace UnicodeRegEx.Tools.Engine
     /// LIFETIME: a <see cref="SearchHit"/> (and its <see cref="Match"/>) is valid ONLY for the duration
     /// of the <see cref="ISearchSink.OnHit"/> call that receives it. The match enumerator advances a
     /// shared native object on each step, so the match goes stale on the next iteration, and the file's
-    /// bytes are unmapped when the file finishes. A sink that needs to keep anything (text, offsets,
-    /// context bytes) must copy it out during the call. Being a <see langword="ref"/> struct, the hit
+    /// fileBytes are unmapped when the file finishes. A sink that needs to keep anything (text, offsets,
+    /// context fileBytes) must copy it out during the call. Being a <see langword="ref"/> struct, the hit
     /// cannot be stored in a field or collection, which enforces this at compile time.
     /// </remarks>
     public readonly ref struct SearchHit
     {
-        private readonly bool isReplace;
-
-        public SearchHit(SearchFile file, RegExMatch match, bool isReplace)
+        public SearchHit(SearchFile file, RegExMatch match)
         {
             File = file;
             Match = match;
-            this.isReplace = isReplace;
         }
 
         /// <summary>The file this hit is in (shared with the file's other hits and its <see cref="ISearchSink.OnFile"/> report).</summary>
         public SearchFile File { get; }
 
-        /// <summary>The underlying match: sub-matches, byte offsets, input bytes, formatting.</summary>
+        /// <summary>The underlying match: sub-matches, byte offsets, input fileBytes, formatting.</summary>
         public RegExMatch Match { get; }
 
         /// <summary>The matched text (sub-match 0), decoded with the file's code page.</summary>
         public string Text => Match.Text;
 
         /// <summary>
-        /// The replacement this match formats to in replace mode, or <see langword="null"/> in
-        /// search-only mode. Computed on access (search-mode hits never format).
+        /// The replacement this match formats to under the run's replacement template, computed on access.
+        /// The template is always applied (an empty template formats to an empty string), so this is never
+        /// null — a preview works the same whether the verb is <see cref="SearchVerb.Match"/> or
+        /// <see cref="SearchVerb.Apply"/> and regardless of whether the template is empty.
         /// </summary>
-        public string? Replacement => isReplace ? Match.Format() : null;
+        public string Replacement => Match.Format();
     }
 
     /// <summary>The aggregate outcome of a <see cref="SearchEngine"/> run.</summary>

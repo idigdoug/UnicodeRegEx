@@ -6,6 +6,7 @@ namespace UnicodeRegEx.Tests.Tools
     using System.IO;
     using System.Runtime.InteropServices;
     using System.Text;
+    using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     using UnicodeRegEx;
@@ -32,6 +33,33 @@ namespace UnicodeRegEx.Tests.Tools
     ///   4         250.0      1200      42.1    3.07x
     ///   8         208.5      1439      50.5    3.68x
     ///   auto      191.5      1566      55.0    4.01x
+    ///
+    /// CAVEAT (reading the numbers): watch the median-vs-min spread. When median &gt;&gt; min at DOP=1 (e.g.
+    /// 504 vs 264 in one run), the serial baseline was measured on cold, un-ramped cores (CPU power
+    /// management / turbo warm-up), which INFLATES the reported speedup -- one such run showed a fake ~8x at
+    /// auto. When median is close to min (like the table above), the numbers are trustworthy. Steady runs on
+    /// this box land around ~1.9x at DOP=4 and plateau there: the corpus is small-file / I/O-bound, so beyond
+    /// a few threads the open path dominates and more threads add little. A larger / more compute-heavy
+    /// corpus (bigger LargeFileBytes) pushes the plateau rightward; tune the consts to explore the curve.
+    ///
+    /// PROFILING FINDINGS (sample-based, the numbers to trust; instrumented profiling over-weights the many
+    /// small managed calls and under-weights the few long native calls, so it wrongly made the file open look
+    /// dominant). On the multi-thread path, ~35% of the run is in ProcessOne, broken down roughly as:
+    ///   ~10.4%  native NextMatch      -- the actual regex work (the single largest slice; healthy)
+    ///   ~7.6%   FileStream ctor       -- of which ~6.8% is the underlying CreateFile syscall (~0.8% wrapper)
+    ///   ~6.2%   MemoryMappedFile.CreateFromFile (~5.6% ZwCreateSection underneath)
+    ///   ~3%     Stream.Close / ~2.9% ZwClose
+    ///   ~0.3%   ReportHit             -- sink dispatch is negligible
+    /// Conclusion: the per-file pipeline is balanced -- the dominant cost is the match itself, and open / mmap
+    /// / close are unavoidable syscalls at reasonable proportions. No pathology; deliberately left unoptimized.
+    /// Two known micro-opts were identified and DEFERRED (payoff too small to justify the added code/risk):
+    ///   (1) a bufferless CreateFile-based open instead of FileStream -- recovers only the ~0.8% wrapper cost
+    ///       and skips an unused 4 KB buffer; and
+    ///   (2) direct ReadFile into a pooled buffer for small files instead of a memory map -- avoids the
+    ///       section create/teardown for tiny files, but adds a second input path (pinned buffer vs. mapped
+    ///       pointer) for a single-digit-percent gain that only applies below some size.
+    /// Note: excluding the search tree from antivirus did NOT materially change the open cost -- the filter
+    /// driver still intercepts every CreateFile to evaluate whether an exclusion applies.
     /// </remarks>
     [TestClass]
     public class SearchJobPerfTests
@@ -58,7 +86,9 @@ namespace UnicodeRegEx.Tests.Tools
         [TestInitialize]
         public void Setup()
         {
-            tempDir = Path.Combine(Path.GetTempPath(), "urex_perf_" + Guid.NewGuid().ToString("N"));
+            var perfDir = Path.Combine(Path.GetTempPath(), "urex_perf");
+            Directory.CreateDirectory(perfDir);
+            tempDir = Path.Combine(perfDir, Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(tempDir);
         }
 
@@ -282,16 +312,17 @@ namespace UnicodeRegEx.Tests.Tools
             }
         }
 
-        // A minimal sink that just counts hits (thread-safe via the job's serialization of callbacks).
+        // A minimal sink that just counts hits. The engine does not serialize callbacks, so under the
+        // benchmark's parallel degrees different files' OnHit calls arrive concurrently -- count atomically.
         private sealed class CountingSink : SearchSinkBase
         {
             private int hitCount;
 
-            public int HitCount => hitCount;
+            public int HitCount => Volatile.Read(ref hitCount);
 
             public override SearchResponse OnHit(in SearchHit hit)
             {
-                hitCount++;
+                Interlocked.Increment(ref hitCount);
                 return SearchResponse.Continue;
             }
         }

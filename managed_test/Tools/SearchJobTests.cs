@@ -1,4 +1,4 @@
-namespace UnicodeRegEx.Tests.Tools
+﻿namespace UnicodeRegEx.Tests.Tools
 {
     using System;
     using System.Collections.Generic;
@@ -44,6 +44,14 @@ namespace UnicodeRegEx.Tests.Tools
             var full = Path.Combine(tempDir, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(full)!);
             File.WriteAllText(full, content, new UTF8Encoding(false));
+            return full;
+        }
+
+        private string WriteBytes(string relativePath, byte[] content)
+        {
+            var full = Path.Combine(tempDir, relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+            File.WriteAllBytes(full, content);
             return full;
         }
 
@@ -140,8 +148,7 @@ namespace UnicodeRegEx.Tests.Tools
             var request = Request("a", tempDir);
             request.Directories = DirectoryDisposition.RecurseNoLinks;
             request.ReplaceTemplate = "b";
-            request.Verb = SearchVerb.Replace;
-            request.Apply = true;
+            request.Verb = SearchVerb.Apply;
             request.MaxDegreeOfParallelism = 4;
             var (_, summary, state) = await RunAsync(request);
 
@@ -220,6 +227,160 @@ namespace UnicodeRegEx.Tests.Tools
             Assert.IsTrue(sink.CompletedPaths.Contains(System.IO.Path.Combine(tempDir, "b.txt")));
         }
 
+        // ---- OnFile: bytes, code-page override, and Context
+
+        // Bytes 0x41 0xC3 0xA9 0x42: "A", the UTF-8 encoding of "é", then "B".
+        //   As UTF-8   => "AéB"
+        //   As Latin1  => "AÃ©B"  (0xC3='Ã', 0xA9='©')
+        private static readonly byte[] AmbiguousBytes = { 0x41, 0xC3, 0xA9, 0x42 };
+
+        // A sink that runs a caller-supplied action during OnFile (e.g. to override the code page or set
+        // Context) and records every hit's text and the SearchFile it came from.
+        private sealed class OnFileSink : SearchSinkBase
+        {
+            private readonly Action<SearchFile>? onFile;
+
+            public OnFileSink(Action<SearchFile>? onFile = null) => this.onFile = onFile;
+
+            public List<string> HitTexts { get; } = new List<string>();
+            public List<object?> HitContexts { get; } = new List<object?>();
+
+            public override SearchResponse OnFile(SearchFile file, RegExPinnedBytes bytes)
+            {
+                onFile?.Invoke(file);
+                return SearchResponse.Continue;
+            }
+
+            public override SearchResponse OnHit(in SearchHit hit)
+            {
+                HitTexts.Add(hit.Text);
+                HitContexts.Add(hit.File.Context);
+                return SearchResponse.Continue;
+            }
+        }
+
+        [TestMethod]
+        public async Task OnFile_DefaultCodePage_DecodesAsRequested()
+        {
+            // Baseline: with the request's UTF-8 default and no override, the bytes decode as "AéB", so a
+            // pattern matching the Latin1 interpretation ("Ã©") finds nothing.
+            var path = WriteBytes("a.txt", AmbiguousBytes);
+            var sink = new OnFileSink();
+            using var job = new SearchJob(Request("Ã©", path), sink);
+            await job.RunAsync();
+
+            Assert.AreEqual(0, sink.HitTexts.Count);
+        }
+
+        [TestMethod]
+        public async Task OnFile_OverrideCodePage_ChangesDecoding()
+        {
+            // Overriding to Latin1 in OnFile makes the same bytes decode as "AÃ©B", so "Ã©" now matches.
+            var path = WriteBytes("a.txt", AmbiguousBytes);
+            var sink = new OnFileSink(f => f.OverrideCodePage(RegExCodePage.Latin1));
+            using var job = new SearchJob(Request("Ã©", path), sink);
+            await job.RunAsync();
+
+            Assert.AreEqual(1, sink.HitTexts.Count);
+            Assert.AreEqual("Ã©", sink.HitTexts[0]);
+        }
+
+        [TestMethod]
+        public async Task OnFile_OverrideCodePage_AfterLock_Throws()
+        {
+            // Capture the SearchFile during OnFile, then try to override from OnHit (after the file is
+            // locked). The override must throw; a thrown sink faults the job with the original exception.
+            var path = WriteBytes("a.txt", AmbiguousBytes);
+            SearchFile? captured = null;
+            var sink = new LockViolationSink(f => captured = f);
+            using var job = new SearchJob(Request("A", path), sink);
+
+            Exception? caught = null;
+            try
+            {
+                await job.RunAsync();
+            }
+            catch (Exception ex)
+            {
+                caught = ex;
+            }
+
+            Assert.IsInstanceOfType(caught, typeof(InvalidOperationException));
+            Assert.AreEqual(SearchJobState.Faulted, job.State);
+            Assert.IsNotNull(captured);
+            Assert.IsTrue(captured!.IsLocked);
+        }
+
+        [TestMethod]
+        public void OverrideCodePage_UnsupportedCodePage_Throws()
+        {
+            // Direct unit check: an unsupported code page is rejected before it can reach the engine.
+            var file = new SearchFile("x", RegExCodePage.Utf8, looksBinary: false);
+            TestHelpers.AssertThrows<ArgumentException>(() => file.OverrideCodePage(999999));
+        }
+
+        [TestMethod]
+        public async Task OnFile_Context_FlowsToOnHit()
+        {
+            var path = WriteFile("a.txt", "match match");
+            var marker = new object();
+            var sink = new OnFileSink(f => f.Context = marker);
+            using var job = new SearchJob(Request("match", path), sink);
+            await job.RunAsync();
+
+            Assert.AreEqual(2, sink.HitContexts.Count);
+            Assert.AreSame(marker, sink.HitContexts[0]);
+            Assert.AreSame(marker, sink.HitContexts[1]);
+        }
+
+        [TestMethod]
+        public async Task OnFile_ReceivesFileBytes()
+        {
+            var content = "hello world";
+            var path = WriteFile("a.txt", content);
+            var sink = new BytesCapturingSink();
+            using var job = new SearchJob(Request("world", path), sink);
+            await job.RunAsync();
+
+            Assert.AreEqual(Encoding.UTF8.GetByteCount(content), sink.ByteCount);
+            Assert.AreEqual(content, sink.DecodedContent);
+        }
+
+        // Overrides the code page from OnHit (after lock) to verify the lock is enforced.
+        private sealed class LockViolationSink : SearchSinkBase
+        {
+            private readonly Action<SearchFile> capture;
+
+            public LockViolationSink(Action<SearchFile> capture) => this.capture = capture;
+
+            public override SearchResponse OnFile(SearchFile file, RegExPinnedBytes fileBytes)
+            {
+                capture(file);
+                return SearchResponse.Continue;
+            }
+
+            public override SearchResponse OnHit(in SearchHit hit)
+            {
+                // The file is locked once OnFile returned; this must throw.
+                hit.File.OverrideCodePage(RegExCodePage.Latin1);
+                return SearchResponse.Continue;
+            }
+        }
+
+        // Copies the OnFile bytes out (decoded UTF-8) so a test can assert the raw content was passed.
+        private sealed class BytesCapturingSink : SearchSinkBase
+        {
+            public int ByteCount { get; private set; }
+            public string DecodedContent { get; private set; } = string.Empty;
+
+            public override unsafe SearchResponse OnFile(SearchFile file, RegExPinnedBytes fileBytes)
+            {
+                ByteCount = fileBytes.SizeInt;
+                DecodedContent = Encoding.UTF8.GetString(fileBytes.DataPtr, fileBytes.SizeInt);
+                return SearchResponse.Continue;
+            }
+        }
+
         // ---- Syntax-flag tuning (to-do #3)
 
         [TestMethod]
@@ -294,10 +455,8 @@ namespace UnicodeRegEx.Tests.Tools
         {
             var file = WriteFile("empty.txt", string.Empty);
             var request = Request("^", file);
-            request.Verb = SearchVerb.Replace;
+            request.Verb = SearchVerb.Apply;
             request.ReplaceTemplate = "X";
-            request.Apply = true;
-
             var (_, summary, _) = await RunAsync(request);
 
             Assert.AreEqual(1, summary.FilesChanged);
@@ -647,10 +806,8 @@ namespace UnicodeRegEx.Tests.Tools
         {
             var file = WriteFile("a.txt", "alpha beta alpha");
             var request = Request("alpha", file);
-            request.Verb = SearchVerb.Replace;
+            request.Verb = SearchVerb.Apply;
             request.ReplaceTemplate = "X";
-            request.Apply = true;
-
             var (sink, summary, state) = await RunAsync(request);
 
             Assert.AreEqual(SearchJobState.Completed, state);
@@ -671,10 +828,8 @@ namespace UnicodeRegEx.Tests.Tools
             var before = File.ReadAllText(file);
 
             var request = Request("zzz", file);
-            request.Verb = SearchVerb.Replace;
+            request.Verb = SearchVerb.Apply;
             request.ReplaceTemplate = "X";
-            request.Apply = true;
-
             var (_, summary, _) = await RunAsync(request);
 
             Assert.AreEqual(0, summary.FilesChanged);
@@ -686,10 +841,8 @@ namespace UnicodeRegEx.Tests.Tools
         {
             var file = WriteFile("a.txt", "alpha beta alpha");
             var request = Request("alpha", file);
-            request.Verb = SearchVerb.Replace;
+            request.Verb = SearchVerb.Apply;
             request.ReplaceTemplate = "X";
-            request.Apply = true;
-
             var (sink, summary, _) = await RunAsync(request);
 
             // Apply mode now reports a hit per match (symmetry with search), each exposing its replacement.
@@ -719,10 +872,8 @@ namespace UnicodeRegEx.Tests.Tools
             });
 
             var request = Request("alpha", a, b);
-            request.Verb = SearchVerb.Replace;
+            request.Verb = SearchVerb.Apply;
             request.ReplaceTemplate = "X";
-            request.Apply = true;
-
             using var job = new SearchJob(request, sink);
             await job.RunAsync();
 
@@ -741,10 +892,8 @@ namespace UnicodeRegEx.Tests.Tools
             var sink = new SteeringSink(onHit: _ => SearchResponse.StopAll);
 
             var request = Request("alpha", a, b);
-            request.Verb = SearchVerb.Replace;
+            request.Verb = SearchVerb.Apply;
             request.ReplaceTemplate = "X";
-            request.Apply = true;
-
             using var job = new SearchJob(request, sink);
             await job.RunAsync();
 
@@ -975,6 +1124,7 @@ namespace UnicodeRegEx.Tests.Tools
             private readonly Func<string, SearchResponse>? onHit;
             private readonly Func<SearchFile, SearchResponse>? onFile;
             private readonly bool throwOnHit;
+            private readonly object gate = new object();
 
             public SteeringSink(
                 Func<string, SearchResponse>? onHit = null,
@@ -990,9 +1140,13 @@ namespace UnicodeRegEx.Tests.Tools
             public List<string> FilePaths { get; } = new List<string>();
             public List<string> CompletedPaths { get; } = new List<string>();
 
-            public override SearchResponse OnFile(SearchFile file)
+            public override SearchResponse OnFile(SearchFile file, RegExPinnedBytes fileBytes)
             {
-                FilePaths.Add(file.Path);
+                lock (gate)
+                {
+                    FilePaths.Add(file.Path);
+                }
+
                 return onFile?.Invoke(file) ?? SearchResponse.Continue;
             }
 
@@ -1003,11 +1157,22 @@ namespace UnicodeRegEx.Tests.Tools
                     throw new InvalidOperationException("boom");
                 }
 
-                HitTexts.Add(hit.Text);
-                return onHit?.Invoke(hit.Text) ?? SearchResponse.Continue;
+                var text = hit.Text;
+                lock (gate)
+                {
+                    HitTexts.Add(text);
+                }
+
+                return onHit?.Invoke(text) ?? SearchResponse.Continue;
             }
 
-            public override void OnFileComplete(SearchFile file) => CompletedPaths.Add(file.Path);
+            public override void OnFileComplete(SearchFile file)
+            {
+                lock (gate)
+                {
+                    CompletedPaths.Add(file.Path);
+                }
+            }
         }
 
         [TestMethod]
