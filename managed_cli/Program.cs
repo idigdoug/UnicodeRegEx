@@ -43,14 +43,27 @@ Search files (default) or preview/apply replacements with a Unicode-aware regex.
                     return 2;
                 }
 
-                var request = new SearchRequest();
-                request.ApplySettings(settings);
-                request.ApplyPositionals(commandLineParse.Positionals);
-
-                if (request.Paths.Count == 0)
+                // Map the CLI's positionals onto the model: the first is the pattern, the rest are paths.
+                // "Positionals" is a command-line notion, so this mapping lives here, not in the shared model.
+                var positionals = commandLineParse.Positionals;
+                if (positionals.Count > 0)
                 {
-                    request.Paths.Add(".");
+                    settings.Pattern = positionals[0];
                 }
+
+                for (var i = 1; i < positionals.Count; i++)
+                {
+                    settings.Paths.Add(positionals[i]);
+                }
+
+                // Default to the current directory when no paths are given — a CLI policy (a GUI defaults
+                // differently), so it is applied here rather than in the shared model.
+                if (settings.Paths.Count == 0)
+                {
+                    settings.Paths.Add(".");
+                }
+
+                var request = settings.MakeRequest();
 
                 var problems = request.Validate();
                 if (problems.Count > 0)

@@ -158,22 +158,21 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         [TestMethod]
-        public void ApplySettings_Apply_SelectsApplyVerb()
+        public void MakeRequest_Apply_SelectsApplyVerb()
         {
             var settings = new SearchSettings();
             var errors = new List<string>();
             CommandLine.Parse(new[] { "--apply", "--replace", "X", "p", "x" }, settings, errors);
             CollectionAssert.AreEqual(new List<string>(), errors);
 
-            var request = new SearchRequest();
-            request.ApplySettings(settings);
+            var request = settings.MakeRequest();
 
             Assert.AreEqual(SearchVerb.Apply, request.Verb);
             Assert.AreEqual("X", request.ReplaceTemplate);
         }
 
         [TestMethod]
-        public void ApplySettings_ReplaceWithoutApply_SelectsMatchVerb()
+        public void MakeRequest_ReplaceWithoutApply_SelectsMatchVerb()
         {
             // --replace without --apply is a preview: the Match verb with the template as data.
             var settings = new SearchSettings();
@@ -181,46 +180,42 @@ namespace UnicodeRegEx.Tests.Tools
             CommandLine.Parse(new[] { "--replace", "X", "p", "x" }, settings, errors);
             CollectionAssert.AreEqual(new List<string>(), errors);
 
-            var request = new SearchRequest();
-            request.ApplySettings(settings);
+            var request = settings.MakeRequest();
 
             Assert.AreEqual(SearchVerb.Match, request.Verb);
             Assert.AreEqual("X", request.ReplaceTemplate);
         }
 
         [TestMethod]
-        public void ApplySettings_NoReplace_SelectsMatchVerb_WithEmptyTemplate()
+        public void MakeRequest_NoReplace_SelectsMatchVerb_WithEmptyTemplate()
         {
             var settings = new SearchSettings();
-            var request = new SearchRequest();
-            request.ApplySettings(settings);
+            var request = settings.MakeRequest();
 
             Assert.AreEqual(SearchVerb.Match, request.Verb);
             Assert.AreEqual(string.Empty, request.ReplaceTemplate);
         }
 
         [TestMethod]
-        public void ApplySettings_CopiesSyntaxFlavor()
+        public void MakeRequest_CopiesSyntaxFlavor()
         {
             var settings = new SearchSettings();
             var errors = new List<string>();
             CommandLine.Parse(new[] { "-F", "p", "x" }, settings, errors);
 
-            var request = new SearchRequest();
-            request.ApplySettings(settings);
+            var request = settings.MakeRequest();
 
             Assert.AreEqual(RegExSyntaxFlags.Literal, request.SyntaxFlags);
         }
 
         [TestMethod]
-        public void ApplySettings_IgnoreCase_FoldsIntoSyntaxFlags()
+        public void MakeRequest_IgnoreCase_FoldsIntoSyntaxFlags()
         {
             var settings = new SearchSettings();
             var errors = new List<string>();
             CommandLine.Parse(new[] { "-i", "p", "x" }, settings, errors);
 
-            var request = new SearchRequest();
-            request.ApplySettings(settings);
+            var request = settings.MakeRequest();
 
             Assert.IsTrue(request.SyntaxFlags.HasFlag(RegExSyntaxFlags.ICase));
         }
@@ -248,14 +243,13 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         [TestMethod]
-        public void ApplySettings_IncludeString_BecomesIncludeFilters()
+        public void MakeRequest_IncludeString_BecomesIncludeFilters()
         {
             var settings = new SearchSettings();
             var errors = new List<string>();
             CommandLine.Parse(new[] { "--include", "*.cs;*.h", "p", "x" }, settings, errors);
 
-            var request = new SearchRequest();
-            request.ApplySettings(settings);
+            var request = settings.MakeRequest();
 
             Assert.AreEqual(2, request.FileNameFilters.Count);
             CollectionAssert.AreEqual(
@@ -279,7 +273,7 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         [TestMethod]
-        public void ApplySettings_IncludeAndExclude_InterleaveInEncounterOrder()
+        public void MakeRequest_IncludeAndExclude_InterleaveInEncounterOrder()
         {
             // --include and --exclude feed one ordered file-name filter list; order (which drives
             // last-match-wins) must follow the command line, and each entry keeps its own kind.
@@ -288,8 +282,7 @@ namespace UnicodeRegEx.Tests.Tools
             CommandLine.Parse(new[] { "--include", "*.cs", "--exclude", "*.g.cs", "--include", "*.txt", "p", "x" }, settings, errors);
             CollectionAssert.AreEqual(new List<string>(), errors);
 
-            var request = new SearchRequest();
-            request.ApplySettings(settings);
+            var request = settings.MakeRequest();
 
             Assert.AreEqual(3, request.FileNameFilters.Count);
             CollectionAssert.AreEqual(
@@ -301,15 +294,14 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         [TestMethod]
-        public void ApplySettings_ExcludeDir_BecomesExcludeDirectoryFilters()
+        public void MakeRequest_ExcludeDir_BecomesExcludeDirectoryFilters()
         {
             var settings = new SearchSettings();
             var errors = new List<string>();
             CommandLine.Parse(new[] { "--exclude-dir", "bin", "--exclude-dir", "obj", "p", "x" }, settings, errors);
             CollectionAssert.AreEqual(new List<string>(), errors);
 
-            var request = new SearchRequest();
-            request.ApplySettings(settings);
+            var request = settings.MakeRequest();
 
             Assert.AreEqual(0, request.FileNameFilters.Count);
             CollectionAssert.AreEqual(
@@ -334,23 +326,75 @@ namespace UnicodeRegEx.Tests.Tools
         [TestMethod]
         public void SearchSettings_Validate_ValidSettings_HasNoProblems()
         {
-            var settings = new SearchSettings();
+            var settings = new SearchSettings { Pattern = "x" };
+            settings.Paths.Add(".");
             Assert.AreEqual(0, settings.Validate().Count);
         }
 
         [TestMethod]
-        public void SearchSettings_Validate_BadEncoding_HighlightsEncodingSetting()
+        public void SearchSettings_Validate_EmptyPattern_TargetsPattern()
         {
             var settings = new SearchSettings();
+            settings.Paths.Add(".");
+
+            var problems = settings.Validate();
+            Assert.AreEqual(1, problems.Count);
+            Assert.AreEqual(SearchRequestProblem.PatternRequired, problems[0].Problem);
+            Assert.AreEqual(SettingProblemTarget.Pattern, problems[0].Target);
+            Assert.IsNull(problems[0].Setting);
+        }
+
+        [TestMethod]
+        public void SearchSettings_Validate_InvalidPattern_TargetsPattern()
+        {
+            var settings = new SearchSettings { Pattern = "(" };
+            settings.Paths.Add(".");
+
+            var problems = settings.Validate();
+            Assert.AreEqual(1, problems.Count);
+            Assert.AreEqual(SearchRequestProblem.PatternInvalid, problems[0].Problem);
+            Assert.AreEqual(SettingProblemTarget.Pattern, problems[0].Target);
+        }
+
+        [TestMethod]
+        public void SearchSettings_Validate_NoPaths_TargetsPaths()
+        {
+            var settings = new SearchSettings { Pattern = "x" };
+
+            var problems = settings.Validate();
+            Assert.AreEqual(1, problems.Count);
+            Assert.AreEqual(SearchRequestProblem.PathRequired, problems[0].Problem);
+            Assert.AreEqual(SettingProblemTarget.Paths, problems[0].Target);
+        }
+
+        [TestMethod]
+        public void SearchSettings_Validate_BadEncoding_TargetsEncodingSetting()
+        {
+            var settings = new SearchSettings { Pattern = "x" };
+            settings.Paths.Add(".");
             var errors = new List<string>();
-            CommandLine.Parse(new[] { "--encoding", "99999999", "p", "x" }, settings, errors);
+            CommandLine.Parse(new[] { "--encoding", "99999999" }, settings, errors);
             // The encoding parses to an unsupported code page (not a parse error), surfaced by Validate.
             CollectionAssert.AreEqual(new List<string>(), errors);
 
             var problems = settings.Validate();
             Assert.AreEqual(1, problems.Count);
             Assert.AreEqual(SearchRequestProblem.UnsupportedCodePage, problems[0].Problem);
+            Assert.AreEqual(SettingProblemTarget.Setting, problems[0].Target);
             Assert.AreSame(settings.Encoding, problems[0].Setting);
+        }
+
+        [TestMethod]
+        public void MakeRequest_CopiesPatternAndPaths()
+        {
+            var settings = new SearchSettings { Pattern = "abc" };
+            settings.Paths.Add("a.txt");
+            settings.Paths.Add("b.txt");
+
+            var request = settings.MakeRequest();
+
+            Assert.AreEqual("abc", request.Pattern);
+            CollectionAssert.AreEqual(new[] { "a.txt", "b.txt" }, request.Paths);
         }
 
         [TestMethod]

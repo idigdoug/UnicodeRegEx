@@ -68,7 +68,7 @@ match flags, and ordered filters.
   *appends*), so several `--include`/`--exclude` occurrences accumulate in encounter order rather than
   last-wins. The command-line parser appends one entry per occurrence, tagging each with its kind from the
   matching binding (a `--include` binding tagged Include, `--exclude` tagged Exclude — both feed one
-  `GlobListSetting`). `ApplySettings` copies the ordered list across verbatim.
+  `GlobListSetting`). `SearchSettings.MakeRequest()` copies the ordered list across verbatim.
 
 #### Exact filename-filter rule (from the grep docs — order IS significant)
 grep: *"If contradictory --include and --exclude options are given, the last matching one wins. If no
@@ -193,7 +193,7 @@ surfacing only:
   `ComposeSyntaxFlags`/`SetSyntaxFlags` options (ignoreCase/collate/dotAll/freeSpacing/multilineAnchors)
   exist on the request but are not on the CLI yet; surface later as GUI checkboxes / advanced CLI options.
   The `Syntax` flavor choice + `-i` are already wired via `ChoiceSetting`/`CommandLineBinding` and folded in
-  by `ApplySettings` (`-E`/`-G`/`-P`/`-F`, `-i`).
+  by `MakeRequest` (`-E`/`-G`/`-P`/`-F`, `-i`).
 - CLI exposure of detection toggles + `--binary-files`/`SkipBinaryFiles` (advanced options / GUI checkboxes).
 
 ## Status snapshot
@@ -251,7 +251,8 @@ surfacing only:
   exposed (a caller escapes the template via the escape helpers instead) and is rejected by the allow-mask.
   `ComposeSyntaxFlags`/`SetSyntaxFlags` helpers. Not on the CLI yet (see to-do).
 - Request validation: `SearchRequest.Validate()` returns the list of `SearchRequestProblem`s (empty when
-  valid) and is the single pre-flight gate for a front-end (GUI flow: `ApplySettings` -> `Validate`). It
+  valid) and is the engine-level pre-flight gate (a front-end usually reaches it via
+  `SearchSettings.Validate()`, which calls `MakeRequest()` then this). It
   checks pattern/paths presence, resolved code page, the match/format-flag masks (via the `RegEx`
   validators above), non-negative `MaxDegreeOfParallelism`, and the enum-typed fields
   (`Verb`/`Directories` via `Enum.IsDefined`; `EncodingDetection` steps against `~All` since it's a
@@ -288,23 +289,29 @@ surfacing only:
   defaulting to `""`, since it is passed as a BSTR where empty ≡ null) and never by a separate flag (the old
   `Apply` bool was deleted). `SearchHit.Replacement` is always non-null (empty template formats to `""`), so
   there is no preview special-case. `Verb` and `ReplaceTemplate` are independent (an apply with an empty
-  template deletes matches), so there is no invalid combination to validate. `ApplySettings` maps
-  `--apply` → `Verb`, `--replace` → `ReplaceTemplate`. The CLI shows `=>` based on `settings.Replace.Value
-  != null` (only settings knows whether `--replace` was supplied).
-- Settings model (`SearchSettings` : `SettingGroup`): the shared, front-end-neutral options model, intended
-  as the **GUI's model** (CLI/config are secondary consumers). Settings are public fields discovered by
+  template deletes matches), so there is no invalid combination to validate. `MakeRequest` maps
+  `--apply` → `Verb`, `--replace` → `ReplaceTemplate`. The CLI shows `=>` based on whether the `Replace`
+  template setting is non-empty (`Replace` is a non-null `string`, default `""`).
+- Settings model (`SearchSettings` : `SettingGroup`): the shared, front-end-neutral options model and the
+  **complete GUI model** (CLI/config are secondary consumers). Settings are public fields discovered by
   reflection; each has a `SettingRole`. `Preference` = persisted the normal (preference-store) way ⇒ shows
   on the GUI's auto-generated advanced property page; `WorkingState` = not persisted that way (transient
   launch intent *or* MRU-remembered inputs like the filter lists) ⇒ stays off the advanced page (the
   primary UI, which is hand-drawn, owns those). Placement thus falls out of the role; the primary UI needs
-  no marker because it is manual. Validation is encapsulated in `SearchSettings.Validate()`, which builds a
-  throwaway `SearchRequest`, runs `ApplySettings` + `request.Validate()`, and maps each
-  `SearchRequestProblem` back to the responsible `Setting` (returning `SettingProblem { Problem, Setting,
-  Message }` so a GUI can flag the control). Today only `UnsupportedCodePage → Encoding` maps to a setting;
-  Pattern/Paths problems have no setting (they are primary-UI inputs) and are omitted. Filter lists use
-  `GlobListSetting` (appending `Apply`, kind from the binding `Tag`, `ToDisplayString` for MRU/GUI/help, not
-  a CLI round-trip). `Setting.Apply` takes the matched `CommandLineBinding` so a multi-binding setting knows
-  which alias fired; `HelpFormatter` renders one line per binding.
+  no marker because it is manual. `Pattern` and `Paths` live on the model too but as **plain data** (not
+  `Setting`s), so they are naturally off the property page and out of generated help — they are primary-UI
+  inputs. The model **produces** the engine input: `SearchSettings.MakeRequest()` builds a fully-populated
+  `SearchRequest` (the single settings→request translation; `SearchRequest` no longer has `ApplySettings`
+  or `ApplyPositionals`, so the dependency points model→request, and "positionals" stays a CLI concept). The
+  CLI maps its positionals onto `settings.Pattern`/`Paths` and keeps the default-path `.` policy, then calls
+  `MakeRequest()`. Validation is encapsulated in `SearchSettings.Validate()`, which calls `MakeRequest()`,
+  runs `request.Validate()`, and maps each `SearchRequestProblem` to the control a front-end should flag:
+  `SettingProblem { Problem, Target, Setting?, Message }` where `Target` is `Setting`/`Pattern`/`Paths`/`None`
+  (e.g. `UnsupportedCodePage`→Encoding setting, `PatternRequired`/`PatternInvalid`→Pattern,
+  `PathRequired`→Paths). Filter lists use `GlobListSetting` (appending `Apply`, kind from the binding `Tag`,
+  `ToDisplayString` for MRU/GUI/help, not a CLI round-trip). `Setting.Apply` takes the matched
+  `CommandLineBinding` so a multi-binding setting knows which alias fired; `HelpFormatter` renders one line
+  per binding.
 - Per-verb callbacks + computed replacement: `ISearchSink.OnHit` was split into **`OnMatch`**
   (search verb; returns `SearchResponse` to steer -- Continue/StopFile/StopAll -- nothing is written) and
   **`OnApply`** (apply verb; returns an **`ApplyAction`** that decides what to write for each match). An
@@ -320,4 +327,4 @@ surfacing only:
   out _)` kept inside the wrapper assembly (Tools never touches `Interop.ISequentialStream`, avoiding
   embedded-interop-type/PIA problems). A `SearchHit.Verb` was deliberately NOT added (the verb is implied
   by which callback fired).
-- Tests: 332 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.
+- Tests: 336 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.

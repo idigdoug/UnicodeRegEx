@@ -161,27 +161,6 @@ namespace UnicodeRegEx.Tools
         }
 
         /// <summary>
-        /// Copies the named, overridable settings (case sensitivity, encoding, replacement) from a
-        /// resolved <see cref="SearchSettings"/> onto this request.
-        /// </summary>
-        public void ApplySettings(SearchSettings settings)
-        {
-            DefaultCodePage = settings.Encoding.Value;
-            // ResolvedDefaultCodePage is updated by the DefaultCodePage setter.
-            ReplaceTemplate = settings.Replace.Value;
-            Verb = settings.Apply.Value ? SearchVerb.Apply : SearchVerb.Match;
-            SetSyntaxFlags(settings.Syntax.Value, ignoreCase: settings.IgnoreCase.Value);
-            Directories = settings.Recurse.Value ? DirectoryDisposition.RecurseNoLinks : DirectoryDisposition.Error;
-
-            // The filter settings already carry ordered GlobFilter lists (include/exclude interleaved in
-            // encounter order); copy them across verbatim.
-            FileNameFilters.Clear();
-            FileNameFilters.AddRange(settings.FileNameFilters.Filters);
-            DirectoryFilters.Clear();
-            DirectoryFilters.AddRange(settings.DirectoryFilters.Filters);
-        }
-
-        /// <summary>
         /// Appends an include filter for each glob in a semicolon-separated list (e.g. <c>*.cs;*.txt</c>),
         /// ignoring null/empty entries. A convenience for front-ends that express includes as a single
         /// string (such as the CLI's <c>--include</c>); it preserves order and leaves any existing
@@ -218,28 +197,6 @@ namespace UnicodeRegEx.Tools
                 {
                     target.Add(new GlobFilter(kind, trimmed));
                 }
-            }
-        }
-
-        /// <summary>
-        /// Populates <see cref="Pattern"/> and <see cref="Paths"/> from parsed positional arguments:
-        /// the first positional is the pattern and the rest are paths. Missing inputs are not filled
-        /// in here — an empty list leaves <see cref="Pattern"/> empty and <see cref="Paths"/> empty,
-        /// which <see cref="Validate"/> reports as <see cref="SearchRequestProblem.PatternRequired"/>
-        /// and <see cref="SearchRequestProblem.PathRequired"/>. Defaulting (e.g. searching the current
-        /// directory) is a front-end policy, not part of this shared "command line to request" mapping.
-        /// </summary>
-        public void ApplyPositionals(IReadOnlyList<string> positionals)
-        {
-            if (positionals.Count > 0)
-            {
-                Pattern = positionals[0];
-            }
-
-            Paths.Clear();
-            for (var i = 1; i < positionals.Count; i++)
-            {
-                Paths.Add(positionals[i]);
             }
         }
 
