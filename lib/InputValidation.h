@@ -36,6 +36,13 @@ InputIsAligned(TextEncoding encoding, LONGLONG lowBits) noexcept;
 bool
 MatchFlagsAreValid(RegExMatchFlags flags) noexcept;
 
+// Returns true if flags contains only format bits this library exposes and accepts.
+// The allowed set is the exposed RegExFormatFlags input bits; everything else is
+// rejected, including format_literal (not exposed -- a caller that wants a literal
+// replacement escapes the template instead) and any other boost format bits.
+bool
+FormatFlagsAreValid(RegExFormatFlags flags) noexcept;
+
 // Returns true and sets encoding if codePage is valid and lowBits is valid for it
 // (multiple of the encoding's element size).
 _Success_(return)

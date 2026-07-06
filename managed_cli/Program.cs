@@ -110,12 +110,24 @@ Search files (default) or preview/apply replacements with a Unicode-aware regex.
             {
             }
 
-            public SearchResponse OnHit(in SearchHit hit)
+            public SearchResponse OnMatch(in SearchHit hit)
+            {
+                PrintHit(hit);
+                return SearchResponse.Continue;
+            }
+
+            public ApplyAction OnApply(in SearchHit hit)
+            {
+                // The CLI applies the default (template) replacement but also echoes each rewritten match.
+                PrintHit(hit);
+                return ApplyAction.Default;
+            }
+
+            private void PrintHit(in SearchHit hit)
             {
                 Console.Out.WriteLine(showReplacement
                     ? $"{hit.File.Path}: {hit.Text} => {hit.Replacement}"
                     : $"{hit.File.Path}: {hit.Text}");
-                return SearchResponse.Continue;
             }
 
             public void OnFileChanged(string path)

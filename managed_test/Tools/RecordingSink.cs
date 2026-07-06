@@ -37,15 +37,25 @@ namespace UnicodeRegEx.Tests.Tools
             return SearchResponse.Continue;
         }
 
-        public SearchResponse OnHit(in SearchHit hit)
+        public SearchResponse OnMatch(in SearchHit hit)
+        {
+            RecordHit(hit);
+            return SearchResponse.Continue;
+        }
+
+        public ApplyAction OnApply(in SearchHit hit)
+        {
+            RecordHit(hit);
+            return ApplyAction.Default;
+        }
+
+        private void RecordHit(in SearchHit hit)
         {
             var recorded = new RecordedHit(hit.File, hit.Text, hit.Replacement);
             lock (gate)
             {
                 Hits.Add(recorded);
             }
-
-            return SearchResponse.Continue;
         }
 
         public void OnFileComplete(SearchFile file)

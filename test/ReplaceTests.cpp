@@ -31,6 +31,49 @@ namespace RegExTests
             Assert::AreEqual(L"abc # def # ghi"sv, MakeView(output.get()));
         }
 
+        TEST_METHOD(Replace_RejectsLiteralFormatFlag)
+        {
+            // format_literal is deliberately not exposed (a caller escapes the template instead), so it is
+            // rejected by the format-flag allow-mask rather than passed to Boost.
+            auto regex = MakeRegEx(L"\\d+");
+
+            RegExBytes inputBytes = MakeString(u8"abc 123"sv);
+            wil::unique_bstr formatTemplate(SysAllocString(L"#"));
+
+            wil::unique_bstr output;
+            HRESULT hr = regex->Replace(
+                inputBytes,
+                RegExCodePage_utf8,
+                0,
+                RegExMatchFlag_default,
+                formatTemplate.get(),
+                static_cast<RegExFormatFlags>(boost::regex_constants::format_literal),
+                output.put());
+            Assert::AreEqual(E_INVALIDARG, hr);
+            Assert::IsNull(output.get());
+        }
+
+        TEST_METHOD(Replace_RejectsUndefinedFormatFlag)
+        {
+            // Any bit outside the exposed format flags is rejected (here a high, unused bit).
+            auto regex = MakeRegEx(L"\\d+");
+
+            RegExBytes inputBytes = MakeString(u8"abc 123"sv);
+            wil::unique_bstr formatTemplate(SysAllocString(L"#"));
+
+            wil::unique_bstr output;
+            HRESULT hr = regex->Replace(
+                inputBytes,
+                RegExCodePage_utf8,
+                0,
+                RegExMatchFlag_default,
+                formatTemplate.get(),
+                static_cast<RegExFormatFlags>(0x40000000),
+                output.put());
+            Assert::AreEqual(E_INVALIDARG, hr);
+            Assert::IsNull(output.get());
+        }
+
         TEST_METHOD(Replace_BackReferences)
         {
             // Swap the two captured groups.

@@ -393,11 +393,23 @@ namespace UnicodeRegEx.Tools.Engine
             }
         }
 
-        private SearchResponse ReportHit(in SearchHit hit)
+        private SearchResponse ReportMatch(in SearchHit hit)
         {
             try
             {
-                return sink.OnHit(hit);
+                return sink.OnMatch(hit);
+            }
+            catch (Exception ex)
+            {
+                throw new SinkException(ex);
+            }
+        }
+
+        private ApplyAction ReportApply(in SearchHit hit)
+        {
+            try
+            {
+                return sink.OnApply(hit);
             }
             catch (Exception ex)
             {
@@ -543,6 +555,7 @@ namespace UnicodeRegEx.Tools.Engine
                 var enumerateOptions = new RegExEnumerateOptions
                 {
                     MatchFlags = request.MatchFlags,
+                    FormatFlags = request.FormatFlags,
                     FormatTemplate = request.ReplaceTemplate,
                 };
 
@@ -552,7 +565,7 @@ namespace UnicodeRegEx.Tools.Engine
                     foreach (var match in matches)
                     {
                         var hit = new SearchHit(file, match);
-                        var response = ReportHit(hit);
+                        var response = ReportMatch(hit);
                         matched = true;
 
                         if (response == SearchResponse.StopAll)
@@ -584,6 +597,7 @@ namespace UnicodeRegEx.Tools.Engine
                 var options = new RegExEnumerateOptions
                 {
                     MatchFlags = request.MatchFlags,
+                    FormatFlags = request.FormatFlags,
                     FormatTemplate = request.ReplaceTemplate,
                 };
 
@@ -597,24 +611,44 @@ namespace UnicodeRegEx.Tools.Engine
                     {
                         if (segment.IsMatch)
                         {
-                            // Report the match before writing it, so a StopFile/StopAll response abandons
-                            // the rewrite: we leave the loop without committing, the delete-on-close temp
-                            // is discarded, and the original file is left untouched.
-                            var response = ReportHit(new SearchHit(file, segment.Match));
-                            if (response == SearchResponse.StopAll)
+                            // Ask the sink what to write for this match before writing anything, so a
+                            // StopFile/StopAll abandons the rewrite: we leave the loop without committing,
+                            // the delete-on-close temp is discarded, and the original file is left untouched.
+                            var action = ReportApply(new SearchHit(file, segment.Match));
+                            switch (action.Kind)
                             {
-                                cancellation.Cancel();
-                                stopped = true;
+                                case ApplyActionKind.StopFile:
+                                    stopped = true;
+                                    break;
+
+                                case ApplyActionKind.StopAll:
+                                    cancellation.Cancel();
+                                    stopped = true;
+                                    break;
+
+                                case ApplyActionKind.Default:
+                                    segment.Match.FormatTo(destination, file.CodePage);
+                                    break;
+
+                                case ApplyActionKind.Original:
+                                    segment.CopyTo(destination, file.CodePage);
+                                    break;
+
+                                case ApplyActionKind.Delete:
+                                    // Write nothing for this match.
+                                    break;
+
+                                case ApplyActionKind.Custom:
+                                    // Caller-supplied bytes, written verbatim (the caller owns the encoding).
+                                    destination.Write(action.CustomBytes);
+                                    break;
+                            }
+
+                            if (stopped)
+                            {
                                 break;
                             }
 
-                            if (response == SearchResponse.StopFile)
-                            {
-                                stopped = true;
-                                break;
-                            }
-
-                            segment.Match.FormatTo(destination, file.CodePage);
                             any = true;
                         }
                         else

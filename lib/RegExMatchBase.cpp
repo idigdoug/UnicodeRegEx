@@ -174,6 +174,11 @@ RegExMatchBase::GetSubMatch(UINT32 subMatchIndex, _Out_ RegExSubMatch* pSubMatch
 HRESULT
 RegExMatchBase::SetFormatTemplate(BSTR formatTemplate, RegExFormatFlags formatFlags) noexcept
 {
+    if (!FormatFlagsAreValid(formatFlags))
+    {
+        return E_INVALIDARG;
+    }
+
     HRESULT hr;
 
     try

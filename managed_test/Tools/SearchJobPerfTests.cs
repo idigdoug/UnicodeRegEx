@@ -1,4 +1,4 @@
-namespace UnicodeRegEx.Tests.Tools
+﻿namespace UnicodeRegEx.Tests.Tools
 {
     using System;
     using System.Collections.Generic;
@@ -320,7 +320,7 @@ namespace UnicodeRegEx.Tests.Tools
 
             public int HitCount => Volatile.Read(ref hitCount);
 
-            public override SearchResponse OnHit(in SearchHit hit)
+            public override SearchResponse OnMatch(in SearchHit hit)
             {
                 Interlocked.Increment(ref hitCount);
                 return SearchResponse.Continue;

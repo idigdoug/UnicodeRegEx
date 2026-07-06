@@ -200,8 +200,8 @@ RegEx::Replace(
 {
     *pOutputString = nullptr;
 
-    // Validate the raw match flags before combining with the format flags.
-    if (!MatchFlagsAreValid(matchFlags))
+    // Validate the raw match and format flags before combining them.
+    if (!MatchFlagsAreValid(matchFlags) || !FormatFlagsAreValid(formatFlags))
     {
         return E_INVALIDARG;
     }
@@ -251,8 +251,8 @@ RegEx::ReplaceTo(
         return E_INVALIDARG;
     }
 
-    // Validate the raw match flags before combining with the format flags.
-    if (!MatchFlagsAreValid(matchFlags))
+    // Validate the raw match and format flags before combining them.
+    if (!MatchFlagsAreValid(matchFlags) || !FormatFlagsAreValid(formatFlags))
     {
         return E_INVALIDARG;
     }

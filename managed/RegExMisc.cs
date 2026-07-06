@@ -68,6 +68,24 @@
             inner ?? throw new ObjectDisposedException(GetType().Name);
 
         /// <summary>
+        /// Writes the bytes of <paramref name="bytes"/> to the stream verbatim (no encoding conversion).
+        /// A default or empty segment writes nothing. The interop is done here so callers never touch the
+        /// <see cref="Interop.ISequentialStream"/> type directly (which avoids embedded-interop-type issues
+        /// in other assemblies).
+        /// </summary>
+        public void Write(ArraySegment<byte> bytes)
+        {
+            if (bytes.Count == 0)
+            {
+                return;
+            }
+
+            // RemoteWrite takes a ref to the first byte; passing ref of the segment's element pins it for
+            // the duration of the call, so the offset is honored with no copy.
+            SequentialStream.RemoteWrite(ref bytes.Array![bytes.Offset], (uint)bytes.Count, out _);
+        }
+
+        /// <summary>
         /// If this object has not yet been disposed, calls FinalReleaseComObject.
         /// </summary>
         public void Dispose()

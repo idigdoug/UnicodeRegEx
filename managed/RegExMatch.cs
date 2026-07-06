@@ -80,7 +80,7 @@
         }
 
         /// <summary>
-        /// Sets the format parameters to be used for formatting this match (e.g. in a replacement pattern).
+        /// Sets the format parameters to be used for formatting this match and subsequent matches.
         /// </summary>
         public void SetFormatTemplate(string formatTemplate, RegExFormatFlags formatFlags)
         {

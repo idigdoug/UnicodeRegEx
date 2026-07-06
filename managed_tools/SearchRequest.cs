@@ -67,6 +67,14 @@ namespace UnicodeRegEx.Tools
         /// </summary>
         public RegExMatchFlags MatchFlags { get; set; } = RegExMatchFlags.Default;
 
+        /// <summary>
+        /// Flags controlling how <see cref="ReplaceTemplate"/> is interpreted when replacements are applied
+        /// or previewed (default <see cref="RegExFormatFlags.Perl"/>). A single raw mask handed straight to
+        /// the engine — a front-end ORs the individual flags it wants (e.g. <see cref="RegExFormatFlags.Sed"/>
+        /// for sed replacement syntax). The engine rejects flags it does not support (notably boost's
+        /// whole-template "literal" flag, which is deliberately not exposed — escape the template instead).
+        /// </summary>
+        public RegExFormatFlags FormatFlags { get; set; } = RegExFormatFlags.Perl;
 
         /// <summary>
         /// What to do with a directory encountered during the search — applied uniformly to both
@@ -246,6 +254,7 @@ namespace UnicodeRegEx.Tools
                 Verb = Verb,
                 SyntaxFlags = SyntaxFlags,
                 MatchFlags = MatchFlags,
+                FormatFlags = FormatFlags,
                 Directories = Directories,
                 SkipBinaryFiles = SkipBinaryFiles,
                 EncodingDetection = EncodingDetection,

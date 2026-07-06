@@ -217,6 +217,7 @@ namespace UnicodeRegEx.Tests.Tools
             var original = Valid();
             original.Verb = SearchVerb.Apply;
             original.ReplaceTemplate = "X";
+            original.FormatFlags = RegExFormatFlags.Sed;
 
             var copy = original.Clone();
             copy.Paths.Add("extra");
@@ -225,6 +226,7 @@ namespace UnicodeRegEx.Tests.Tools
             Assert.AreEqual(2, copy.Paths.Count);
             Assert.AreEqual(SearchVerb.Apply, copy.Verb);
             Assert.AreEqual("X", copy.ReplaceTemplate);
+            Assert.AreEqual(RegExFormatFlags.Sed, copy.FormatFlags);
         }
 
         [TestMethod]

@@ -6,18 +6,87 @@ namespace UnicodeRegEx.Tools.Engine
 
     /// <summary>
     /// A sink's response to a callback, letting it steer the run. Applies to <see cref="ISearchSink.OnFile"/>
-    /// and <see cref="ISearchSink.OnHit"/>.
+    /// and <see cref="ISearchSink.OnMatch"/>.
     /// </summary>
     public enum SearchResponse
     {
-        /// <summary>Keep going.</summary>
-        Continue,
-
         /// <summary>Stop processing the current file, but continue with the remaining files.</summary>
         StopFile,
 
         /// <summary>Stop the whole job (equivalent to <see cref="SearchJob.Cancel"/>).</summary>
         StopAll,
+
+        /// <summary>Keep going.</summary>
+        Continue,
+    }
+
+    /// <summary>The kind of action an <see cref="ISearchSink.OnApply"/> callback requests for a match.</summary>
+    public enum ApplyActionKind
+    {
+        /// <summary>Abandon this file's rewrite (the current match is not written; the file is left untouched) and continue with the next file.</summary>
+        StopFile,
+
+        /// <summary>Abandon this file's rewrite and stop the whole run.</summary>
+        StopAll,
+
+        /// <summary>Write the match's formatted replacement (the request's template applied) — the default.</summary>
+        Default,
+
+        /// <summary>Write the matched input unchanged (leave this occurrence as-is).</summary>
+        Original,
+
+        /// <summary>Write nothing for this match (delete the matched text).</summary>
+        Delete,
+
+        /// <summary>Write caller-supplied bytes (a computed replacement); see <see cref="ApplyAction.CustomBytes"/>.</summary>
+        Custom,
+    }
+
+    /// <summary>
+    /// What an <see cref="ISearchSink.OnApply"/> callback tells the engine to do with a match while
+    /// rewriting a file. Use the static members for the fixed actions (<see cref="Default"/>,
+    /// <see cref="Original"/>, <see cref="Delete"/>, <see cref="StopFile"/>, <see cref="StopAll"/>) or
+    /// <see cref="Custom(System.ArraySegment{byte})"/> to supply computed replacement bytes.
+    /// </summary>
+    public readonly struct ApplyAction
+    {
+        private ApplyAction(ApplyActionKind kind, ArraySegment<byte> customBytes)
+        {
+            Kind = kind;
+            CustomBytes = customBytes;
+        }
+
+        /// <summary>The action to take.</summary>
+        public ApplyActionKind Kind { get; }
+
+        /// <summary>
+        /// The bytes to write when <see cref="Kind"/> is <see cref="ApplyActionKind.Custom"/>; written to the
+        /// output file verbatim (no encoding conversion), so the caller is responsible for producing them in
+        /// the file's code page (available via the match/file). A default or empty segment writes nothing.
+        /// Meaningless (and default) for the other kinds.
+        /// </summary>
+        public ArraySegment<byte> CustomBytes { get; }
+
+        /// <summary>Write the match's formatted replacement (the request's template applied).</summary>
+        public static ApplyAction Default { get; } = new ApplyAction(ApplyActionKind.Default, default);
+
+        /// <summary>Write the matched input unchanged.</summary>
+        public static ApplyAction Original { get; } = new ApplyAction(ApplyActionKind.Original, default);
+
+        /// <summary>Write nothing for this match (delete it).</summary>
+        public static ApplyAction Delete { get; } = new ApplyAction(ApplyActionKind.Delete, default);
+
+        /// <summary>Abandon this file's rewrite and continue with the next file.</summary>
+        public static ApplyAction StopFile { get; } = new ApplyAction(ApplyActionKind.StopFile, default);
+
+        /// <summary>Abandon this file's rewrite and stop the whole run.</summary>
+        public static ApplyAction StopAll { get; } = new ApplyAction(ApplyActionKind.StopAll, default);
+
+        /// <summary>
+        /// Write the given bytes for this match (a computed replacement). The bytes are written verbatim; a
+        /// default or empty segment writes nothing (equivalent to <see cref="Delete"/>).
+        /// </summary>
+        public static ApplyAction Custom(ArraySegment<byte> bytes) => new ApplyAction(ApplyActionKind.Custom, bytes);
     }
 
     /// <summary>
@@ -26,7 +95,7 @@ namespace UnicodeRegEx.Tools.Engine
     /// A callback that throws faults the whole job (a thrown sink is treated as a bug, not a per-file error).
     /// <para>
     /// THREADING: the job does not serialize callbacks. A single file's callbacks (<see cref="OnFile"/> →
-    /// its <see cref="OnHit"/>s → <see cref="OnFileComplete"/>) always run on one thread, in order, so no
+    /// its <see cref="OnMatch"/>/<see cref="OnApply"/> calls → <see cref="OnFileComplete"/>) always run on one thread, in order, so no
     /// synchronization is needed for per-file state (carry it via <see cref="SearchFile.Context"/>). Under
     /// <see cref="SearchRequest.MaxDegreeOfParallelism"/> &gt; 1, callbacks for DIFFERENT files may run
     /// concurrently on different threads, so an implementation must make any state it shares across files
@@ -62,11 +131,21 @@ namespace UnicodeRegEx.Tools.Engine
         void OnFileComplete(SearchFile file);
 
         /// <summary>
-        /// A search result (a match) or a replace-preview result (a match and its replacement). Return
+        /// A match found by the <see cref="SearchVerb.Match"/> verb (search). The match's replacement is
+        /// available as a preview via <see cref="SearchHit.Replacement"/>, but nothing is written. Return
         /// <see cref="SearchResponse.StopFile"/> to stop enumerating this file (e.g. after N matches), or
-        /// <see cref="SearchResponse.StopAll"/> to end the run.
+        /// <see cref="SearchResponse.StopAll"/> to end the run. Fires only for the search verb.
         /// </summary>
-        SearchResponse OnHit(in SearchHit hit);
+        SearchResponse OnMatch(in SearchHit hit);
+
+        /// <summary>
+        /// A match found by the <see cref="SearchVerb.Apply"/> verb (rewrite). The returned
+        /// <see cref="ApplyAction"/> tells the engine what to write for this match: the default formatted
+        /// replacement, the original text unchanged, nothing (delete), or caller-supplied bytes (a computed
+        /// replacement) — or to abandon the file's rewrite. The engine owns the crash-safe, atomic,
+        /// encoding-preserving write; the callback only chooses <i>what</i>. Fires only for the apply verb.
+        /// </summary>
+        ApplyAction OnApply(in SearchHit hit);
 
         /// <summary>A file was rewritten in apply mode.</summary>
         void OnFileChanged(string path);
@@ -77,7 +156,7 @@ namespace UnicodeRegEx.Tools.Engine
 
     /// <summary>
     /// A convenience base for <see cref="ISearchSink"/> that implements every callback as an inert default:
-    /// the steering callbacks (<see cref="OnFile"/>, <see cref="OnHit"/>) return
+    /// the steering callbacks (<see cref="OnFile"/>, <see cref="OnMatch"/>, <see cref="OnApply"/>) return
     /// <see cref="SearchResponse.Continue"/> and the notification callbacks do nothing. Derive from it and
     /// override only the callbacks you care about — useful for a sink that, say, only reacts to hits.
     /// </summary>
@@ -99,7 +178,10 @@ namespace UnicodeRegEx.Tools.Engine
         }
 
         /// <inheritdoc/>
-        public virtual SearchResponse OnHit(in SearchHit hit) => SearchResponse.Continue;
+        public virtual SearchResponse OnMatch(in SearchHit hit) => SearchResponse.Continue;
+
+        /// <inheritdoc/>
+        public virtual ApplyAction OnApply(in SearchHit hit) => ApplyAction.Default;
 
         /// <inheritdoc/>
         public virtual void OnFileChanged(string path)
@@ -122,7 +204,7 @@ namespace UnicodeRegEx.Tools.Engine
     /// <see cref="OverrideCodePage"/> and attach arbitrary per-file state via <see cref="Context"/>. Once
     /// <see cref="ISearchSink.OnFile"/> returns, the file is <see cref="IsLocked">locked</see> and
     /// <see cref="OverrideCodePage"/> throws (the code page is consumed to decode the file immediately
-    /// after). The engine invokes <see cref="ISearchSink.OnFile"/>, <see cref="ISearchSink.OnHit"/>, and
+    /// after). The engine invokes <see cref="ISearchSink.OnFile"/>, <see cref="ISearchSink.OnMatch"/>/<see cref="ISearchSink.OnApply"/>, and
     /// <see cref="ISearchSink.OnFileComplete"/> for a given file on the same thread, so a sink needs no
     /// synchronization to thread state through <see cref="Context"/> across them.
     /// </remarks>
@@ -155,7 +237,7 @@ namespace UnicodeRegEx.Tools.Engine
 
         /// <summary>
         /// Arbitrary per-file state a sink may attach (typically during <see cref="ISearchSink.OnFile"/>) to
-        /// carry information forward to the file's <see cref="ISearchSink.OnHit"/> and
+        /// carry information forward to the file's <see cref="ISearchSink.OnMatch"/>/<see cref="ISearchSink.OnApply"/> and
         /// <see cref="ISearchSink.OnFileComplete"/> callbacks. The engine never reads or interprets this;
         /// it is purely a channel for the sink's own use. Not locked — a sink may set it whenever it likes.
         /// </summary>
@@ -206,7 +288,7 @@ namespace UnicodeRegEx.Tools.Engine
     /// </summary>
     /// <remarks>
     /// LIFETIME: a <see cref="SearchHit"/> (and its <see cref="Match"/>) is valid ONLY for the duration
-    /// of the <see cref="ISearchSink.OnHit"/> call that receives it. The match enumerator advances a
+    /// of the <see cref="ISearchSink.OnMatch"/>/<see cref="ISearchSink.OnApply"/> call that receives it. The match enumerator advances a
     /// shared native object on each step, so the match goes stale on the next iteration, and the file's
     /// fileBytes are unmapped when the file finishes. A sink that needs to keep anything (text, offsets,
     /// context fileBytes) must copy it out during the call. Being a <see langword="ref"/> struct, the hit

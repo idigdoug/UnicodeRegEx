@@ -462,6 +462,26 @@ namespace RegExTests
             Assert::IsNull(enumerator.get());
         }
 
+        TEST_METHOD(SetFormatTemplate_RejectsInvalidFormatFlag)
+        {
+            // SetFormatTemplate applies the same format-flag allow-mask; format_literal (not exposed) and
+            // any other unsupported bit are rejected with E_INVALIDARG.
+            auto regex = MakeRegEx(L"a");
+
+            RegExBytes inputBytes = MakeString(u8"a"sv);
+
+            wil::com_ptr<IRegExMatchEnumerator> enumerator;
+            Assert::AreEqual(
+                S_OK,
+                regex->EnumerateMatches(inputBytes, RegExCodePage_utf8, 0, RegExMatchFlag_default, enumerator.put()));
+
+            wil::unique_bstr formatTemplate(SysAllocString(L"#"));
+            HRESULT hr = enumerator->SetFormatTemplate(
+                formatTemplate.get(),
+                static_cast<RegExFormatFlags>(boost::regex_constants::format_literal));
+            Assert::AreEqual(E_INVALIDARG, hr);
+        }
+
         TEST_METHOD(NotBob_SuppressesBufferStartAnchor)
         {
             // match_not_bob (a newly exposed flag) must flow through: \A should not match at the

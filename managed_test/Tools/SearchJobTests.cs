@@ -251,7 +251,7 @@
                 return SearchResponse.Continue;
             }
 
-            public override SearchResponse OnHit(in SearchHit hit)
+            public override SearchResponse OnMatch(in SearchHit hit)
             {
                 HitTexts.Add(hit.Text);
                 HitContexts.Add(hit.File.Context);
@@ -359,7 +359,7 @@
                 return SearchResponse.Continue;
             }
 
-            public override SearchResponse OnHit(in SearchHit hit)
+            public override SearchResponse OnMatch(in SearchHit hit)
             {
                 // The file is locked once OnFile returned; this must throw.
                 hit.File.OverrideCodePage(RegExCodePage.Latin1);
@@ -821,6 +821,121 @@
             Assert.AreEqual(RegExCodePage.Utf8, sink.Files[0].CodePage);
         }
 
+        // Drives OnApply per match with a caller-supplied action. Uses a custom delegate (not Func<,>)
+        // because SearchHit is a ref struct and cannot be a Func type argument.
+        private delegate ApplyAction ApplyDecider(in SearchHit hit);
+
+        private sealed class ApplySink : SearchSinkBase
+        {
+            private readonly ApplyDecider onApply;
+
+            public ApplySink(ApplyDecider onApply) => this.onApply = onApply;
+
+            public override ApplyAction OnApply(in SearchHit hit) => onApply(in hit);
+        }
+
+        private async Task RunApply(string path, string pattern, ApplyDecider onApply)
+        {
+            var request = Request(pattern, path);
+            request.Verb = SearchVerb.Apply;
+            request.ReplaceTemplate = "X"; // the Default action would write this
+            using var job = new SearchJob(request, new ApplySink(onApply));
+            await job.RunAsync();
+            Assert.AreEqual(SearchJobState.Completed, job.State);
+        }
+
+        [TestMethod]
+        public async Task OnApply_Default_WritesFormattedReplacement()
+        {
+            var file = WriteFile("a.txt", "aa bb aa");
+            await RunApply(file, "aa", (in SearchHit _) => ApplyAction.Default);
+            Assert.AreEqual("X bb X", File.ReadAllText(file));
+        }
+
+        [TestMethod]
+        public async Task OnApply_Original_LeavesMatchUnchanged()
+        {
+            var file = WriteFile("a.txt", "aa bb aa");
+            await RunApply(file, "aa", (in SearchHit _) => ApplyAction.Original);
+            Assert.AreEqual("aa bb aa", File.ReadAllText(file));
+        }
+
+        [TestMethod]
+        public async Task OnApply_Delete_RemovesMatch()
+        {
+            var file = WriteFile("a.txt", "aaXbbXaa"); // delete each "X"
+            await RunApply(file, "X", (in SearchHit _) => ApplyAction.Delete);
+            Assert.AreEqual("aabbaa", File.ReadAllText(file));
+        }
+
+        [TestMethod]
+        public async Task OnApply_Custom_WritesComputedBytes()
+        {
+            // Each match is replaced by caller-computed bytes (here the match's own text upper-cased, in the
+            // file's UTF-8 code page). Proves the computed-replacement path end to end.
+            var file = WriteFile("a.txt", "one two one");
+            await RunApply(file, "one", (in SearchHit hit) =>
+            {
+                var bytes = Encoding.UTF8.GetBytes(hit.Text.ToUpperInvariant());
+                return ApplyAction.Custom(new ArraySegment<byte>(bytes));
+            });
+            Assert.AreEqual("ONE two ONE", File.ReadAllText(file));
+        }
+
+        [TestMethod]
+        public async Task OnApply_Mixed_PerMatchDecisions()
+        {
+            // Different action per match, proving OnApply is consulted per match and the choices compose in
+            // the output stream.
+            var file = WriteFile("a.txt", "[a][b][c]");
+            var index = 0;
+            await RunApply(file, "[a-c]", (in SearchHit hit) =>
+            {
+                var i = index++;
+                if (i == 0)
+                {
+                    return ApplyAction.Custom(new ArraySegment<byte>(Encoding.UTF8.GetBytes("1")));
+                }
+
+                return i == 1 ? ApplyAction.Delete : ApplyAction.Original;
+            });
+            // "a" -> "1", "b" -> "" (deleted), "c" -> "c" (unchanged)
+            Assert.AreEqual("[1][][c]", File.ReadAllText(file));
+        }
+
+        [TestMethod]
+        public async Task FormatFlags_Sed_TreatsAmpersandAsWholeMatch()
+        {
+            // In sed replacement syntax '&' means the whole match, so "[&]" wraps each match. This proves
+            // SearchRequest.FormatFlags propagates through to the engine's replace path.
+            var file = WriteFile("a.txt", "abc def");
+            var request = Request("[a-z]+", file);
+            request.Verb = SearchVerb.Apply;
+            request.ReplaceTemplate = "[&]";
+            request.FormatFlags = RegExFormatFlags.Sed;
+            var (_, summary, state) = await RunAsync(request);
+
+            Assert.AreEqual(SearchJobState.Completed, state);
+            Assert.AreEqual(1, summary.FilesChanged);
+            Assert.AreEqual("[abc] [def]", File.ReadAllText(file));
+        }
+
+        [TestMethod]
+        public async Task FormatFlags_DefaultPerl_TreatsAmpersandLiterally()
+        {
+            // The default (Perl) format does not treat '&' specially, so "[&]" is written verbatim --
+            // contrasting FormatFlags_Sed to show the flag actually changes behavior.
+            var file = WriteFile("a.txt", "abc def");
+            var request = Request("[a-z]+", file);
+            request.Verb = SearchVerb.Apply;
+            request.ReplaceTemplate = "[&]";
+            // request.FormatFlags stays RegExFormatFlags.Perl (the default).
+            var (_, _, state) = await RunAsync(request);
+
+            Assert.AreEqual(SearchJobState.Completed, state);
+            Assert.AreEqual("[&] [&]", File.ReadAllText(file));
+        }
+
         [TestMethod]
         public async Task ApplyReplace_NoMatch_LeavesFileUntouched()
         {
@@ -1097,7 +1212,7 @@
         {
             public List<(nuint Begin, nuint Size)> Spans { get; } = new List<(nuint, nuint)>();
 
-            public override SearchResponse OnHit(in SearchHit hit)
+            public override SearchResponse OnMatch(in SearchHit hit)
             {
                 var whole = hit.Match.GetSubMatch(0);
                 Spans.Add((whole.Begin, whole.Size));
@@ -1150,7 +1265,27 @@
                 return onFile?.Invoke(file) ?? SearchResponse.Continue;
             }
 
-            public override SearchResponse OnHit(in SearchHit hit)
+            public override SearchResponse OnMatch(in SearchHit hit)
+            {
+                return Steer(hit);
+            }
+
+            public override ApplyAction OnApply(in SearchHit hit)
+            {
+                // Reuse the same steering logic; map the response onto an apply action (Continue = write the
+                // default replacement, Stop* = abandon the file's rewrite).
+                switch (Steer(hit))
+                {
+                    case SearchResponse.StopFile:
+                        return ApplyAction.StopFile;
+                    case SearchResponse.StopAll:
+                        return ApplyAction.StopAll;
+                    default:
+                        return ApplyAction.Default;
+                }
+            }
+
+            private SearchResponse Steer(in SearchHit hit)
             {
                 if (throwOnHit)
                 {

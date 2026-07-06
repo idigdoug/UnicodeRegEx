@@ -81,3 +81,21 @@ MatchFlagsAreValid(RegExMatchFlags flags) noexcept
 
     return (static_cast<unsigned int>(flags) & ~c_allowedMatchFlags) == 0;
 }
+
+bool
+FormatFlagsAreValid(RegExFormatFlags flags) noexcept
+{
+    // The format flags this library exposes and accepts as input. Anything outside this
+    // mask is rejected rather than passed through to Boost. Kept in sync with the
+    // RegExFormatFlags enum in the IDL. Note: format_perl is 0 (contributes no bits), and
+    // format_literal is deliberately excluded -- a caller that wants a literal replacement
+    // escapes the template (see EscapeFormatLiteralChars) rather than setting a flag.
+    constexpr unsigned int c_allowedFormatFlags =
+        RegExFormatFlag_perl |
+        RegExFormatFlag_sed |
+        RegExFormatFlag_boost_extensions |
+        RegExFormatFlag_no_copy |
+        RegExFormatFlag_first_only;
+
+    return (static_cast<unsigned int>(flags) & ~c_allowedFormatFlags) == 0;
+}
