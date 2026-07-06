@@ -252,6 +252,85 @@ namespace RegExTests
         }
     };
 
+    TEST_CLASS(RegExLibraryFlagValidationTests)
+    {
+    public:
+
+        TEST_METHOD(MatchFlagsAreValid_AcceptsExposedFlags)
+        {
+            auto library = GetLibrary();
+            auto flags = static_cast<RegExMatchFlags>(
+                RegExMatchFlag_not_bol | RegExMatchFlag_not_eol | RegExMatchFlag_any |
+                RegExMatchFlag_not_null | RegExMatchFlag_continuous);
+
+            VARIANT_BOOL valid = VARIANT_FALSE;
+            Assert::AreEqual(S_OK, library->MatchFlagsAreValid(flags, &valid));
+            Assert::AreEqual((int)VARIANT_TRUE, (int)valid);
+        }
+
+        TEST_METHOD(MatchFlagsAreValid_AcceptsDefault)
+        {
+            auto library = GetLibrary();
+            VARIANT_BOOL valid = VARIANT_FALSE;
+            Assert::AreEqual(S_OK, library->MatchFlagsAreValid(RegExMatchFlag_default, &valid));
+            Assert::AreEqual((int)VARIANT_TRUE, (int)valid);
+        }
+
+        TEST_METHOD(MatchFlagsAreValid_RejectsUndefinedBit)
+        {
+            auto library = GetLibrary();
+            // Bit 30 is not an exposed match flag.
+            auto flags = static_cast<RegExMatchFlags>(1u << 30);
+
+            VARIANT_BOOL valid = VARIANT_TRUE;
+            Assert::AreEqual(S_OK, library->MatchFlagsAreValid(flags, &valid));
+            Assert::AreEqual((int)VARIANT_FALSE, (int)valid);
+        }
+
+        TEST_METHOD(MatchFlagsAreValid_NullOut_ReturnsPointer)
+        {
+            auto library = GetLibrary();
+            Assert::AreEqual(E_POINTER, library->MatchFlagsAreValid(RegExMatchFlag_default, nullptr));
+        }
+
+        TEST_METHOD(FormatFlagsAreValid_AcceptsExposedFlags)
+        {
+            auto library = GetLibrary();
+            auto flags = static_cast<RegExFormatFlags>(
+                RegExFormatFlag_sed | RegExFormatFlag_boost_extensions | RegExFormatFlag_no_copy |
+                RegExFormatFlag_first_only);
+
+            VARIANT_BOOL valid = VARIANT_FALSE;
+            Assert::AreEqual(S_OK, library->FormatFlagsAreValid(flags, &valid));
+            Assert::AreEqual((int)VARIANT_TRUE, (int)valid);
+        }
+
+        TEST_METHOD(FormatFlagsAreValid_AcceptsPerlDefault)
+        {
+            auto library = GetLibrary();
+            VARIANT_BOOL valid = VARIANT_FALSE;
+            Assert::AreEqual(S_OK, library->FormatFlagsAreValid(RegExFormatFlag_perl, &valid));
+            Assert::AreEqual((int)VARIANT_TRUE, (int)valid);
+        }
+
+        TEST_METHOD(FormatFlagsAreValid_RejectsUndefinedBit)
+        {
+            auto library = GetLibrary();
+            // Bit 0 is not an exposed format flag (format_literal / other boost bits are rejected too).
+            auto flags = static_cast<RegExFormatFlags>(1u << 0);
+
+            VARIANT_BOOL valid = VARIANT_TRUE;
+            Assert::AreEqual(S_OK, library->FormatFlagsAreValid(flags, &valid));
+            Assert::AreEqual((int)VARIANT_FALSE, (int)valid);
+        }
+
+        TEST_METHOD(FormatFlagsAreValid_NullOut_ReturnsPointer)
+        {
+            auto library = GetLibrary();
+            Assert::AreEqual(E_POINTER, library->FormatFlagsAreValid(RegExFormatFlag_perl, nullptr));
+        }
+    };
+
     TEST_CLASS(RegExMatchEnumeratorQITests)
     {
     public:

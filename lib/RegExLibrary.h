@@ -85,7 +85,17 @@ public:
         _Outptr_ IRegExFileStream** ppStream) noexcept override;
 
     HRESULT STDMETHODCALLTYPE
-    IsCodePageSupported(
+    CodePageIsSupported(
         UINT32 codePage,
         _Out_ VARIANT_BOOL* pSupported) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    MatchFlagsAreValid(
+        RegExMatchFlags flags,
+        _Out_ VARIANT_BOOL* pValid) noexcept override;
+
+    HRESULT STDMETHODCALLTYPE
+    FormatFlagsAreValid(
+        RegExFormatFlags flags,
+        _Out_ VARIANT_BOOL* pValid) noexcept override;
 };

@@ -133,9 +133,31 @@ namespace UnicodeRegEx
         /// values such as CP_ACP (0) are not resolved; resolve them (for example with GetACP)
         /// before calling.
         /// </summary>
-        public static bool IsCodePageSupported(int codePage)
+        public static bool CodePageIsSupported(int codePage)
         {
-            return Library.IsCodePageSupported((uint)codePage);
+            return Library.CodePageIsSupported((uint)codePage);
+        }
+
+        /// <summary>
+        /// Returns true if <paramref name="flags"/> contains only match flags the engine accepts as
+        /// input. Everything outside the exposed <see cref="RegExMatchFlags"/> set is rejected (unused
+        /// bits, format bits, and options the library does not support), so a front-end can validate a
+        /// mask before a run rather than discovering it at match time.
+        /// </summary>
+        public static bool MatchFlagsAreValid(RegExMatchFlags flags)
+        {
+            return Library.MatchFlagsAreValid((Interop.RegExMatchFlags)flags);
+        }
+
+        /// <summary>
+        /// Returns true if <paramref name="flags"/> contains only format bits the engine accepts.
+        /// Everything outside the exposed <see cref="RegExFormatFlags"/> set is rejected (notably
+        /// boost's whole-template "literal" flag, which is not exposed), so a front-end can validate a
+        /// mask before a run rather than discovering it when a replacement is applied.
+        /// </summary>
+        public static bool FormatFlagsAreValid(RegExFormatFlags flags)
+        {
+            return Library.FormatFlagsAreValid((Interop.RegExFormatFlags)flags);
         }
 
         /// <summary>

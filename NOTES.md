@@ -241,11 +241,24 @@ surfacing only:
   documented tradeoff).
 - Syntax + match + format flags: `SearchRequest.SyntaxFlags` / `.MatchFlags` / `.FormatFlags` (single raw
   masks), each validated by a C++ allow-mask (`MatchFlagsAreValid` / `FormatFlagsAreValid` reject bits
-  outside the exposed set at `Replace`/`ReplaceTo`/`SetFormatTemplate`). `FormatFlags` (Perl default; Sed,
+  outside the exposed set at `Replace`/`ReplaceTo`/`SetFormatTemplate`). Those two allow-mask checks are
+  also exposed up the stack -- on COM `IRegExLibrary` and as `RegEx.MatchFlagsAreValid` /
+  `RegEx.FormatFlagsAreValid` (same names at every layer) -- so a front-end can validate a mask before a run
+  (used by `SearchRequest.Validate`). `FormatFlags` (Perl default; Sed,
   BoostExtensions, NoCopy, FirstOnly) controls replacement interpretation and is threaded into both the
   Match-preview and Apply enumerate options. Boost's whole-template `format_literal` is deliberately NOT
   exposed (a caller escapes the template via the escape helpers instead) and is rejected by the allow-mask.
   `ComposeSyntaxFlags`/`SetSyntaxFlags` helpers. Not on the CLI yet (see to-do).
+- Request validation: `SearchRequest.Validate()` returns the list of `SearchRequestProblem`s (empty when
+  valid) and is the single pre-flight gate for a front-end (GUI flow: `ApplySettings` -> `Validate`). It
+  checks pattern/paths presence, resolved code page, the match/format-flag masks (via the `RegEx`
+  validators above), non-negative `MaxDegreeOfParallelism`, and the enum-typed fields
+  (`Verb`/`Directories` via `Enum.IsDefined`; `EncodingDetection` steps against `~All` since it's a
+  `[Flags]` set). It also **compiles the pattern** (with `SyntaxFlags`) purely to check validity --
+  reporting `PatternInvalid` (and capturing the engine's error text for `DescribeProblemForCommandLine`) --
+  and disposes the compiled regex immediately; nothing is cached (no lifetime/staleness concerns). The
+  `SearchJob` still compiles its own regex when it runs, so a request that skipped `Validate()` still faults
+  cleanly on a bad pattern; pre-validating just moves that failure up front.
 - Filters: request holds ordered `FileNameFilters` and `DirectoryFilters` lists (`List<GlobFilter>`);
   `GlobFilterSet` applies last-match-wins, collapsing same-kind runs into one regex each. Filenames use
   grep's default (include unless first filter is an include); directories force default-include (Option B).
@@ -292,4 +305,4 @@ surfacing only:
   out _)` kept inside the wrapper assembly (Tools never touches `Interop.ISequentialStream`, avoiding
   embedded-interop-type/PIA problems). A `SearchHit.Verb` was deliberately NOT added (the verb is implied
   by which callback fired).
-- Tests: 318 managed (+ 1 Perf, category-excluded) + 473 native (lib) passing.
+- Tests: 329 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.

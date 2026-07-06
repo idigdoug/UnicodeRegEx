@@ -157,7 +157,9 @@ namespace UnicodeRegEx.Tools.Engine
             {
                 var syntaxFlags = request.SyntaxFlags;
 
-                // An invalid pattern is a setup failure for the whole run; it faults the task.
+                // Compile the pattern for the run. A front-end can call SearchRequest.Validate() first to
+                // catch an invalid pattern (and the other request problems) up front; if it does not, an
+                // invalid pattern is a setup failure that faults the task here. Disposed at the end of the run.
                 using var regex = RegEx.Create(request.Pattern, syntaxFlags);
 
                 var files = Enumerate();

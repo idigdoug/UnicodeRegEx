@@ -1,5 +1,6 @@
 namespace UnicodeRegEx.Tools
 {
+    using System;
     using System.Collections.Generic;
     using UnicodeRegEx;
 
@@ -18,6 +19,10 @@ namespace UnicodeRegEx.Tools
         // Instance fields go here:
 
         private int defaultCodePage = RegExCodePage.Utf8;
+
+        // The engine's error text from the most recent failed pattern compile in Validate(), used by
+        // DescribeProblemForCommandLine to explain a PatternInvalid problem. Null until a compile fails.
+        private string? lastPatternError;
 
         // Properties with implicit backing fields go here:
 
@@ -85,26 +90,6 @@ namespace UnicodeRegEx.Tools
         public DirectoryDisposition Directories { get; set; } = DirectoryDisposition.Error;
 
         /// <summary>
-        /// Ordered list of filename include/exclude filters applied to the file name of each file found
-        /// by walking a directory (explicitly named files bypass them). Evaluated with grep's rule: the
-        /// last matching filter wins; if none match, a file is included unless the first filter is an
-        /// include. Empty means "all files". Use <see cref="AddIncludeFileGlobs"/> to append a semicolon glob
-        /// list as include filters. Compiled and evaluated by <see cref="GlobFilterSet"/>.
-        /// </summary>
-        public List<GlobFilter> FileNameFilters { get; } = new List<GlobFilter>();
-
-        /// <summary>
-        /// Ordered list of include/exclude filters applied to every directory name encountered — both
-        /// directories named on input and subdirectories discovered while recursing — to decide whether
-        /// it is considered at all. Last matching filter wins; unlike <see cref="FileNameFilters"/>, a
-        /// directory that matches no filter is <b>always included</b> (never defaults to excluded, so a
-        /// leading include cannot silently prune everything). A directory the filters exclude is skipped
-        /// silently, before <see cref="Directories"/> is consulted. Use <see cref="AddExcludeDirGlobs"/>
-        /// for the common exclude case. Compiled and evaluated by <see cref="GlobFilterSet"/>.
-        /// </summary>
-        public List<GlobFilter> DirectoryFilters { get; } = new List<GlobFilter>();
-
-        /// <summary>
         /// When true (the default), files that detection judges to be binary are skipped. Set false to
         /// search them anyway (their <see cref="SearchFile.LooksBinary"/> is still reported, so a caller
         /// that wants different handling — e.g. treat binary as an error — can do so from
@@ -129,6 +114,26 @@ namespace UnicodeRegEx.Tools
         /// </para>
         /// </summary>
         public int MaxDegreeOfParallelism { get; set; } = 1;
+
+        /// <summary>
+        /// Ordered list of filename include/exclude filters applied to the file name of each file found
+        /// by walking a directory (explicitly named files bypass them). Evaluated with grep's rule: the
+        /// last matching filter wins; if none match, a file is included unless the first filter is an
+        /// include. Empty means "all files". Use <see cref="AddIncludeFileGlobs"/> to append a semicolon glob
+        /// list as include filters. Compiled and evaluated by <see cref="GlobFilterSet"/>.
+        /// </summary>
+        public List<GlobFilter> FileNameFilters { get; } = new List<GlobFilter>();
+
+        /// <summary>
+        /// Ordered list of include/exclude filters applied to every directory name encountered — both
+        /// directories named on input and subdirectories discovered while recursing — to decide whether
+        /// it is considered at all. Last matching filter wins; unlike <see cref="FileNameFilters"/>, a
+        /// directory that matches no filter is <b>always included</b> (never defaults to excluded, so a
+        /// leading include cannot silently prune everything). A directory the filters exclude is skipped
+        /// silently, before <see cref="Directories"/> is consulted. Use <see cref="AddExcludeDirGlobs"/>
+        /// for the common exclude case. Compiled and evaluated by <see cref="GlobFilterSet"/>.
+        /// </summary>
+        public List<GlobFilter> DirectoryFilters { get; } = new List<GlobFilter>();
 
         // Pattern and Paths come last since they are positional (not read from SearchSettings).
 
@@ -164,14 +169,9 @@ namespace UnicodeRegEx.Tools
         {
             DefaultCodePage = settings.Encoding.Value;
             // ResolvedDefaultCodePage is updated by the DefaultCodePage setter.
-            // ReplaceTemplate is pure data (empty ≡ null for a BSTR); the verb, not the template, decides
-            // match-vs-apply. The CLI grammar (--apply selects the apply verb; --apply requires --replace)
-            // is validated in SearchSettings.Validate before this mapping runs.
             ReplaceTemplate = settings.Replace.Value ?? string.Empty;
             Verb = settings.Apply.Value ? SearchVerb.Apply : SearchVerb.Match;
             SetSyntaxFlags(settings.Syntax.Value, ignoreCase: settings.IgnoreCase.Value);
-            // grep semantics: -r recurses without following symlinks; without it, a directory argument is
-            // reported ("Is a directory") rather than searched.
             Directories = settings.Recurse.Value ? DirectoryDisposition.RecurseNoLinks : DirectoryDisposition.Error;
             FileNameFilters.Clear();
             AddIncludeFileGlobs(settings.Include.Value);
@@ -262,9 +262,9 @@ namespace UnicodeRegEx.Tools
                 Pattern = Pattern,
             };
 
-            copy.Paths.AddRange(Paths);
             copy.FileNameFilters.AddRange(FileNameFilters);
             copy.DirectoryFilters.AddRange(DirectoryFilters);
+            copy.Paths.AddRange(Paths);
             return copy;
         }
 
@@ -339,6 +339,13 @@ namespace UnicodeRegEx.Tools
         /// Returns the ways in which this request is invalid (empty when valid). A separate query
         /// rather than a constructor guard, so a front-end can bind to the model while it is being
         /// edited and surface problems in its own idiom.
+        /// <para>
+        /// When <see cref="Pattern"/> is non-empty this compiles it (with <see cref="SyntaxFlags"/>) to
+        /// verify it is a valid expression, reporting <see cref="SearchRequestProblem.PatternInvalid"/> if
+        /// not; the compiled regex is discarded (this is a check, nothing is cached). A front-end can call
+        /// this before constructing a <see cref="Engine.SearchJob"/> so an invalid pattern is surfaced up
+        /// front rather than faulting the run.
+        /// </para>
         /// </summary>
         public IReadOnlyList<SearchRequestProblem> Validate()
         {
@@ -346,6 +353,11 @@ namespace UnicodeRegEx.Tools
             if (Pattern.Length == 0)
             {
                 problems.Add(SearchRequestProblem.PatternRequired);
+            }
+            else if (!TryCompilePattern(out var patternError))
+            {
+                lastPatternError = patternError;
+                problems.Add(SearchRequestProblem.PatternInvalid);
             }
 
             if (Paths.Count == 0)
@@ -358,7 +370,60 @@ namespace UnicodeRegEx.Tools
                 problems.Add(SearchRequestProblem.UnsupportedCodePage);
             }
 
+            if (!RegEx.MatchFlagsAreValid(MatchFlags))
+            {
+                problems.Add(SearchRequestProblem.InvalidMatchFlags);
+            }
+
+            if (!RegEx.FormatFlagsAreValid(FormatFlags))
+            {
+                problems.Add(SearchRequestProblem.InvalidFormatFlags);
+            }
+
+            if (MaxDegreeOfParallelism < 0)
+            {
+                problems.Add(SearchRequestProblem.InvalidParallelism);
+            }
+
+            if (!Enum.IsDefined(typeof(SearchVerb), Verb))
+            {
+                problems.Add(SearchRequestProblem.InvalidVerb);
+            }
+
+            if (!Enum.IsDefined(typeof(DirectoryDisposition), Directories))
+            {
+                problems.Add(SearchRequestProblem.InvalidDirectoryDisposition);
+            }
+
+            // EncodingDetection is a [Flags] set, so Enum.IsDefined can't validate a combination; reject
+            // any bit outside the known steps instead.
+            if ((EncodingDetection.Steps & ~EncodingDetectionSteps.All) != 0)
+            {
+                problems.Add(SearchRequestProblem.InvalidEncodingDetection);
+            }
+
             return problems;
+        }
+
+        // Compiles Pattern with SyntaxFlags purely to check validity, disposing the result immediately
+        // (nothing is cached -- see Validate). Returns true if it compiled; otherwise sets nativeMessage to
+        // the engine's error text for DescribeProblemForCommandLine.
+        private bool TryCompilePattern(out string? nativeMessage)
+        {
+            try
+            {
+                using (RegEx.Create(Pattern, SyntaxFlags))
+                {
+                }
+
+                nativeMessage = null;
+                return true;
+            }
+            catch (RegExException ex)
+            {
+                nativeMessage = ex.NativeMessage;
+                return false;
+            }
         }
 
         /// <summary>
@@ -380,9 +445,17 @@ namespace UnicodeRegEx.Tools
             problem switch
             {
                 SearchRequestProblem.PatternRequired => "no pattern given",
+                SearchRequestProblem.PatternInvalid =>
+                    lastPatternError == null ? "invalid pattern" : $"invalid pattern: {lastPatternError}",
                 SearchRequestProblem.PathRequired => "no paths given",
                 SearchRequestProblem.UnsupportedCodePage =>
                     $"unsupported encoding '{CodePages.GetName(ResolvedDefaultCodePage)}'",
+                SearchRequestProblem.InvalidMatchFlags => "invalid match flags",
+                SearchRequestProblem.InvalidFormatFlags => "invalid format flags",
+                SearchRequestProblem.InvalidParallelism => "parallelism must not be negative",
+                SearchRequestProblem.InvalidVerb => "invalid operation",
+                SearchRequestProblem.InvalidDirectoryDisposition => "invalid directory handling",
+                SearchRequestProblem.InvalidEncodingDetection => "invalid encoding-detection steps",
             };
 #pragma warning restore CS8524
     }
@@ -393,11 +466,32 @@ namespace UnicodeRegEx.Tools
         /// <summary>No <see cref="SearchRequest.Pattern"/> was given.</summary>
         PatternRequired,
 
+        /// <summary><see cref="SearchRequest.Pattern"/> is not a valid regular expression for the chosen <see cref="SearchRequest.SyntaxFlags"/>.</summary>
+        PatternInvalid,
+
         /// <summary>No <see cref="SearchRequest.Paths"/> were given.</summary>
         PathRequired,
 
         /// <summary><see cref="SearchRequest.ResolvedDefaultCodePage"/> is not one the engine can decode.</summary>
         UnsupportedCodePage,
+
+        /// <summary><see cref="SearchRequest.MatchFlags"/> contains bits the engine does not accept.</summary>
+        InvalidMatchFlags,
+
+        /// <summary><see cref="SearchRequest.FormatFlags"/> contains bits the engine does not accept.</summary>
+        InvalidFormatFlags,
+
+        /// <summary><see cref="SearchRequest.MaxDegreeOfParallelism"/> is negative.</summary>
+        InvalidParallelism,
+
+        /// <summary><see cref="SearchRequest.Verb"/> is not a defined <see cref="SearchVerb"/> value.</summary>
+        InvalidVerb,
+
+        /// <summary><see cref="SearchRequest.Directories"/> is not a defined <see cref="DirectoryDisposition"/> value.</summary>
+        InvalidDirectoryDisposition,
+
+        /// <summary><see cref="SearchRequest.EncodingDetection"/> selects detection steps that are not defined.</summary>
+        InvalidEncodingDetection,
     }
 
     /// <summary>The operation a <see cref="SearchRequest"/> performs — the engine's two actions.</summary>

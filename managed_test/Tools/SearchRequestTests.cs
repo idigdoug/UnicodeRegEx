@@ -37,6 +37,105 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         [TestMethod]
+        public void Validate_InvalidPattern_ReportsPatternInvalid()
+        {
+            var request = Valid();
+            request.Pattern = "("; // unbalanced group
+
+            var problems = new List<SearchRequestProblem>(request.Validate());
+            CollectionAssert.Contains(problems, SearchRequestProblem.PatternInvalid);
+            // An unparseable pattern is not the same as an absent one.
+            CollectionAssert.DoesNotContain(problems, SearchRequestProblem.PatternRequired);
+        }
+
+        [TestMethod]
+        public void Validate_InvalidPattern_DescribesNativeError()
+        {
+            var request = Valid();
+            request.Pattern = "(";
+            request.Validate();
+
+            // The command-line description surfaces the engine's error text after the "invalid pattern:" prefix.
+            var message = request.DescribeProblemForCommandLine(SearchRequestProblem.PatternInvalid);
+            StringAssert.StartsWith(message, "invalid pattern");
+        }
+
+        [TestMethod]
+        public void Validate_ValidPattern_DoesNotReportPatternInvalid()
+        {
+            var request = Valid();
+            request.Pattern = "a(b|c)*d";
+            CollectionAssert.DoesNotContain(new List<SearchRequestProblem>(request.Validate()), SearchRequestProblem.PatternInvalid);
+        }
+
+        [TestMethod]
+        public void Validate_UnsupportedMatchFlags_ReportsInvalidMatchFlags()
+        {
+            var request = Valid();
+            // A bit outside the exposed RegExMatchFlags set.
+            request.MatchFlags = (RegExMatchFlags)(1 << 30);
+            CollectionAssert.Contains(new List<SearchRequestProblem>(request.Validate()), SearchRequestProblem.InvalidMatchFlags);
+        }
+
+        [TestMethod]
+        public void Validate_UnsupportedFormatFlags_ReportsInvalidFormatFlags()
+        {
+            var request = Valid();
+            // Bit 0 is not an exposed format flag (boost's format_literal and other bits are rejected).
+            request.FormatFlags = (RegExFormatFlags)0x1;
+            CollectionAssert.Contains(new List<SearchRequestProblem>(request.Validate()), SearchRequestProblem.InvalidFormatFlags);
+        }
+
+        [TestMethod]
+        public void Validate_NegativeParallelism_ReportsInvalidParallelism()
+        {
+            var request = Valid();
+            request.MaxDegreeOfParallelism = -1;
+            CollectionAssert.Contains(new List<SearchRequestProblem>(request.Validate()), SearchRequestProblem.InvalidParallelism);
+        }
+
+        [TestMethod]
+        public void Validate_AutoParallelism_IsAllowed()
+        {
+            var request = Valid();
+            request.MaxDegreeOfParallelism = 0; // 0 == automatic
+            CollectionAssert.DoesNotContain(new List<SearchRequestProblem>(request.Validate()), SearchRequestProblem.InvalidParallelism);
+        }
+
+        [TestMethod]
+        public void Validate_UndefinedVerb_ReportsInvalidVerb()
+        {
+            var request = Valid();
+            request.Verb = (SearchVerb)99;
+            CollectionAssert.Contains(new List<SearchRequestProblem>(request.Validate()), SearchRequestProblem.InvalidVerb);
+        }
+
+        [TestMethod]
+        public void Validate_UndefinedDirectoryDisposition_ReportsInvalidDirectoryDisposition()
+        {
+            var request = Valid();
+            request.Directories = (DirectoryDisposition)99;
+            CollectionAssert.Contains(new List<SearchRequestProblem>(request.Validate()), SearchRequestProblem.InvalidDirectoryDisposition);
+        }
+
+        [TestMethod]
+        public void Validate_UndefinedEncodingDetectionStep_ReportsInvalidEncodingDetection()
+        {
+            var request = Valid();
+            // A bit outside EncodingDetectionSteps.All.
+            request.EncodingDetection = new EncodingDetectionOptions((EncodingDetectionSteps)(1 << 20));
+            CollectionAssert.Contains(new List<SearchRequestProblem>(request.Validate()), SearchRequestProblem.InvalidEncodingDetection);
+        }
+
+        [TestMethod]
+        public void Validate_NoneEncodingDetection_IsAllowed()
+        {
+            var request = Valid();
+            request.EncodingDetection = new EncodingDetectionOptions(EncodingDetectionSteps.None);
+            CollectionAssert.DoesNotContain(new List<SearchRequestProblem>(request.Validate()), SearchRequestProblem.InvalidEncodingDetection);
+        }
+
+        [TestMethod]
         public void Settings_ApplyWithoutReplace_ReportsError()
         {
             // The --apply/--replace grammar rule lives in the settings layer now: --apply writes

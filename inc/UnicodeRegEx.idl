@@ -632,9 +632,28 @@ interface IRegExLibrary : IUnknown
     // code page), VARIANT_FALSE otherwise. Special code page values such as CP_ACP (0)
     // are not resolved; resolve them (e.g. via GetACP) before calling.
     HRESULT
-    IsCodePageSupported(
+    CodePageIsSupported(
         [in] UINT32 codePage,
         [out, retval] VARIANT_BOOL* pSupported);
+
+    // Returns pValid = VARIANT_TRUE if flags contains only match flags this library
+    // exposes and accepts as input, VARIANT_FALSE otherwise. The allowed set is the
+    // exposed RegExMatchFlags input bits; everything else is rejected (boost-internal
+    // state, unused bits, format bits, unsupported options, and match_prev_avail, which
+    // the enumerator supplies implicitly). Lets a front-end validate a mask before a run.
+    HRESULT
+    MatchFlagsAreValid(
+        [in] RegExMatchFlags flags,
+        [out, retval] VARIANT_BOOL* pValid);
+
+    // Returns pValid = VARIANT_TRUE if flags contains only format bits this library
+    // exposes and accepts, VARIANT_FALSE otherwise. The allowed set is the exposed
+    // RegExFormatFlags input bits; everything else is rejected, including format_literal
+    // (not exposed -- escape the template instead) and any other boost format bits.
+    HRESULT
+    FormatFlagsAreValid(
+        [in] RegExFormatFlags flags,
+        [out, retval] VARIANT_BOOL* pValid);
 }
 
 cpp_quote("// Constructor for IRegExLibrary factory class. Returned object is free-threaded.")

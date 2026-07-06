@@ -78,7 +78,7 @@ namespace UnicodeRegEx.Tools
         /// Returns true if the engine can decode the given (already-resolved) code page. The CP_ACP
         /// sentinel is not resolved here; resolve it with <see cref="ResolveDefault"/> first.
         /// </summary>
-        public static bool IsSupported(int codePage) => RegEx.IsCodePageSupported(codePage);
+        public static bool IsSupported(int codePage) => RegEx.CodePageIsSupported(codePage);
 
         private static class NativeMethods
         {

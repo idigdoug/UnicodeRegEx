@@ -648,7 +648,7 @@ RegExLibrary::CreateReplacementFileStream(
 }
 
 HRESULT STDMETHODCALLTYPE
-RegExLibrary::IsCodePageSupported(
+RegExLibrary::CodePageIsSupported(
     UINT32 codePage,
     _Out_ VARIANT_BOOL* pSupported) noexcept
 {
@@ -660,5 +660,35 @@ RegExLibrary::IsCodePageSupported(
     *pSupported = VisitEncodingForCodePage(codePage, [](auto&&) noexcept { return true; })
         ? VARIANT_TRUE
         : VARIANT_FALSE;
+    return S_OK;
+}
+
+HRESULT STDMETHODCALLTYPE
+RegExLibrary::MatchFlagsAreValid(
+    RegExMatchFlags flags,
+    _Out_ VARIANT_BOOL* pValid) noexcept
+{
+    if (pValid == nullptr)
+    {
+        return E_POINTER;
+    }
+
+    // Qualified call so it binds to the free function (InputValidation.h), not this method.
+    *pValid = ::MatchFlagsAreValid(flags) ? VARIANT_TRUE : VARIANT_FALSE;
+    return S_OK;
+}
+
+HRESULT STDMETHODCALLTYPE
+RegExLibrary::FormatFlagsAreValid(
+    RegExFormatFlags flags,
+    _Out_ VARIANT_BOOL* pValid) noexcept
+{
+    if (pValid == nullptr)
+    {
+        return E_POINTER;
+    }
+
+    // Qualified call so it binds to the free function (InputValidation.h), not this method.
+    *pValid = ::FormatFlagsAreValid(flags) ? VARIANT_TRUE : VARIANT_FALSE;
     return S_OK;
 }
