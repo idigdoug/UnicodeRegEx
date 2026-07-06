@@ -23,7 +23,7 @@ namespace UnicodeRegEx.Tests.Tools
         public void Syntax_DefaultsToPerl()
         {
             var settings = new SearchSettings();
-            Assert.AreEqual(RegExSyntaxFlags.Perl, settings.Syntax.Value);
+            Assert.AreEqual(RegExSyntaxFlags.Perl, settings.SyntaxFlavor.Value);
         }
 
         [TestMethod]
@@ -34,7 +34,7 @@ namespace UnicodeRegEx.Tests.Tools
         public void Syntax_ShortFlag_SelectsFlavor(string flag, RegExSyntaxFlags expected)
         {
             var settings = Parse(flag, "pattern", "path");
-            Assert.AreEqual(expected, settings.Syntax.Value);
+            Assert.AreEqual(expected, settings.SyntaxFlavor.Value);
         }
 
         [TestMethod]
@@ -45,15 +45,15 @@ namespace UnicodeRegEx.Tests.Tools
         public void Syntax_LongFlag_SelectsFlavor(string flag, RegExSyntaxFlags expected)
         {
             var settings = Parse(flag, "pattern", "path");
-            Assert.AreEqual(expected, settings.Syntax.Value);
+            Assert.AreEqual(expected, settings.SyntaxFlavor.Value);
         }
 
         [TestMethod]
         public void Syntax_ConflictingFlags_LastWins()
         {
-            Assert.AreEqual(RegExSyntaxFlags.Perl, Parse("-F", "-P", "p", "x").Syntax.Value);
-            Assert.AreEqual(RegExSyntaxFlags.Literal, Parse("-P", "-F", "p", "x").Syntax.Value);
-            Assert.AreEqual(RegExSyntaxFlags.Basic, Parse("-E", "-F", "-G", "p", "x").Syntax.Value);
+            Assert.AreEqual(RegExSyntaxFlags.Perl, Parse("-F", "-P", "p", "x").SyntaxFlavor.Value);
+            Assert.AreEqual(RegExSyntaxFlags.Literal, Parse("-P", "-F", "p", "x").SyntaxFlavor.Value);
+            Assert.AreEqual(RegExSyntaxFlags.Basic, Parse("-E", "-F", "-G", "p", "x").SyntaxFlavor.Value);
         }
 
         [TestMethod]
@@ -66,22 +66,22 @@ namespace UnicodeRegEx.Tests.Tools
             var result = CommandLine.Parse(new[] { "-F", "mypattern", "mypath" }, settings, errors);
 
             CollectionAssert.AreEqual(new List<string>(), errors);
-            Assert.AreEqual(RegExSyntaxFlags.Literal, settings.Syntax.Value);
+            Assert.AreEqual(RegExSyntaxFlags.Literal, settings.SyntaxFlavor.Value);
             CollectionAssert.AreEqual(new List<string> { "mypattern", "mypath" }, result.Positionals);
         }
 
         [TestMethod]
         public void Syntax_CanonicalLongName_IsNotACommandLineToken()
         {
-            // The canonical config key "syntax" is not itself a CLI flag.
+            // The canonical config key "syntax-flavor" is not itself a CLI flag.
             var settings = new SearchSettings();
             var errors = new List<string>();
-            CommandLine.Parse(new[] { "--syntax", "extended", "p", "x" }, settings, errors);
+            CommandLine.Parse(new[] { "--syntax-flavor", "extended", "p", "x" }, settings, errors);
 
             Assert.AreEqual(1, errors.Count);
-            StringAssert.Contains(errors[0], "--syntax");
+            StringAssert.Contains(errors[0], "--syntax-flavor");
             // Unrecognized: flavor stays at the default.
-            Assert.AreEqual(RegExSyntaxFlags.Perl, settings.Syntax.Value);
+            Assert.AreEqual(RegExSyntaxFlags.Perl, settings.SyntaxFlavor.Value);
         }
 
         [TestMethod]
@@ -95,11 +95,11 @@ namespace UnicodeRegEx.Tests.Tools
             // Simulates the config layer (AppConfigSource) overlaying syntax=<name> by long name.
             var settings = new SearchSettings();
             var errors = new List<string>();
-            var overlay = new[] { new KeyValuePair<string, string?>("syntax", name) };
+            var overlay = new[] { new KeyValuePair<string, string?>("syntax-flavor", name) };
             settings.ApplyOverlay(overlay, "config", errors);
 
             CollectionAssert.AreEqual(new List<string>(), errors);
-            Assert.AreEqual(expected, settings.Syntax.Value);
+            Assert.AreEqual(expected, settings.SyntaxFlavor.Value);
         }
 
         [TestMethod]
@@ -107,7 +107,7 @@ namespace UnicodeRegEx.Tests.Tools
         {
             var settings = new SearchSettings();
             var errors = new List<string>();
-            var overlay = new[] { new KeyValuePair<string, string?>("syntax", "nonsense") };
+            var overlay = new[] { new KeyValuePair<string, string?>("syntax-flavor", "nonsense") };
             settings.ApplyOverlay(overlay, "config", errors);
 
             Assert.AreEqual(1, errors.Count);
@@ -125,6 +125,21 @@ namespace UnicodeRegEx.Tests.Tools
             StringAssert.Contains(help, "-P, --perl-regexp");
             // The default flavor line is marked.
             StringAssert.Contains(help, "Perl/ECMAScript-compatible regular expressions. [default]");
+        }
+
+        [TestMethod]
+        public void Help_RendersCategorySectionHeaders()
+        {
+            var help = HelpFormatter.Format("usage: test", new SearchSettings());
+
+            StringAssert.Contains(help, "Matching:");
+            StringAssert.Contains(help, "Replacement:");
+            StringAssert.Contains(help, "Files:");
+            StringAssert.Contains(help, "Encoding:");
+            // Sections appear in category (enum) order.
+            Assert.IsTrue(help.IndexOf("Matching:") < help.IndexOf("Replacement:"));
+            Assert.IsTrue(help.IndexOf("Replacement:") < help.IndexOf("Files:"));
+            Assert.IsTrue(help.IndexOf("Files:") < help.IndexOf("Encoding:"));
         }
     }
 }

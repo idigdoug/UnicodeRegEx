@@ -12,8 +12,44 @@ namespace UnicodeRegEx.Tools.Settings
     public abstract class SettingGroup
     {
         private Setting[]? settings;
+        private SettingCategoryView[]? groupedSettings;
 
         public IReadOnlyList<Setting> Settings => settings ??= Collect();
+
+        /// <summary>
+        /// The settings grouped into titled sections for presentation (help, GUI property page), ordered
+        /// by <see cref="SettingCategory"/> (enum order); settings within a section keep declaration
+        /// order. Categories with no settings are omitted.
+        /// </summary>
+        public IReadOnlyList<SettingCategoryView> GroupedSettings => groupedSettings ??= GroupByCategory();
+
+        private SettingCategoryView[] GroupByCategory()
+        {
+            // Bucket by category preserving each category's declaration order, then emit categories in
+            // enum order (skipping empties).
+            var byCategory = new Dictionary<SettingCategory, List<Setting>>();
+            foreach (var setting in Settings)
+            {
+                if (!byCategory.TryGetValue(setting.Category, out var list))
+                {
+                    list = new List<Setting>();
+                    byCategory[setting.Category] = list;
+                }
+
+                list.Add(setting);
+            }
+
+            var views = new List<SettingCategoryView>();
+            foreach (SettingCategory category in Enum.GetValues(typeof(SettingCategory)))
+            {
+                if (byCategory.TryGetValue(category, out var list))
+                {
+                    views.Add(new SettingCategoryView(category, list));
+                }
+            }
+
+            return views.ToArray();
+        }
 
         /// <summary>
         /// Applies a set of name-&gt;value settings (from a config file, environment, etc.) onto the
@@ -54,8 +90,13 @@ namespace UnicodeRegEx.Tools.Settings
 
         private Setting[] Collect()
         {
+            // Order by metadata token so the flat list is deterministic (reflection field order is not
+            // guaranteed by the CLR); this token ordering closely tracks declaration order.
+            var fields = new List<FieldInfo>(GetType().GetFields(BindingFlags.Public | BindingFlags.Instance));
+            fields.Sort((a, b) => a.MetadataToken.CompareTo(b.MetadataToken));
+
             var result = new List<Setting>();
-            foreach (var field in GetType().GetFields(BindingFlags.Public | BindingFlags.Instance))
+            foreach (var field in fields)
             {
                 if (field.GetValue(this) is Setting setting)
                 {
@@ -65,5 +106,27 @@ namespace UnicodeRegEx.Tools.Settings
 
             return result.ToArray();
         }
+    }
+
+    /// <summary>
+    /// A titled section of settings for presentation (help sections, GUI property-page groups): a
+    /// <see cref="SettingCategory"/> and the settings under it, in declaration order.
+    /// </summary>
+    public readonly struct SettingCategoryView
+    {
+        public SettingCategoryView(SettingCategory category, IReadOnlyList<Setting> settings)
+        {
+            Category = category;
+            Settings = settings;
+        }
+
+        /// <summary>The category this section represents.</summary>
+        public SettingCategory Category { get; }
+
+        /// <summary>The section title (from <see cref="SettingCategories.DisplayName"/>).</summary>
+        public string Title => SettingCategories.DisplayName(Category);
+
+        /// <summary>The settings in this category, in declaration order.</summary>
+        public IReadOnlyList<Setting> Settings { get; }
     }
 }

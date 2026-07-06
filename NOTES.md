@@ -311,7 +311,31 @@ surfacing only:
   `PathRequired`→Paths). Filter lists use `GlobListSetting` (appending `Apply`, kind from the binding `Tag`,
   `ToDisplayString` for MRU/GUI/help, not a CLI round-trip). `Setting.Apply` takes the matched
   `CommandLineBinding` so a multi-binding setting knows which alias fired; `HelpFormatter` renders one line
-  per binding.
+  per binding. Naming convention: a setting's root `LongName` is its **persistence key and GUI property-page
+  label**, so it must be meaningful and unambiguous *independent of the CLI* — it is not itself a CLI token
+  when the setting overrides its bindings (a `ChoiceSetting`/`GlobListSetting`). Hence
+  `file-name-filters`/`directory-filters` (CLI: `--include`/`--exclude`/`--exclude-dir`) and `syntax-flavor`
+  (CLI: `-E`/`-G`/`-P`/`-F`). A missing-value error names the alias the user typed (`binding.LongName`), not
+  the root.
+- Property-page surface on `Setting` (Bucket A, lean/single-dialog): alongside the string-based CLI/config
+  path (`Apply`/`DefaultText`), each setting has a typed, observable surface a property-page dialog binds to:
+  `object? GetValue()` / `bool TrySetValue(object?, out error)` (accepts the setting's own type *or* a
+  string, no-throw on bad input), `object? DefaultValue` + `IsDefault` + `Reset()`, an
+  `event EventHandler ValueChanged` (raised on change via either `Apply` or `TrySetValue`; each setting is
+  one value so no property name), and an `EditorKind` hint (`Toggle`/`Choice`/`Text`/`Integer`/`List`) so
+  the dialog picks a control without inspecting the runtime type (e.g. `Encoding` declares `Integer`). The
+  dialog decides visibility by filtering on `Role` (`Preference` shown); there is no visibility member.
+  `GlobListSetting` opts out: `EditorKind.List`, `GetValue`/`TrySetValue` throw `NotSupportedException` (it
+  is `WorkingState`, edited via `Filters`/the primary UI, never on the property page). Adding a future
+  scalar setting just declares its `EditorKind` and inherits the rest, so it is GUI-ready on arrival.
+- Setting grouping (`SettingCategory`): every `Setting` declares a `SettingCategory` (enum: `Matching`,
+  `Replacement`, `Files`, `Encoding`; extensible) alongside its `Role`. `SettingGroup` exposes
+  `GroupedSettings` (an ordered `SettingCategoryView { Category, Title, Settings }` list) built by bucketing
+  the flat `Settings` by category, emitting categories in enum order and omitting empties; settings within a
+  section keep declaration order. Declaration order itself is now pinned deterministically by sorting
+  `Collect()` on `FieldInfo.MetadataToken` (reflection field order is unspecified by the CLR). `--help`
+  renders one `Title:` section per category (blank line + title, then the options); the GUI property page
+  will use the same grouping filtered by `Role`. Titles come from `SettingCategories.DisplayName`.
 - Per-verb callbacks + computed replacement: `ISearchSink.OnHit` was split into **`OnMatch`**
   (search verb; returns `SearchResponse` to steer -- Continue/StopFile/StopAll -- nothing is written) and
   **`OnApply`** (apply verb; returns an **`ApplyAction`** that decides what to write for each match). An
@@ -327,4 +351,4 @@ surfacing only:
   out _)` kept inside the wrapper assembly (Tools never touches `Interop.ISequentialStream`, avoiding
   embedded-interop-type/PIA problems). A `SearchHit.Verb` was deliberately NOT added (the verb is implied
   by which callback fired).
-- Tests: 336 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.
+- Tests: 361 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.

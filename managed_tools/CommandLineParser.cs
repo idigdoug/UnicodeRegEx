@@ -138,7 +138,10 @@ namespace UnicodeRegEx.Tools
                     }
                     else
                     {
-                        errors.Add($"--{option.LongName} requires a value");
+                        // Report the alias the user actually typed (a setting may have several bindings, e.g.
+                        // a filter list bound to both --include and --exclude); fall back to the setting's own
+                        // name only for a short-only binding.
+                        errors.Add($"--{binding.LongName ?? option.LongName} requires a value");
                         return;
                     }
                 }
@@ -164,41 +167,51 @@ namespace UnicodeRegEx.Tools
         {
             var sb = new StringBuilder();
             sb.AppendLine(usage);
-            sb.AppendLine();
-            sb.AppendLine("Options:");
 
-            foreach (var option in settingGroup.Settings)
+            foreach (var section in settingGroup.GroupedSettings)
             {
-                if (option is IChoiceSetting choiceSetting)
+                sb.AppendLine();
+                sb.AppendLine($"{section.Title}:");
+                foreach (var option in section.Settings)
                 {
-                    foreach (var choice in choiceSetting.Choices)
-                    {
-                        var isDefault = ReferenceEquals(choice, choiceSetting.DefaultChoice);
-                        var note = isDefault ? $"{choice.Description} [default]" : choice.Description;
-                        sb.AppendLine(FormatOption(choice.ShortName, choice.LongName, null, note, null));
-                    }
-                }
-                else
-                {
-                    // A setting may expose several aliases (e.g. a filter list bound to both --include and
-                    // --exclude); render one line per binding so every alias is discoverable. The default is
-                    // shown only on the first line to avoid repetition.
-                    var first = true;
-                    foreach (var binding in option.CommandLineBindings)
-                    {
-                        sb.AppendLine(FormatOption(
-                            binding.ShortName,
-                            binding.LongName,
-                            option.ValueName,
-                            option.Description,
-                            first ? option.DefaultText : null));
-                        first = false;
-                    }
+                    AppendOption(sb, option);
                 }
             }
 
+            sb.AppendLine();
+            sb.AppendLine("General:");
             sb.Append(FormatOption('h', "help", null, "Show this help and exit.", null));
             return sb.ToString();
+        }
+
+        private static void AppendOption(StringBuilder sb, Setting option)
+        {
+            if (option is IChoiceSetting choiceSetting)
+            {
+                foreach (var choice in choiceSetting.Choices)
+                {
+                    var isDefault = ReferenceEquals(choice, choiceSetting.DefaultChoice);
+                    var note = isDefault ? $"{choice.Description} [default]" : choice.Description;
+                    sb.AppendLine(FormatOption(choice.ShortName, choice.LongName, null, note, null));
+                }
+            }
+            else
+            {
+                // A setting may expose several aliases (e.g. a filter list bound to both --include and
+                // --exclude); render one line per binding so every alias is discoverable. The default is
+                // shown only on the first line to avoid repetition.
+                var first = true;
+                foreach (var binding in option.CommandLineBindings)
+                {
+                    sb.AppendLine(FormatOption(
+                        binding.ShortName,
+                        binding.LongName,
+                        option.ValueName,
+                        option.Description,
+                        first ? option.DefaultText : null));
+                    first = false;
+                }
+            }
         }
 
         private static string FormatOption(char? shortName, string? longName, string? valueName, string description, string? defaultText)

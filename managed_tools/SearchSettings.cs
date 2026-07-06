@@ -28,22 +28,26 @@ namespace UnicodeRegEx.Tools
 
         public readonly ValueSetting<string> Replace = new ValueSetting<string>(
             SettingRole.WorkingState,
+            SettingCategory.Replacement,
             "replace",
             null,
             "template",
             "Replace matches using this template (preview unless --apply).",
             defaultValue: "",
+            editorKind: EditorKind.Text,
             parse: value => value);
 
         public readonly FlagSetting Apply = new FlagSetting(
             SettingRole.WorkingState,
+            SettingCategory.Replacement,
             "apply",
             null,
             "Write replacements to files in place (default: preview only).");
 
         public readonly GlobListSetting FileNameFilters = new GlobListSetting(
             SettingRole.WorkingState,
-            "include",
+            SettingCategory.Files,
+            "file-name-filters",
             null,
             "glob",
             "Only search files whose name matches this glob (repeatable; e.g. --include *.cs). Use --exclude to skip names. Explicitly named files are always searched.",
@@ -56,37 +60,47 @@ namespace UnicodeRegEx.Tools
 
         public readonly GlobListSetting DirectoryFilters = new GlobListSetting(
             SettingRole.WorkingState,
-            "exclude-dir",
+            SettingCategory.Files,
+            "directory-filters",
             null,
             "glob",
             "Do not recurse into directories whose name matches this glob (repeatable; e.g. --exclude-dir bin).",
-            primaryKind: FilterKind.Exclude);
+            primaryKind: FilterKind.Exclude,
+            bindings: new[]
+            {
+                new CommandLineBinding("exclude-dir", null, null, FilterKind.Exclude),
+            });
 
         public readonly FlagSetting IgnoreCase = new FlagSetting(
             SettingRole.Preference,
+            SettingCategory.Matching,
             "ignore-case",
             'i',
             "Match without regard to case.");
 
         public readonly ValueSetting<int> Encoding = new ValueSetting<int>(
             SettingRole.Preference,
+            SettingCategory.Encoding,
             "encoding",
             null,
             "codepage",
             "Default code page for files without a byte-order mark (utf8 | acp | <number>).",
             defaultValue: RegExCodePage.Utf8,
+            editorKind: EditorKind.Integer,
             parse: ParseCodePage,
             describe: CodePages.GetName);
 
         public readonly FlagSetting Recurse = new FlagSetting(
             SettingRole.Preference,
+            SettingCategory.Files,
             "recurse",
             'r',
             "Search directories recursively (default: report a directory argument as an error).");
 
-        public readonly ChoiceSetting<RegExSyntaxFlags> Syntax = new ChoiceSetting<RegExSyntaxFlags>(
+        public readonly ChoiceSetting<RegExSyntaxFlags> SyntaxFlavor = new ChoiceSetting<RegExSyntaxFlags>(
             SettingRole.Preference,
-            "syntax",
+            SettingCategory.Matching,
+            "syntax-flavor",
             "Regular-expression syntax flavor.",
             defaultValue: RegExSyntaxFlags.Perl,
             choices: new[]
@@ -115,7 +129,7 @@ namespace UnicodeRegEx.Tools
                 Pattern = Pattern,
             };
 
-            request.SetSyntaxFlags(Syntax.Value, ignoreCase: IgnoreCase.Value);
+            request.SetSyntaxFlags(SyntaxFlavor.Value, ignoreCase: IgnoreCase.Value);
 
             // The filter settings already carry ordered GlobFilter lists (include/exclude interleaved in
             // encounter order); copy them across verbatim.

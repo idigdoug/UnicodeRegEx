@@ -12,11 +12,11 @@ namespace UnicodeRegEx.Tests.Tools
         private sealed class SampleGroup : SettingGroup
         {
             public readonly FlagSetting Verbose = new FlagSetting(
-                SettingRole.Preference, "verbose", 'v', "Verbose output.");
+                SettingRole.Preference, SettingCategory.Matching, "verbose", 'v', "Verbose output.");
 
             public readonly ValueSetting<int> Count = new ValueSetting<int>(
-                SettingRole.WorkingState, "count", null, "n", "How many.",
-                defaultValue: 1, parse: int.Parse);
+                SettingRole.WorkingState, SettingCategory.Files, "count", null, "n", "How many.",
+                defaultValue: 1, editorKind: EditorKind.Integer, parse: int.Parse);
         }
 
         private static List<KeyValuePair<string, string?>> Overlay(params (string Key, string? Value)[] pairs)
@@ -123,6 +123,49 @@ namespace UnicodeRegEx.Tests.Tools
         {
             var group = new SampleGroup();
             Assert.AreSame(group.Settings, group.Settings);
+        }
+
+        [TestMethod]
+        public void GroupedSettings_GroupsByCategory_InEnumOrder_OmittingEmpty()
+        {
+            var group = new SampleGroup();
+            var grouped = group.GroupedSettings;
+
+            // SampleGroup has Verbose (Matching) then Count (Files); Replacement/Encoding are empty.
+            Assert.AreEqual(2, grouped.Count);
+            Assert.AreEqual(SettingCategory.Matching, grouped[0].Category);
+            Assert.AreEqual(SettingCategory.Files, grouped[1].Category);
+            Assert.AreSame(group.Verbose, grouped[0].Settings[0]);
+            Assert.AreSame(group.Count, grouped[1].Settings[0]);
+        }
+
+        [TestMethod]
+        public void GroupedSettings_Title_ComesFromDisplayName()
+        {
+            var grouped = new SampleGroup().GroupedSettings;
+            Assert.AreEqual("Matching", grouped[0].Title);
+            Assert.AreEqual("Files", grouped[1].Title);
+        }
+
+        [TestMethod]
+        public void GroupedSettings_AreCachedAcrossCalls()
+        {
+            var group = new SampleGroup();
+            Assert.AreSame(group.GroupedSettings, group.GroupedSettings);
+        }
+
+        [TestMethod]
+        public void GroupedSettings_ContainSameSettingsAsFlatList()
+        {
+            var group = new SampleGroup();
+            var flat = new List<Setting>(group.Settings);
+            var fromGroups = new List<Setting>();
+            foreach (var section in group.GroupedSettings)
+            {
+                fromGroups.AddRange(section.Settings);
+            }
+
+            CollectionAssert.AreEquivalent(flat, fromGroups);
         }
     }
 }

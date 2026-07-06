@@ -324,6 +324,20 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         [TestMethod]
+        public void MissingValue_ForAlias_NamesTheAliasTyped()
+        {
+            // --exclude is one of several bindings on the file-name-filters setting; a missing value must
+            // name the alias the user typed, not the setting's canonical long name.
+            var settings = new SearchSettings();
+            var errors = new List<string>();
+            CommandLine.Parse(new[] { "p", "x", "--exclude" }, settings, errors);
+
+            Assert.AreEqual(1, errors.Count);
+            StringAssert.Contains(errors[0], "--exclude");
+            Assert.IsFalse(errors[0].Contains("file-name-filters"));
+        }
+
+        [TestMethod]
         public void SearchSettings_Validate_ValidSettings_HasNoProblems()
         {
             var settings = new SearchSettings { Pattern = "x" };

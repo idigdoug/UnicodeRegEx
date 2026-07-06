@@ -37,13 +37,14 @@ namespace UnicodeRegEx.Tools
         /// </summary>
         public GlobListSetting(
             SettingRole role,
+            SettingCategory category,
             string longName,
             char? shortName,
             string valueName,
             string description,
             FilterKind primaryKind,
             IReadOnlyList<CommandLineBinding>? bindings = null)
-            : base(role, longName, shortName, valueName, description)
+            : base(role, category, longName, shortName, valueName, description)
         {
             PrimaryKind = primaryKind;
             this.bindings = bindings ?? new[] { new CommandLineBinding(longName, shortName, null, primaryKind) };
@@ -59,6 +60,19 @@ namespace UnicodeRegEx.Tools
 
         // The default is an empty list.
         public override string DefaultText => "(none)";
+
+        // Property-page opt-out: a glob list is WorkingState (never shown on the property page) and is a
+        // list, not a scalar. It is edited via Filters (or the primary UI) directly, so the scalar
+        // typed-value surface is not supported.
+        public override EditorKind EditorKind => EditorKind.List;
+
+        public override object? DefaultValue => null;
+
+        public override object? GetValue() =>
+            throw new NotSupportedException($"{nameof(GlobListSetting)} is edited via {nameof(Filters)}, not the scalar value surface.");
+
+        public override bool TrySetValue(object? value, out string? error) =>
+            throw new NotSupportedException($"{nameof(GlobListSetting)} is edited via {nameof(Filters)}, not the scalar value surface.");
 
         public override void Apply(string? value, CommandLineBinding binding)
         {
