@@ -136,30 +136,6 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         [TestMethod]
-        public void Settings_ApplyWithoutReplace_ReportsError()
-        {
-            // The --apply/--replace grammar rule lives in the settings layer now: --apply writes
-            // replacements, so it needs --replace to have supplied a template.
-            var settings = new SearchSettings();
-            var errors = new List<string>();
-            CommandLine.Parse(new[] { "--apply", "p", "x" }, settings, errors);
-            settings.Validate(errors);
-
-            CollectionAssert.Contains(errors, "--apply requires --replace");
-        }
-
-        [TestMethod]
-        public void Settings_ApplyWithReplace_IsAllowed()
-        {
-            var settings = new SearchSettings();
-            var errors = new List<string>();
-            CommandLine.Parse(new[] { "--apply", "--replace", "X", "p", "x" }, settings, errors);
-            settings.Validate(errors);
-
-            CollectionAssert.AreEqual(new List<string>(), errors);
-        }
-
-        [TestMethod]
         public void Verb_IsExplicit_NotDerivedFromTemplate()
         {
             // The verb is the single authority on match-vs-apply; the template is pure data. A non-empty
@@ -300,6 +276,81 @@ namespace UnicodeRegEx.Tests.Tools
                 new[] { "bin", "obj" },
                 request.DirectoryFilters.ConvertAll(f => f.Glob));
             Assert.IsTrue(request.DirectoryFilters.TrueForAll(f => f.Kind == FilterKind.Exclude));
+        }
+
+        [TestMethod]
+        public void ApplySettings_IncludeAndExclude_InterleaveInEncounterOrder()
+        {
+            // --include and --exclude feed one ordered file-name filter list; order (which drives
+            // last-match-wins) must follow the command line, and each entry keeps its own kind.
+            var settings = new SearchSettings();
+            var errors = new List<string>();
+            CommandLine.Parse(new[] { "--include", "*.cs", "--exclude", "*.g.cs", "--include", "*.txt", "p", "x" }, settings, errors);
+            CollectionAssert.AreEqual(new List<string>(), errors);
+
+            var request = new SearchRequest();
+            request.ApplySettings(settings);
+
+            Assert.AreEqual(3, request.FileNameFilters.Count);
+            CollectionAssert.AreEqual(
+                new[] { "*.cs", "*.g.cs", "*.txt" },
+                request.FileNameFilters.ConvertAll(f => f.Glob));
+            CollectionAssert.AreEqual(
+                new[] { FilterKind.Include, FilterKind.Exclude, FilterKind.Include },
+                request.FileNameFilters.ConvertAll(f => f.Kind));
+        }
+
+        [TestMethod]
+        public void ApplySettings_ExcludeDir_BecomesExcludeDirectoryFilters()
+        {
+            var settings = new SearchSettings();
+            var errors = new List<string>();
+            CommandLine.Parse(new[] { "--exclude-dir", "bin", "--exclude-dir", "obj", "p", "x" }, settings, errors);
+            CollectionAssert.AreEqual(new List<string>(), errors);
+
+            var request = new SearchRequest();
+            request.ApplySettings(settings);
+
+            Assert.AreEqual(0, request.FileNameFilters.Count);
+            CollectionAssert.AreEqual(
+                new[] { "bin", "obj" },
+                request.DirectoryFilters.ConvertAll(f => f.Glob));
+            Assert.IsTrue(request.DirectoryFilters.TrueForAll(f => f.Kind == FilterKind.Exclude));
+        }
+
+        [TestMethod]
+        public void GlobListSetting_Apply_Accumulates()
+        {
+            // A repeated option accumulates rather than replacing.
+            var settings = new SearchSettings();
+            var errors = new List<string>();
+            CommandLine.Parse(new[] { "--include", "*.cs", "--include", "*.h", "p", "x" }, settings, errors);
+
+            CollectionAssert.AreEqual(
+                new[] { "*.cs", "*.h" },
+                new List<string>(new List<GlobFilter>(settings.FileNameFilters.Filters).ConvertAll(f => f.Glob)));
+        }
+
+        [TestMethod]
+        public void SearchSettings_Validate_ValidSettings_HasNoProblems()
+        {
+            var settings = new SearchSettings();
+            Assert.AreEqual(0, settings.Validate().Count);
+        }
+
+        [TestMethod]
+        public void SearchSettings_Validate_BadEncoding_HighlightsEncodingSetting()
+        {
+            var settings = new SearchSettings();
+            var errors = new List<string>();
+            CommandLine.Parse(new[] { "--encoding", "99999999", "p", "x" }, settings, errors);
+            // The encoding parses to an unsupported code page (not a parse error), surfaced by Validate.
+            CollectionAssert.AreEqual(new List<string>(), errors);
+
+            var problems = settings.Validate();
+            Assert.AreEqual(1, problems.Count);
+            Assert.AreEqual(SearchRequestProblem.UnsupportedCodePage, problems[0].Problem);
+            Assert.AreSame(settings.Encoding, problems[0].Setting);
         }
 
         [TestMethod]

@@ -43,7 +43,7 @@ namespace UnicodeRegEx.Tools.Settings
 
                 try
                 {
-                    setting.Apply(value.Value);
+                    setting.Apply(value.Value, setting.DefaultBinding);
                 }
                 catch (Exception ex)
                 {

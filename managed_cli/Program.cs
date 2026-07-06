@@ -25,7 +25,6 @@ Search files (default) or preview/apply replacements with a Unicode-aware regex.
                 var settings = new SearchSettings();
                 AppConfigSource.Apply(settings, errors);
                 var commandLineParse = CommandLine.Parse(args, settings, errors);
-                settings.Validate(errors); // cross-flag grammar (e.g. --apply requires --replace)
 
                 if (commandLineParse.HelpRequested)
                 {
@@ -67,7 +66,7 @@ Search files (default) or preview/apply replacements with a Unicode-aware regex.
                 // Only the settings layer knows whether a replacement argument was actually supplied
                 // (--replace); the request's ReplaceTemplate is coerced to "" and can't distinguish
                 // "no --replace" from "--replace with an empty template".
-                using var job = new SearchJob(request, new ConsoleSink(showReplacement: settings.Replace.Value != null));
+                using var job = new SearchJob(request, new ConsoleSink(showReplacement: settings.Replace.Value.Length > 0));
                 Console.CancelKeyPress += (_, e) =>
                 {
                     e.Cancel = true;

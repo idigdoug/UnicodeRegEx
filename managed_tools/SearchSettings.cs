@@ -12,13 +12,13 @@ namespace UnicodeRegEx.Tools
     /// </summary>
     public sealed class SearchSettings : SettingGroup
     {
-        public readonly ValueSetting<string?> Replace = new ValueSetting<string?>(
+        public readonly ValueSetting<string> Replace = new ValueSetting<string>(
             SettingRole.WorkingState,
             "replace",
             null,
             "template",
             "Replace matches using this template (preview unless --apply).",
-            defaultValue: null,
+            defaultValue: "",
             parse: value => value);
 
         public readonly FlagSetting Apply = new FlagSetting(
@@ -27,14 +27,26 @@ namespace UnicodeRegEx.Tools
             null,
             "Write replacements to files in place (default: preview only).");
 
-        public readonly ValueSetting<string?> Include = new ValueSetting<string?>(
+        public readonly GlobListSetting FileNameFilters = new GlobListSetting(
             SettingRole.WorkingState,
             "include",
             null,
             "glob",
-            "Only search files whose name matches this glob list (e.g. *.cs;*.txt). Explicitly named files are always searched.",
-            defaultValue: null,
-            parse: value => value);
+            "Only search files whose name matches this glob (repeatable; e.g. --include *.cs). Use --exclude to skip names. Explicitly named files are always searched.",
+            primaryKind: FilterKind.Include,
+            bindings: new[]
+            {
+                new CommandLineBinding("include", null, null, FilterKind.Include),
+                new CommandLineBinding("exclude", null, null, FilterKind.Exclude),
+            });
+
+        public readonly GlobListSetting DirectoryFilters = new GlobListSetting(
+            SettingRole.WorkingState,
+            "exclude-dir",
+            null,
+            "glob",
+            "Do not recurse into directories whose name matches this glob (repeatable; e.g. --exclude-dir bin).",
+            primaryKind: FilterKind.Exclude);
 
         public readonly FlagSetting IgnoreCase = new FlagSetting(
             SettingRole.Preference,
@@ -72,18 +84,48 @@ namespace UnicodeRegEx.Tools
             });
 
         /// <summary>
-        /// Validates cross-setting combinations that no single setting can catch, appending a message for
-        /// each violation to <paramref name="errors"/> (using the command line's flag vocabulary). This is
-        /// where the interaction between the replacement settings lives: <c>--apply</c> writes replacements,
-        /// so it requires <c>--replace</c> to have supplied a template. <see cref="SearchRequest"/> has no
-        /// equivalent invalid state to validate — its <see cref="SearchRequest.Verb"/> and non-null
-        /// <see cref="SearchRequest.ReplaceTemplate"/> cannot represent "apply without a template".
+        /// Validates the settings by mapping them onto a <see cref="SearchRequest"/> and running its
+        /// validation, returning one <see cref="SettingProblem"/> per problem that a setting is responsible
+        /// for (so a front-end can highlight the offending control). Encapsulates the
+        /// apply-then-validate-then-map steps so a caller does not repeat them.
+        /// <para>
+        /// Only problems attributable to a setting are returned. Problems rooted in the primary-UI inputs
+        /// that are not settings — the pattern and the paths (<see cref="SearchRequest.Pattern"/> /
+        /// <see cref="SearchRequest.Paths"/>) — are the front-end's own responsibility to validate against
+        /// the real request and are intentionally omitted here (this method applies no pattern or paths).
+        /// </para>
         /// </summary>
-        public void Validate(List<string> errors)
+        public IReadOnlyList<SettingProblem> Validate()
         {
-            if (Apply.Value && Replace.Value == null)
+            var request = new SearchRequest();
+            request.ApplySettings(this);
+
+            var problems = new List<SettingProblem>();
+            foreach (var problem in request.Validate())
             {
-                errors.Add("--apply requires --replace");
+                var setting = SettingFor(problem);
+                if (setting != null)
+                {
+                    problems.Add(new SettingProblem(problem, setting, request.DescribeProblemForCommandLine(problem)));
+                }
+            }
+
+            return problems;
+        }
+
+        // Maps a request-level problem back to the setting that produced it, or null when no setting is
+        // responsible (e.g. the pattern/paths, which are primary-UI inputs, or problems a setting value can
+        // never cause such as an out-of-range Verb/Directories built from a bool). Extend as settings that
+        // can carry an invalid value are added.
+        private Setting? SettingFor(SearchRequestProblem problem)
+        {
+            switch (problem)
+            {
+                case SearchRequestProblem.UnsupportedCodePage:
+                    return Encoding;
+
+                default:
+                    return null;
             }
         }
 
@@ -91,5 +133,29 @@ namespace UnicodeRegEx.Tools
             CodePages.TryParse(spec, out var codePage)
                 ? codePage
                 : throw new FormatException($"unknown encoding '{spec}'");
+    }
+
+    /// <summary>
+    /// A validation problem discovered by <see cref="SearchSettings.Validate"/>, pairing the underlying
+    /// <see cref="SearchRequestProblem"/> with the <see cref="Settings.Setting"/> a front-end should
+    /// highlight and a human-readable message.
+    /// </summary>
+    public readonly struct SettingProblem
+    {
+        public SettingProblem(SearchRequestProblem problem, Setting setting, string message)
+        {
+            Problem = problem;
+            Setting = setting;
+            Message = message;
+        }
+
+        /// <summary>The underlying request-level problem.</summary>
+        public SearchRequestProblem Problem { get; }
+
+        /// <summary>The setting responsible for the problem (the control a front-end should flag).</summary>
+        public Setting Setting { get; }
+
+        /// <summary>A human-readable description of the problem.</summary>
+        public string Message { get; }
     }
 }

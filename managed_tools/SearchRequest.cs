@@ -48,10 +48,9 @@ namespace UnicodeRegEx.Tools
         /// <see cref="SearchVerb.Match"/> (find and report matches) and <see cref="SearchVerb.Apply"/>
         /// (write replacements to files). Set explicitly by each front-end from its own idiom (the CLI from
         /// whether <c>--apply</c> was given; a GUI from a mode control); it is never inferred from
-        /// <see cref="ReplaceTemplate"/>. The rule that an apply needs a replacement template is a front-end
-        /// concern (see <see cref="SearchSettings.Validate"/>), not a property of this model — an
-        /// <see cref="SearchVerb.Apply"/> with an empty template is well-defined (it replaces each match with
-        /// nothing).
+        /// <see cref="ReplaceTemplate"/>. The two are independent: an <see cref="SearchVerb.Apply"/> with an
+        /// empty template is well-defined (it replaces each match with nothing), so this model has no invalid
+        /// verb/template combination to guard.
         /// </summary>
         public SearchVerb Verb { get; set; } = SearchVerb.Match;
 
@@ -169,12 +168,17 @@ namespace UnicodeRegEx.Tools
         {
             DefaultCodePage = settings.Encoding.Value;
             // ResolvedDefaultCodePage is updated by the DefaultCodePage setter.
-            ReplaceTemplate = settings.Replace.Value ?? string.Empty;
+            ReplaceTemplate = settings.Replace.Value;
             Verb = settings.Apply.Value ? SearchVerb.Apply : SearchVerb.Match;
             SetSyntaxFlags(settings.Syntax.Value, ignoreCase: settings.IgnoreCase.Value);
             Directories = settings.Recurse.Value ? DirectoryDisposition.RecurseNoLinks : DirectoryDisposition.Error;
+
+            // The filter settings already carry ordered GlobFilter lists (include/exclude interleaved in
+            // encounter order); copy them across verbatim.
             FileNameFilters.Clear();
-            AddIncludeFileGlobs(settings.Include.Value);
+            FileNameFilters.AddRange(settings.FileNameFilters.Filters);
+            DirectoryFilters.Clear();
+            DirectoryFilters.AddRange(settings.DirectoryFilters.Filters);
         }
 
         /// <summary>

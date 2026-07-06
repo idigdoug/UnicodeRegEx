@@ -63,9 +63,12 @@ match flags, and ordered filters.
 - Engine gets an **ordered list of filename filters**, each `{ Include | Exclude, glob }`.
 - **Directory filters are a SEPARATE list** (exclude-dir) — relative ordering between filename filters
   and directory filters is meaningless (different names), so they do not interleave.
-- **Ordering lives in the request model (an ordered list), NOT the settings system** — sidesteps the
-  "settings are last-wins" limitation. The parser appends entries in encounter order (a small, contained
-  parser capability), like building a positional list.
+- **Ordering is preserved through the whole stack.** The request model holds the ordered list; the
+  settings layer now carries it too via `GlobListSetting` (a list-valued `Setting` whose `Apply`
+  *appends*), so several `--include`/`--exclude` occurrences accumulate in encounter order rather than
+  last-wins. The command-line parser appends one entry per occurrence, tagging each with its kind from the
+  matching binding (a `--include` binding tagged Include, `--exclude` tagged Exclude — both feed one
+  `GlobListSetting`). `ApplySettings` copies the ordered list across verbatim.
 
 #### Exact filename-filter rule (from the grep docs — order IS significant)
 grep: *"If contradictory --include and --exclude options are given, the last matching one wins. If no
@@ -161,7 +164,7 @@ Locked-in facts:
 ### Line terminators / binary edges
 - **Binary handling is a fact + one convenience bool, not a policy enum.** Detection reports the fact
   (`SearchFile.LooksBinary`); the engine applies a single mechanical gate driven by
-  `SearchRequest.SkipBinaryFiles` (default **true**, consistent with `Include`/`Recurse` as "common
+  `SearchRequest.SkipBinaryFiles` (default **true**, consistent with `Recurse` as "common
   policy as config"). Set it false to search binary files anyway (still reported as `LooksBinary`, so a
   sink wanting other handling can act from `OnFile`). The old `BinaryFileDisposition { Skip/Error/Search }`
   is **gone**: its `Error` case was a smell — a "binary file" error with **no exception** behind it,
@@ -192,8 +195,6 @@ surfacing only:
   The `Syntax` flavor choice + `-i` are already wired via `ChoiceSetting`/`CommandLineBinding` and folded in
   by `ApplySettings` (`-E`/`-G`/`-P`/`-F`, `-i`).
 - CLI exposure of detection toggles + `--binary-files`/`SkipBinaryFiles` (advanced options / GUI checkboxes).
-- CLI `--exclude` / `--exclude-dir` wiring (the request-side ordered filter lists are done; the CLI still
-  exposes only `--include`).
 
 ## Status snapshot
 
@@ -262,8 +263,9 @@ surfacing only:
 - Filters: request holds ordered `FileNameFilters` and `DirectoryFilters` lists (`List<GlobFilter>`);
   `GlobFilterSet` applies last-match-wins, collapsing same-kind runs into one regex each. Filenames use
   grep's default (include unless first filter is an include); directories force default-include (Option B).
-  Filters apply to roots and discovered dirs alike (roots not special). Named files bypass. CLI still
-  exposes only `--include` (→ all-Include filters); CLI `--exclude` / `--exclude-dir` not yet wired.
+  Filters apply to roots and discovered dirs alike (roots not special). Named files bypass. On the CLI,
+  `--include`/`--exclude` (file names) and `--exclude-dir` (directories) each **append** one ordered entry
+  (repeatable, interleaved in encounter order), backed by `GlobListSetting`s in `SearchSettings`.
 - Directories: `DirectoryDisposition` (Error default / Skip / ReadImmediateFiles / RecurseNoLinks /
   RecurseWithLinks) replaced the `Recurse` bool. Error reports `IOException("Is a directory")`.
   RecurseNoLinks skips *name-surrogate* reparse-point dirs (real links); RecurseWithLinks follows them with
@@ -285,11 +287,24 @@ surfacing only:
   never by `ReplaceTemplate` null-ness (which is gone: `ReplaceTemplate` is now a non-null `string`,
   defaulting to `""`, since it is passed as a BSTR where empty ≡ null) and never by a separate flag (the old
   `Apply` bool was deleted). `SearchHit.Replacement` is always non-null (empty template formats to `""`), so
-  there is no preview special-case. The `--apply`/`--replace` grammar (apply needs a supplied template)
-  lives in `SearchSettings.Validate` (CLI phase-1 errors); `SearchRequest.Validate` no longer has an
-  `ApplyRequiresReplace` problem (the model can't represent the invalid state). `ApplySettings` maps
+  there is no preview special-case. `Verb` and `ReplaceTemplate` are independent (an apply with an empty
+  template deletes matches), so there is no invalid combination to validate. `ApplySettings` maps
   `--apply` → `Verb`, `--replace` → `ReplaceTemplate`. The CLI shows `=>` based on `settings.Replace.Value
   != null` (only settings knows whether `--replace` was supplied).
+- Settings model (`SearchSettings` : `SettingGroup`): the shared, front-end-neutral options model, intended
+  as the **GUI's model** (CLI/config are secondary consumers). Settings are public fields discovered by
+  reflection; each has a `SettingRole`. `Preference` = persisted the normal (preference-store) way ⇒ shows
+  on the GUI's auto-generated advanced property page; `WorkingState` = not persisted that way (transient
+  launch intent *or* MRU-remembered inputs like the filter lists) ⇒ stays off the advanced page (the
+  primary UI, which is hand-drawn, owns those). Placement thus falls out of the role; the primary UI needs
+  no marker because it is manual. Validation is encapsulated in `SearchSettings.Validate()`, which builds a
+  throwaway `SearchRequest`, runs `ApplySettings` + `request.Validate()`, and maps each
+  `SearchRequestProblem` back to the responsible `Setting` (returning `SettingProblem { Problem, Setting,
+  Message }` so a GUI can flag the control). Today only `UnsupportedCodePage → Encoding` maps to a setting;
+  Pattern/Paths problems have no setting (they are primary-UI inputs) and are omitted. Filter lists use
+  `GlobListSetting` (appending `Apply`, kind from the binding `Tag`, `ToDisplayString` for MRU/GUI/help, not
+  a CLI round-trip). `Setting.Apply` takes the matched `CommandLineBinding` so a multi-binding setting knows
+  which alias fired; `HelpFormatter` renders one line per binding.
 - Per-verb callbacks + computed replacement: `ISearchSink.OnHit` was split into **`OnMatch`**
   (search verb; returns `SearchResponse` to steer -- Continue/StopFile/StopAll -- nothing is written) and
   **`OnApply`** (apply verb; returns an **`ApplyAction`** that decides what to write for each match). An
@@ -305,4 +320,4 @@ surfacing only:
   out _)` kept inside the wrapper assembly (Tools never touches `Interop.ISequentialStream`, avoiding
   embedded-interop-type/PIA problems). A `SearchHit.Verb` was deliberately NOT added (the verb is implied
   by which callback fired).
-- Tests: 329 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.
+- Tests: 332 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.

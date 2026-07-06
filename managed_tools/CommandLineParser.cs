@@ -32,20 +32,20 @@ namespace UnicodeRegEx.Tools
         {
             var positionals = new List<string>();
 
-            var byLong = new Dictionary<string, (Setting Setting, string? ImpliedValue)>(StringComparer.OrdinalIgnoreCase);
-            var byShort = new Dictionary<char, (Setting Setting, string? ImpliedValue)>();
+            var byLong = new Dictionary<string, (Setting Setting, CommandLineBinding Binding)>(StringComparer.OrdinalIgnoreCase);
+            var byShort = new Dictionary<char, (Setting Setting, CommandLineBinding Binding)>();
             foreach (var option in settingGroup.Settings)
             {
                 foreach (var binding in option.CommandLineBindings)
                 {
                     if (binding.LongName is string longName)
                     {
-                        byLong[longName] = (option, binding.ImpliedValue);
+                        byLong[longName] = (option, binding);
                     }
 
                     if (binding.ShortName is char shortName)
                     {
-                        byShort[shortName] = (option, binding.ImpliedValue);
+                        byShort[shortName] = (option, binding);
                     }
                 }
             }
@@ -73,7 +73,7 @@ namespace UnicodeRegEx.Tools
                 }
 
                 Setting option;
-                string? impliedValue;
+                CommandLineBinding binding;
                 string? inlineValue;
                 if (arg.StartsWith("--", StringComparison.Ordinal))
                 {
@@ -96,7 +96,7 @@ namespace UnicodeRegEx.Tools
                     }
 
                     option = entry.Setting;
-                    impliedValue = entry.ImpliedValue;
+                    binding = entry.Binding;
                 }
                 else
                 {
@@ -109,23 +109,23 @@ namespace UnicodeRegEx.Tools
                     }
 
                     option = entry.Setting;
-                    impliedValue = entry.ImpliedValue;
+                    binding = entry.Binding;
                 }
 
-                Apply(option, impliedValue, inlineValue, args, ref i, errors);
+                Apply(option, binding, inlineValue, args, ref i, errors);
             }
 
             return new CommandLineParseResult(false, positionals);
         }
 
-        private static void Apply(Setting option, string? impliedValue, string? inlineValue, string[] args, ref int i, List<string> errors)
+        private static void Apply(Setting option, CommandLineBinding binding, string? inlineValue, string[] args, ref int i, List<string> errors)
         {
             string? value;
-            if (impliedValue != null)
+            if (binding.ImpliedValue != null)
             {
                 // A valueless, value-implying token (e.g. a choice flag like -E): the value is fixed by
                 // the binding; do not consume the next argument or an inline value.
-                value = impliedValue;
+                value = binding.ImpliedValue;
             }
             else
             {
@@ -146,7 +146,7 @@ namespace UnicodeRegEx.Tools
 
             try
             {
-                option.Apply(value);
+                option.Apply(value, binding);
             }
             catch (Exception ex)
             {
@@ -180,7 +180,20 @@ namespace UnicodeRegEx.Tools
                 }
                 else
                 {
-                    sb.AppendLine(FormatOption(option.ShortName, option.LongName, option.ValueName, option.Description, option.DefaultText));
+                    // A setting may expose several aliases (e.g. a filter list bound to both --include and
+                    // --exclude); render one line per binding so every alias is discoverable. The default is
+                    // shown only on the first line to avoid repetition.
+                    var first = true;
+                    foreach (var binding in option.CommandLineBindings)
+                    {
+                        sb.AppendLine(FormatOption(
+                            binding.ShortName,
+                            binding.LongName,
+                            option.ValueName,
+                            option.Description,
+                            first ? option.DefaultText : null));
+                        first = false;
+                    }
                 }
             }
 

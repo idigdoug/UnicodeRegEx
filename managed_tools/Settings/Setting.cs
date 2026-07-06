@@ -11,11 +11,12 @@ namespace UnicodeRegEx.Tools.Settings
     /// </summary>
     public readonly struct CommandLineBinding
     {
-        public CommandLineBinding(string? longName, char? shortName, string? impliedValue)
+        public CommandLineBinding(string? longName, char? shortName, string? impliedValue, object? tag = null)
         {
             LongName = longName;
             ShortName = shortName;
             ImpliedValue = impliedValue;
+            Tag = tag;
         }
 
         /// <summary>The --long-name this binding responds to, without dashes; null if short-only.</summary>
@@ -30,6 +31,14 @@ namespace UnicodeRegEx.Tools.Settings
         /// value/flag rules.
         /// </summary>
         public string? ImpliedValue { get; }
+
+        /// <summary>
+        /// Opaque per-binding data the owning setting interprets, passed back to
+        /// <see cref="Setting.Apply"/> so a setting with several bindings can tell which one fired without
+        /// the framework knowing the domain meaning (e.g. a filter-list setting tags its --include binding
+        /// vs its --exclude binding). Null for settings that need no such distinction.
+        /// </summary>
+        public object? Tag { get; }
     }
 
     /// <summary>
@@ -98,10 +107,15 @@ namespace UnicodeRegEx.Tools.Settings
         public abstract string DefaultText { get; }
 
         /// <summary>
-        /// Applies a parsed override. <paramref name="value"/> is null for flags. Throws
-        /// <see cref="FormatException"/> if the value cannot be parsed.
+        /// Applies a parsed override. <paramref name="value"/> is null for flags. <paramref name="binding"/>
+        /// is the command-line binding that matched (or a synthesized default from an overlay source), so a
+        /// multi-binding setting can consult <see cref="CommandLineBinding.Tag"/>; most settings ignore it.
+        /// Throws <see cref="FormatException"/> if the value cannot be parsed.
         /// </summary>
-        public abstract void Apply(string? value);
+        public abstract void Apply(string? value, CommandLineBinding binding);
+
+        /// <summary>The synthesized binding used when applying from a source with no command-line binding (e.g. a config overlay): the setting's own long/short name, no implied value or tag.</summary>
+        public CommandLineBinding DefaultBinding => new CommandLineBinding(LongName, ShortName, null);
     }
 
     /// <summary>A boolean flag: absent leaves the default (false), present sets it true.</summary>
@@ -118,7 +132,7 @@ namespace UnicodeRegEx.Tools.Settings
 
         // A bare flag (null value, e.g. command-line "-i") sets true; an explicit value
         // (e.g. config "false" or "--ignore-case=false") is parsed as a boolean.
-        public override void Apply(string? value) => Value = value == null || ParseBool(value);
+        public override void Apply(string? value, CommandLineBinding binding) => Value = value == null || ParseBool(value);
 
         private bool ParseBool(string value)
         {
@@ -168,7 +182,7 @@ namespace UnicodeRegEx.Tools.Settings
 
         public override string DefaultText => describe(defaultValue);
 
-        public override void Apply(string? value)
+        public override void Apply(string? value, CommandLineBinding binding)
         {
             if (value == null)
             {
@@ -305,7 +319,7 @@ namespace UnicodeRegEx.Tools.Settings
         public override string DefaultText => defaultChoice.Name;
 
         // Applies a choice by its canonical name (from config or a flag's implied value).
-        public override void Apply(string? value)
+        public override void Apply(string? value, CommandLineBinding binding)
         {
             foreach (var choice in choices)
             {
