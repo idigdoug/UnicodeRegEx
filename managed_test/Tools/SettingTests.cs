@@ -98,20 +98,20 @@ namespace UnicodeRegEx.Tests.Tools
             var s = new SearchSettings().Encoding;
             Assert.IsFalse(s.TrySetValue("not-a-codepage", out var error));
             Assert.IsNotNull(error);
-            Assert.AreEqual(RegExCodePage.Utf8, s.GetValue());
+            Assert.AreEqual(RegExCodePage.Latin1, s.GetValue());
         }
 
         [TestMethod]
         public void Value_Default_And_Reset()
         {
             var s = new SearchSettings().Encoding;
-            Assert.AreEqual(RegExCodePage.Utf8, s.DefaultValue);
+            Assert.AreEqual(RegExCodePage.Latin1, s.DefaultValue);
             Assert.IsTrue(s.IsDefault);
-            s.TrySetValue(RegExCodePage.Latin1, out _);
+            s.TrySetValue(RegExCodePage.Utf8, out _);
             Assert.IsFalse(s.IsDefault);
             s.Reset();
             Assert.IsTrue(s.IsDefault);
-            Assert.AreEqual(RegExCodePage.Utf8, s.GetValue());
+            Assert.AreEqual(RegExCodePage.Latin1, s.GetValue());
         }
 
         // CHOICE SETTING

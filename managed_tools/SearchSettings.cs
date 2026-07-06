@@ -79,7 +79,7 @@ namespace UnicodeRegEx.Tools
             "file-name-filters",
             null,
             "glob",
-            "Only search files whose name matches this glob (repeatable; e.g. --include *.cs). Use --exclude to skip names. Explicitly named files are always searched.",
+            "Only search files whose name matches this glob (e.g. --include *.cs). Repeatable. Use --exclude to skip names. Explicitly named files are always searched.",
             primaryKind: FilterKind.Include,
             bindings: new[]
             {
@@ -93,7 +93,7 @@ namespace UnicodeRegEx.Tools
             "directory-filters",
             null,
             "glob",
-            "Do not recurse into directories whose name matches this glob (repeatable; e.g. --exclude-dir bin).",
+            "Do not recurse into directories whose name matches this glob (e.g. --exclude-dir .*). Repeatable.",
             primaryKind: FilterKind.Exclude,
             bindings: new[]
             {
@@ -115,8 +115,8 @@ namespace UnicodeRegEx.Tools
             "encoding",
             null,
             "codepage",
-            "Default code page for files without a byte-order mark (utf8 | acp | <number>).",
-            defaultValue: RegExCodePage.Utf8,
+            "Text encoding to use for files where encoding was not automatically detected. Can be utf8, utf16, utf16be, latin1, or <win32-codepage-number>.",
+            defaultValue: RegExCodePage.Latin1,
             editorKind: EditorKind.Integer,
             parse: ParseCodePage,
             describe: CodePages.GetName);
