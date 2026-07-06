@@ -26,13 +26,40 @@ namespace UnicodeRegEx.Tools
         /// </summary>
         public List<string> Paths { get; } = new List<string>();
 
+        // Pattern Syntax
+
+        public readonly ChoiceSetting<RegExSyntaxFlags> SyntaxFlavor = new ChoiceSetting<RegExSyntaxFlags>(
+            SettingRole.Preference,
+            SettingCategory.PatternSyntax,
+            "syntax-flavor",
+            "Regular-expression syntax flavor.",
+            defaultValue: RegExSyntaxFlags.Perl,
+            choices: new[]
+            {
+                new Choice<RegExSyntaxFlags>(RegExSyntaxFlags.Perl, "perl", 'P', "perl-regexp", "Perl/ECMAScript-compatible regular expressions."),
+                new Choice<RegExSyntaxFlags>(RegExSyntaxFlags.Literal, "fixed", 'F', "fixed-strings", "Fixed strings: the pattern is matched literally."),
+                new Choice<RegExSyntaxFlags>(RegExSyntaxFlags.Basic, "basic", 'G', "basic-regexp", "POSIX basic regular expressions (BRE)."),
+                new Choice<RegExSyntaxFlags>(RegExSyntaxFlags.Extended, "extended", 'E', "extended-regexp", "POSIX extended regular expressions (ERE)."),
+            });
+
+        // Matching
+
+        public readonly FlagSetting IgnoreCase = new FlagSetting(
+            SettingRole.Preference,
+            SettingCategory.Matching,
+            "ignore-case",
+            'i',
+            "Match without regard to case.");
+
+        // Replacement
+
         public readonly ValueSetting<string> Replace = new ValueSetting<string>(
             SettingRole.WorkingState,
             SettingCategory.Replacement,
             "replace",
             null,
             "template",
-            "Replace matches using this template (preview unless --apply).",
+            "Replace matches using this template (preview-only unless --apply).",
             defaultValue: "",
             editorKind: EditorKind.Text,
             parse: value => value);
@@ -42,11 +69,13 @@ namespace UnicodeRegEx.Tools
             SettingCategory.Replacement,
             "apply",
             null,
-            "Write replacements to files in place (default: preview only).");
+            "Write replacements to files.");
+
+        // File and Directory Selection
 
         public readonly GlobListSetting FileNameFilters = new GlobListSetting(
             SettingRole.WorkingState,
-            SettingCategory.Files,
+            SettingCategory.FileAndDirectorySelection,
             "file-name-filters",
             null,
             "glob",
@@ -60,7 +89,7 @@ namespace UnicodeRegEx.Tools
 
         public readonly GlobListSetting DirectoryFilters = new GlobListSetting(
             SettingRole.WorkingState,
-            SettingCategory.Files,
+            SettingCategory.FileAndDirectorySelection,
             "directory-filters",
             null,
             "glob",
@@ -71,12 +100,14 @@ namespace UnicodeRegEx.Tools
                 new CommandLineBinding("exclude-dir", null, null, FilterKind.Exclude),
             });
 
-        public readonly FlagSetting IgnoreCase = new FlagSetting(
+        public readonly FlagSetting Recurse = new FlagSetting(
             SettingRole.Preference,
-            SettingCategory.Matching,
-            "ignore-case",
-            'i',
-            "Match without regard to case.");
+            SettingCategory.FileAndDirectorySelection,
+            "recurse",
+            'r',
+            "Search directories recursively.");
+
+        // Encoding
 
         public readonly ValueSetting<int> Encoding = new ValueSetting<int>(
             SettingRole.Preference,
@@ -89,27 +120,6 @@ namespace UnicodeRegEx.Tools
             editorKind: EditorKind.Integer,
             parse: ParseCodePage,
             describe: CodePages.GetName);
-
-        public readonly FlagSetting Recurse = new FlagSetting(
-            SettingRole.Preference,
-            SettingCategory.Files,
-            "recurse",
-            'r',
-            "Search directories recursively (default: report a directory argument as an error).");
-
-        public readonly ChoiceSetting<RegExSyntaxFlags> SyntaxFlavor = new ChoiceSetting<RegExSyntaxFlags>(
-            SettingRole.Preference,
-            SettingCategory.Matching,
-            "syntax-flavor",
-            "Regular-expression syntax flavor.",
-            defaultValue: RegExSyntaxFlags.Perl,
-            choices: new[]
-            {
-                new Choice<RegExSyntaxFlags>(RegExSyntaxFlags.Extended, "extended", 'E', "extended-regexp", "POSIX extended regular expressions (ERE)."),
-                new Choice<RegExSyntaxFlags>(RegExSyntaxFlags.Literal, "fixed", 'F', "fixed-strings", "Fixed strings: the pattern is matched literally."),
-                new Choice<RegExSyntaxFlags>(RegExSyntaxFlags.Basic, "basic", 'G', "basic-regexp", "POSIX basic regular expressions (BRE)."),
-                new Choice<RegExSyntaxFlags>(RegExSyntaxFlags.Perl, "perl", 'P', "perl-regexp", "Perl/ECMAScript-compatible regular expressions."),
-            });
 
         /// <summary>
         /// Builds a fully-populated <see cref="SearchRequest"/> from this model — the single translation

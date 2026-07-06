@@ -15,7 +15,7 @@ namespace UnicodeRegEx.Tests.Tools
                 SettingRole.Preference, SettingCategory.Matching, "verbose", 'v', "Verbose output.");
 
             public readonly ValueSetting<int> Count = new ValueSetting<int>(
-                SettingRole.WorkingState, SettingCategory.Files, "count", null, "n", "How many.",
+                SettingRole.WorkingState, SettingCategory.FileAndDirectorySelection, "count", null, "n", "How many.",
                 defaultValue: 1, editorKind: EditorKind.Integer, parse: int.Parse);
         }
 
@@ -134,7 +134,7 @@ namespace UnicodeRegEx.Tests.Tools
             // SampleGroup has Verbose (Matching) then Count (Files); Replacement/Encoding are empty.
             Assert.AreEqual(2, grouped.Count);
             Assert.AreEqual(SettingCategory.Matching, grouped[0].Category);
-            Assert.AreEqual(SettingCategory.Files, grouped[1].Category);
+            Assert.AreEqual(SettingCategory.FileAndDirectorySelection, grouped[1].Category);
             Assert.AreSame(group.Verbose, grouped[0].Settings[0]);
             Assert.AreSame(group.Count, grouped[1].Settings[0]);
         }
@@ -143,8 +143,12 @@ namespace UnicodeRegEx.Tests.Tools
         public void GroupedSettings_Title_ComesFromDisplayName()
         {
             var grouped = new SampleGroup().GroupedSettings;
-            Assert.AreEqual("Matching", grouped[0].Title);
-            Assert.AreEqual("Files", grouped[1].Title);
+            foreach (var group in grouped)
+            {
+                var category = group.Category;
+                var displayName = SettingCategories.DisplayName(category);
+                Assert.AreEqual(displayName, group.Title);
+            }
         }
 
         [TestMethod]

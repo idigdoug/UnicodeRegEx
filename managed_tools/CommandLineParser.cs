@@ -162,25 +162,32 @@ namespace UnicodeRegEx.Tools
     public static class HelpFormatter
     {
         private const int LeftColumnWidth = 28;
+        private const int WrapWidth = 79;
+
+        // Where the description column begins: two leading spaces + the padded left column + two spaces.
+        private const int DescriptionIndent = 2 + LeftColumnWidth + 2;
 
         public static string Format(string usage, SettingGroup settingGroup)
         {
             var sb = new StringBuilder();
             sb.AppendLine(usage);
 
+            sb.AppendLine();
+            sb.AppendLine("General:");
+            sb.AppendLine();
+            sb.AppendLine(FormatOption('h', "help", null, "Show this help and exit.", null));
+
             foreach (var section in settingGroup.GroupedSettings)
             {
                 sb.AppendLine();
                 sb.AppendLine($"{section.Title}:");
+                sb.AppendLine();
                 foreach (var option in section.Settings)
                 {
                     AppendOption(sb, option);
                 }
             }
 
-            sb.AppendLine();
-            sb.AppendLine("General:");
-            sb.Append(FormatOption('h', "help", null, "Show this help and exit.", null));
             return sb.ToString();
         }
 
@@ -225,7 +232,70 @@ namespace UnicodeRegEx.Tools
             }
 
             var right = defaultText != null ? $"{description} [default: {defaultText}]" : description;
-            return $"  {left.PadRight(LeftColumnWidth)}  {right}";
+
+            var indent = new string(' ', DescriptionIndent);
+            var lines = WrapText(right, WrapWidth - DescriptionIndent);
+
+            var sb = new StringBuilder();
+            // First line: the left column, then the first wrapped description line. If the left column
+            // overflows its width, start the description on the next line so columns stay aligned.
+            if (left.Length > LeftColumnWidth)
+            {
+                sb.Append("  ").Append(left);
+                foreach (var line in lines)
+                {
+                    sb.AppendLine().Append(indent).Append(line);
+                }
+            }
+            else
+            {
+                sb.Append("  ").Append(left.PadRight(LeftColumnWidth)).Append("  ");
+                sb.Append(lines.Count > 0 ? lines[0] : string.Empty);
+                for (var i = 1; i < lines.Count; i++)
+                {
+                    sb.AppendLine().Append(indent).Append(lines[i]);
+                }
+            }
+
+            return sb.ToString();
+        }
+
+        // Greedy word-wrap: splits on spaces so no line exceeds maxWidth (a single word longer than
+        // maxWidth is kept whole on its own line rather than broken). Returns at least one line.
+        private static List<string> WrapText(string text, int maxWidth)
+        {
+            var lines = new List<string>();
+            if (maxWidth < 1)
+            {
+                maxWidth = 1;
+            }
+
+            var line = new StringBuilder();
+            foreach (var word in text.Split(' '))
+            {
+                if (word.Length == 0)
+                {
+                    continue;
+                }
+
+                if (line.Length == 0)
+                {
+                    line.Append(word);
+                }
+                else if (line.Length + 1 + word.Length <= maxWidth)
+                {
+                    line.Append(' ').Append(word);
+                }
+                else
+                {
+                    lines.Add(line.ToString());
+                    line.Clear();
+                    line.Append(word);
+                }
+            }
+
+            lines.Add(line.ToString());
+            return lines;
         }
     }
 }

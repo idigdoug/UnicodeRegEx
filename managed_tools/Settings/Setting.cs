@@ -68,6 +68,9 @@ namespace UnicodeRegEx.Tools.Settings
     /// </summary>
     public enum SettingCategory
     {
+        /// <summary>Syntax flavor.</summary>
+        PatternSyntax,
+
         /// <summary>How the pattern is matched (syntax flavor, case sensitivity, match options).</summary>
         Matching,
 
@@ -75,7 +78,7 @@ namespace UnicodeRegEx.Tools.Settings
         Replacement,
 
         /// <summary>Which files are searched (globs, recursion, binary handling).</summary>
-        Files,
+        FileAndDirectorySelection,
 
         /// <summary>How file bytes are decoded (default code page, detection).</summary>
         Encoding,
@@ -89,9 +92,10 @@ namespace UnicodeRegEx.Tools.Settings
         {
             switch (category)
             {
+                case SettingCategory.PatternSyntax: return "Pattern Syntax";
                 case SettingCategory.Matching: return "Matching";
                 case SettingCategory.Replacement: return "Replacement";
-                case SettingCategory.Files: return "Files";
+                case SettingCategory.FileAndDirectorySelection: return "File and Directory Selection";
                 case SettingCategory.Encoding: return "Encoding";
                 default: return category.ToString();
             }
@@ -394,7 +398,9 @@ namespace UnicodeRegEx.Tools.Settings
         }
 
         private static string DescribeDefault(T value) =>
-            value is null ? "(none)" : value.ToString() ?? "(none)";
+            value is null ? "(none)" :
+            value is string valueString ? "\"" + valueString + "\"" :
+            value.ToString() ?? "(none)";
     }
 
     /// <summary>

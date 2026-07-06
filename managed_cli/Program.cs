@@ -11,7 +11,7 @@ namespace UnicodeRegEx.Cli
     {
         private const string Usage =
 @"usage: unirex [options] <pattern> [path...]
-Search files (default) or preview/apply replacements with a Unicode-aware regex.";
+Search and replace files with a Unicode-aware regex.";
 
         private const string SuggestHelp = "Run 'unirex --help' for detailed usage.";
 

@@ -123,8 +123,10 @@ namespace UnicodeRegEx.Tests.Tools
             StringAssert.Contains(help, "-F, --fixed-strings");
             StringAssert.Contains(help, "-G, --basic-regexp");
             StringAssert.Contains(help, "-P, --perl-regexp");
-            // The default flavor line is marked.
-            StringAssert.Contains(help, "Perl/ECMAScript-compatible regular expressions. [default]");
+            // The default flavor is marked (the description may word-wrap, so the marker can land on a
+            // continuation line; only the default choice carries it).
+            StringAssert.Contains(help, "Perl/ECMAScript-compatible regular expressions.");
+            StringAssert.Contains(help, "[default]");
         }
 
         [TestMethod]
@@ -132,14 +134,29 @@ namespace UnicodeRegEx.Tests.Tools
         {
             var help = HelpFormatter.Format("usage: test", new SearchSettings());
 
-            StringAssert.Contains(help, "Matching:");
-            StringAssert.Contains(help, "Replacement:");
-            StringAssert.Contains(help, "Files:");
-            StringAssert.Contains(help, "Encoding:");
-            // Sections appear in category (enum) order.
-            Assert.IsTrue(help.IndexOf("Matching:") < help.IndexOf("Replacement:"));
-            Assert.IsTrue(help.IndexOf("Replacement:") < help.IndexOf("Files:"));
-            Assert.IsTrue(help.IndexOf("Files:") < help.IndexOf("Encoding:"));
+            var prevIndex = -1;
+            foreach (var cat in System.Enum.GetValues(typeof(SettingCategory)))
+            {
+                var expectedString = SettingCategories.DisplayName((SettingCategory)cat) + ":";
+                var currentIndex = help.IndexOf(expectedString);
+                Assert.IsGreaterThan(-1, currentIndex, "expected category section header not found: " + expectedString);
+                Assert.IsGreaterThan(prevIndex, currentIndex, $"category {cat} out of order");
+                prevIndex = currentIndex;
+            }
+        }
+
+        [TestMethod]
+        public void Help_WrapsLongDescriptions_AtColumn79()
+        {
+            // The usage line is caller-supplied and not wrapped; pass a short one so every generated line
+            // (option rows + wrapped continuation lines) must fit within 79 columns.
+            var help = HelpFormatter.Format("usage: test", new SearchSettings());
+
+            foreach (var line in help.Split('\n'))
+            {
+                var trimmed = line.TrimEnd('\r');
+                Assert.IsTrue(trimmed.Length <= 79, $"line exceeds 79 columns ({trimmed.Length}): '{trimmed}'");
+            }
         }
     }
 }
