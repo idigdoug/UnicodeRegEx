@@ -308,7 +308,9 @@ which consumes the settings model built here.
   `PathRequired`→Paths). Filter lists use `GlobListSetting` (appending `Apply`, kind from the binding `Tag`,
   `ToDisplayString` for MRU/GUI/help, not a CLI round-trip). `Setting.Apply` takes the matched
   `CommandLineBinding` so a multi-binding setting knows which alias fired; `HelpFormatter` renders one line
-  per binding. Naming convention: a setting's root `LongName` is its **persistence key and GUI property-page
+  per binding, word-wrapped at column 79, and shows a value-option's value with POSIX/GNU syntax --
+  `--name=<value>` for a long option, `-x <value>` for a short-only one (the parser accepts both `=` and a
+  space at runtime). Naming convention: a setting's root `LongName` is its **persistence key and GUI property-page
   label**, so it must be meaningful and unambiguous *independent of the CLI* — it is not itself a CLI token
   when the setting overrides its bindings (a `ChoiceSetting`/`GlobListSetting`). Hence
   `file-name-filters`/`directory-filters` (CLI: `--include`/`--exclude`/`--exclude-dir`) and `syntax-flavor`

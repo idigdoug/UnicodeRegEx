@@ -158,5 +158,18 @@ namespace UnicodeRegEx.Tests.Tools
                 Assert.IsTrue(trimmed.Length <= 79, $"line exceeds 79 columns ({trimmed.Length}): '{trimmed}'");
             }
         }
+
+        [TestMethod]
+        public void Help_LongOption_ShowsValueWithEquals_ShortFlagUnchanged()
+        {
+            var help = HelpFormatter.Format("usage: test", new SearchSettings());
+
+            // POSIX/GNU: a long value-option shows --name=<value>, not --name <value>.
+            StringAssert.Contains(help, "--encoding=<codepage>");
+            StringAssert.Contains(help, "--replace=<template>");
+            Assert.IsFalse(help.Contains("--encoding <codepage>"), "long options must use '=' not space");
+            // Valueless flags are unchanged.
+            StringAssert.Contains(help, "-i, --ignore-case");
+        }
     }
 }

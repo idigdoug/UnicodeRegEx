@@ -164,8 +164,8 @@ namespace UnicodeRegEx.Tools
         private const int LeftColumnWidth = 28;
         private const int WrapWidth = 79;
 
-        // Where the description column begins: two leading spaces + the padded left column + two spaces.
-        private const int DescriptionIndent = 2 + LeftColumnWidth + 2;
+        // Where the description column begins: two leading spaces + the padded left column + one space.
+        private const int DescriptionIndent = 2 + LeftColumnWidth + 1;
 
         public static string Format(string usage, SettingGroup settingGroup)
         {
@@ -223,12 +223,22 @@ namespace UnicodeRegEx.Tools
 
         private static string FormatOption(char? shortName, string? longName, string? valueName, string description, string? defaultText)
         {
-            var left = shortName is char c
-                ? (longName != null ? $"-{c}, --{longName}" : $"-{c}")
-                : $"    --{longName}";
-            if (valueName != null)
+            // POSIX/GNU convention: a long option takes its value with '=' (--name=<value>), a short-only
+            // option takes it with a space (-x <value>). When both a short and long name exist, show the
+            // value on the long form: "-x, --name=<value>".
+            string left;
+            if (longName != null)
             {
-                left += $" <{valueName}>";
+                var value = valueName != null ? $"=<{valueName}>" : string.Empty;
+                left = shortName is char c
+                    ? $"-{c}, --{longName}{value}"
+                    : $"    --{longName}{value}";
+            }
+            else
+            {
+                // Short-only.
+                var c = shortName!.Value;
+                left = valueName != null ? $"-{c} <{valueName}>" : $"-{c}";
             }
 
             var right = defaultText != null ? $"{description} [default: {defaultText}]" : description;
@@ -239,7 +249,7 @@ namespace UnicodeRegEx.Tools
             var sb = new StringBuilder();
             // First line: the left column, then the first wrapped description line. If the left column
             // overflows its width, start the description on the next line so columns stay aligned.
-            if (left.Length > LeftColumnWidth)
+            if (left.Length >= LeftColumnWidth)
             {
                 sb.Append("  ").Append(left);
                 foreach (var line in lines)
@@ -249,7 +259,7 @@ namespace UnicodeRegEx.Tools
             }
             else
             {
-                sb.Append("  ").Append(left.PadRight(LeftColumnWidth)).Append("  ");
+                sb.Append("  ").Append(left.PadRight(LeftColumnWidth)).Append(" ");
                 sb.Append(lines.Count > 0 ? lines[0] : string.Empty);
                 for (var i = 1; i < lines.Count; i++)
                 {

@@ -42,6 +42,13 @@ namespace UnicodeRegEx.Tools
                 new Choice<RegExSyntaxFlags>(RegExSyntaxFlags.Extended, "extended", 'E', "extended-regexp", "POSIX extended regular expressions (ERE)."),
             });
 
+        public readonly FlagSetting Collate = new FlagSetting(
+            SettingRole.Preference,
+            SettingCategory.PatternSyntax,
+            "collate",
+            null,
+            "Use locale-specific collation in character ranges such as [a-b].");
+
         // Advanced syntax modifiers (native boost flag names, so their documentation is discoverable). Each
         // maps 1:1 to a syntax-flags bit and composes into SyntaxFlags in MakeRequest.
 
@@ -65,13 +72,6 @@ namespace UnicodeRegEx.Tools
             "no-mod-m",
             null,
             "Advanced: disable the Perl 'm' modifier (no_mod_m) so '^' and '$' match only at the start/end of input, not at embedded newlines.");
-
-        public readonly FlagSetting Collate = new FlagSetting(
-            SettingRole.Preference,
-            SettingCategory.PatternSyntax,
-            "collate",
-            null,
-            "Advanced: use locale-specific collation (collate) in character ranges such as [a-b].");
 
         // Matching
 
@@ -265,7 +265,7 @@ namespace UnicodeRegEx.Tools
             {
                 new Choice<string>("binary", "binary", null, "binary-files-binary", "Skip files that look binary (the default)."),
                 new Choice<string>("without-match", "without-match", null, "binary-files-without-match", "Skip files that look binary (same as binary for this tool)."),
-                new Choice<string>("text", "text", null, "binary-files-text", "Search files that look binary as if they were text."),
+                new Choice<string>("text", "text", 'a', "binary-files-text", "Search files that look binary as if they were text."),
             });
 
         // Encoding
