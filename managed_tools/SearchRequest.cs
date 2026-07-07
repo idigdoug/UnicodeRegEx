@@ -64,6 +64,13 @@ namespace UnicodeRegEx.Tools
         public RegExSyntaxFlags SyntaxFlags { get; set; } = ComposeSyntaxFlags(RegExSyntaxFlags.Perl);
 
         /// <summary>
+        /// The locale (Windows LCID) used for case-folding and collation when the pattern is compiled
+        /// (passed to <c>RegEx.Create</c>). Defaults to <b>0</b> (LOCALE_NEUTRAL). This is a compile-time
+        /// input, so an unusable value surfaces as a pattern-compilation problem from <see cref="Validate"/>.
+        /// </summary>
+        public int Lcid { get; set; }
+
+        /// <summary>
         /// Match-time flags applied to every search/replace in the run (default <see cref="RegExMatchFlags.Default"/>).
         /// A single raw mask handed straight to the matcher — a front-end ORs the individual flags it wants.
         /// Note: "." matching newline and multiline "^"/"$" are handled on the syntax axis
@@ -214,6 +221,7 @@ namespace UnicodeRegEx.Tools
                 ReplaceTemplate = ReplaceTemplate,
                 Verb = Verb,
                 SyntaxFlags = SyntaxFlags,
+                Lcid = Lcid,
                 MatchFlags = MatchFlags,
                 FormatFlags = FormatFlags,
                 Directories = Directories,
@@ -373,7 +381,7 @@ namespace UnicodeRegEx.Tools
         {
             try
             {
-                using (RegEx.Create(Pattern, SyntaxFlags))
+                using (RegEx.Create(Pattern, SyntaxFlags, Lcid))
                 {
                 }
 

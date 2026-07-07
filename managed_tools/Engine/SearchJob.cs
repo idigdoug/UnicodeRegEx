@@ -160,7 +160,7 @@ namespace UnicodeRegEx.Tools.Engine
                 // Compile the pattern for the run. A front-end can call SearchRequest.Validate() first to
                 // catch an invalid pattern (and the other request problems) up front; if it does not, an
                 // invalid pattern is a setup failure that faults the task here. Disposed at the end of the run.
-                using var regex = RegEx.Create(request.Pattern, syntaxFlags);
+                using var regex = RegEx.Create(request.Pattern, syntaxFlags, request.Lcid);
 
                 var files = Enumerate();
                 if (cancellation.IsCancellationRequested)

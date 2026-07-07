@@ -220,6 +220,138 @@ namespace UnicodeRegEx.Tests.Tools
             Assert.IsTrue(request.SyntaxFlags.HasFlag(RegExSyntaxFlags.ICase));
         }
 
+        private static SearchRequest MakeRequestFrom(params string[] args)
+        {
+            var settings = new SearchSettings();
+            var errors = new List<string>();
+            CommandLine.Parse(args, settings, errors);
+            CollectionAssert.AreEqual(new List<string>(), errors);
+            return settings.MakeRequest();
+        }
+
+        [TestMethod]
+        public void MakeRequest_SyntaxModifiers_FoldIntoSyntaxFlags()
+        {
+            var request = MakeRequestFrom("--mod-s", "--mod-x", "--no-mod-m", "--collate");
+
+            Assert.IsTrue(request.SyntaxFlags.HasFlag(RegExSyntaxFlags.ModS), "mod-s -> ModS");
+            Assert.IsTrue(request.SyntaxFlags.HasFlag(RegExSyntaxFlags.ModX), "mod-x -> ModX");
+            Assert.IsTrue(request.SyntaxFlags.HasFlag(RegExSyntaxFlags.NoModM), "no-mod-m -> NoModM");
+            Assert.IsTrue(request.SyntaxFlags.HasFlag(RegExSyntaxFlags.Collate), "collate -> Collate");
+        }
+
+        [TestMethod]
+        public void MakeRequest_DefaultSyntax_HasMultilineAnchorsOn()
+        {
+            // Default (no --no-mod-m): multiline anchors on, so NoModM must NOT be set.
+            var request = MakeRequestFrom("p", "x");
+            Assert.IsFalse(request.SyntaxFlags.HasFlag(RegExSyntaxFlags.NoModM));
+        }
+
+        [TestMethod]
+        public void MakeRequest_MatchFlags_ComposeIntoMatchFlags()
+        {
+            var request = MakeRequestFrom("--not-bol", "--not-eol", "--match-any", "--not-null", "--continuous");
+
+            Assert.IsTrue(request.MatchFlags.HasFlag(RegExMatchFlags.NotBol));
+            Assert.IsTrue(request.MatchFlags.HasFlag(RegExMatchFlags.NotEol));
+            Assert.IsTrue(request.MatchFlags.HasFlag(RegExMatchFlags.Any));
+            Assert.IsTrue(request.MatchFlags.HasFlag(RegExMatchFlags.NotNull));
+            Assert.IsTrue(request.MatchFlags.HasFlag(RegExMatchFlags.Continuous));
+        }
+
+        [TestMethod]
+        public void MakeRequest_NoMatchFlags_IsDefault()
+        {
+            Assert.AreEqual(RegExMatchFlags.Default, MakeRequestFrom("p", "x").MatchFlags);
+        }
+
+        [TestMethod]
+        public void MakeRequest_FormatFlags_ComposeIntoFormatFlags()
+        {
+            var request = MakeRequestFrom("--sed", "--boost-extensions", "--no-copy", "--first-only");
+
+            Assert.IsTrue(request.FormatFlags.HasFlag(RegExFormatFlags.Sed));
+            Assert.IsTrue(request.FormatFlags.HasFlag(RegExFormatFlags.BoostExtensions));
+            Assert.IsTrue(request.FormatFlags.HasFlag(RegExFormatFlags.NoCopy));
+            Assert.IsTrue(request.FormatFlags.HasFlag(RegExFormatFlags.FirstOnly));
+        }
+
+        [TestMethod]
+        public void MakeRequest_Directories_Choice_SelectsDisposition()
+        {
+            Assert.AreEqual(DirectoryDisposition.Error, MakeRequestFrom("p", "x").Directories);
+            Assert.AreEqual(DirectoryDisposition.RecurseNoLinks, MakeRequestFrom("-r", "p", "x").Directories);
+            Assert.AreEqual(DirectoryDisposition.RecurseWithLinks, MakeRequestFrom("-R", "p", "x").Directories);
+            Assert.AreEqual(DirectoryDisposition.Skip, MakeRequestFrom("--directories-skip", "p", "x").Directories);
+            Assert.AreEqual(DirectoryDisposition.ReadImmediateFiles, MakeRequestFrom("--directories-norecurse", "p", "x").Directories);
+        }
+
+        [TestMethod]
+        public void MakeRequest_BinaryFiles_MapsToSkipBinaryFiles()
+        {
+            Assert.IsTrue(MakeRequestFrom("p", "x").SkipBinaryFiles, "default (binary) skips");
+            Assert.IsTrue(MakeRequestFrom("--binary-files-binary", "p", "x").SkipBinaryFiles);
+            Assert.IsTrue(MakeRequestFrom("--binary-files-without-match", "p", "x").SkipBinaryFiles);
+            Assert.IsFalse(MakeRequestFrom("--binary-files-text", "p", "x").SkipBinaryFiles, "text searches");
+        }
+
+        [TestMethod]
+        public void MakeRequest_EncodingDetection_DisableFlags_ClearSteps()
+        {
+            // Default: all steps on.
+            Assert.AreEqual(EncodingDetectionSteps.All, MakeRequestFrom("p", "x").EncodingDetection.Steps);
+
+            var request = MakeRequestFrom("--no-bom", "--no-utf8-detect", "p", "x");
+            Assert.IsFalse(request.EncodingDetection.Steps.HasFlag(EncodingDetectionSteps.Bom));
+            Assert.IsFalse(request.EncodingDetection.Steps.HasFlag(EncodingDetectionSteps.Utf8Heuristic));
+            // Others remain on.
+            Assert.IsTrue(request.EncodingDetection.Steps.HasFlag(EncodingDetectionSteps.Utf16Heuristic));
+            Assert.IsTrue(request.EncodingDetection.Steps.HasFlag(EncodingDetectionSteps.BinaryNul));
+            Assert.IsTrue(request.EncodingDetection.Steps.HasFlag(EncodingDetectionSteps.BinaryControlRatio));
+        }
+
+        [TestMethod]
+        public void MakeRequest_Parallelism_MapsToMaxDegreeOfParallelism()
+        {
+            Assert.AreEqual(1, MakeRequestFrom("p", "x").MaxDegreeOfParallelism);
+            Assert.AreEqual(4, MakeRequestFrom("--parallelism", "4", "p", "x").MaxDegreeOfParallelism);
+            Assert.AreEqual(0, MakeRequestFrom("--parallelism", "0", "p", "x").MaxDegreeOfParallelism);
+        }
+
+        [TestMethod]
+        public void Parallelism_Negative_ReportsParseError()
+        {
+            var settings = new SearchSettings();
+            var errors = new List<string>();
+            CommandLine.Parse(new[] { "--parallelism", "-1", "p", "x" }, settings, errors);
+            Assert.AreEqual(1, errors.Count);
+        }
+
+        [TestMethod]
+        public void MakeRequest_Locale_MapsToLcid()
+        {
+            Assert.AreEqual(0, MakeRequestFrom("p", "x").Lcid, "default is neutral (0)");
+            Assert.AreEqual(0, MakeRequestFrom("--locale", "neutral", "p", "x").Lcid);
+            Assert.AreEqual(0x7F, MakeRequestFrom("--locale", "invariant", "p", "x").Lcid);
+            Assert.AreEqual(1033, MakeRequestFrom("--locale", "1033", "p", "x").Lcid);
+        }
+
+        [TestMethod]
+        public void Locale_DefaultText_IsNeutral()
+        {
+            Assert.AreEqual("neutral", new SearchSettings().Locale.DefaultText);
+        }
+
+        [TestMethod]
+        public void Locale_BadValue_ReportsParseError()
+        {
+            var settings = new SearchSettings();
+            var errors = new List<string>();
+            CommandLine.Parse(new[] { "--locale", "nonsense", "p", "x" }, settings, errors);
+            Assert.AreEqual(1, errors.Count);
+        }
+
         [TestMethod]
         public void AddIncludeGlobs_SplitsSemicolonList_IntoIncludeFilters()
         {

@@ -82,6 +82,9 @@ namespace UnicodeRegEx.Tools.Settings
 
         /// <summary>How file bytes are decoded (default code page, detection).</summary>
         Encoding,
+
+        /// <summary>Run behavior that trades speed for resources (parallelism).</summary>
+        Performance,
     }
 
     /// <summary>Helpers for <see cref="SettingCategory"/>.</summary>
@@ -97,6 +100,7 @@ namespace UnicodeRegEx.Tools.Settings
                 case SettingCategory.Replacement: return "Replacement";
                 case SettingCategory.FileAndDirectorySelection: return "File and Directory Selection";
                 case SettingCategory.Encoding: return "Encoding";
+                case SettingCategory.Performance: return "Performance";
                 default: return category.ToString();
             }
         }

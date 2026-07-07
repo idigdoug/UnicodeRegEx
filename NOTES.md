@@ -186,15 +186,11 @@ Locked-in facts:
 
 ## To-do (sequencing)
 
-The engine work is complete (see **Decisions (settled)** and the status snapshot). What remains is CLI
-surfacing only:
-
-- **Syntax/match-flag settings on the CLI** — the `SyntaxFlags`/`MatchFlags` masks and the
-  `ComposeSyntaxFlags`/`SetSyntaxFlags` options (ignoreCase/collate/dotAll/freeSpacing/multilineAnchors)
-  exist on the request but are not on the CLI yet; surface later as GUI checkboxes / advanced CLI options.
-  The `Syntax` flavor choice + `-i` are already wired via `ChoiceSetting`/`CommandLineBinding` and folded in
-  by `MakeRequest` (`-E`/`-G`/`-P`/`-F`, `-i`).
-- CLI exposure of detection toggles + `--binary-files`/`SkipBinaryFiles` (advanced options / GUI checkboxes).
+The engine work is complete (see **Decisions (settled)** and the status snapshot), and `SearchSettings` now
+drives the full `SearchRequest` surface (syntax/match/format flags, directory disposition, binary handling,
+detection steps, parallelism — all wired to settings and the CLI). No engine or settings-coverage work is
+outstanding. Remaining work is the GUI itself (the primary UI + the auto-generated advanced property page),
+which consumes the settings model built here.
 
 ## Status snapshot
 
@@ -249,7 +245,8 @@ surfacing only:
   BoostExtensions, NoCopy, FirstOnly) controls replacement interpretation and is threaded into both the
   Match-preview and Apply enumerate options. Boost's whole-template `format_literal` is deliberately NOT
   exposed (a caller escapes the template via the escape helpers instead) and is rejected by the allow-mask.
-  `ComposeSyntaxFlags`/`SetSyntaxFlags` helpers. Not on the CLI yet (see to-do).
+  `ComposeSyntaxFlags`/`SetSyntaxFlags` helpers. On the CLI as advanced per-flag settings (native names, see
+  the settings-model bullet).
 - Request validation: `SearchRequest.Validate()` returns the list of `SearchRequestProblem`s (empty when
   valid) and is the engine-level pre-flight gate (a front-end usually reaches it via
   `SearchSettings.Validate()`, which calls `MakeRequest()` then this). It
@@ -328,6 +325,22 @@ surfacing only:
   `GlobListSetting` opts out: `EditorKind.List`, `GetValue`/`TrySetValue` throw `NotSupportedException` (it
   is `WorkingState`, edited via `Filters`/the primary UI, never on the property page). Adding a future
   scalar setting just declares its `EditorKind` and inherits the rest, so it is GUI-ready on arrival.
+- Full `SearchRequest` coverage (Bucket B): `SearchSettings` now exposes a setting for every `SearchRequest`
+  capability, so `MakeRequest()` populates the whole request. Multi-bit masks are modeled as one
+  `FlagSetting` per bit, composed in `MakeRequest` (`ComposeMatchFlags`/`ComposeFormatFlags`, and the syntax
+  modifiers folded through `SetSyntaxFlags`). Advanced flags use **native engine flag names** so their
+  docs are discoverable — `--mod-s`/`--mod-x`/`--no-mod-m`/`--collate` (syntax), `--not-bol`…`--continuous`
+  /`--match-any` (match_*), `--sed`/`--boost-extensions`/`--no-copy`/`--first-only` (format_*), and detection
+  disable-flags `--no-bom`/`--no-utf16-detect`/`--no-utf8-detect`/`--no-nul-binary`/`--no-control-ratio-binary`
+  — each prefixed `Advanced:` in its description and sorted last within its category (informal, no separate
+  "advanced" axis). `Directories` is a `ChoiceSetting<DirectoryDisposition>` (replacing the old `Recurse`
+  flag; keeps `-r`→RecurseNoLinks, adds `-R`→RecurseWithLinks and `--directories-*` for the rest).
+  `--binary-files` is a grep-vocab `ChoiceSetting` (`binary`/`without-match`/`text`) mapped to
+  `SkipBinaryFiles`. `--parallelism` (a new `Performance` category) maps to `MaxDegreeOfParallelism`. Names
+  were audited to avoid clashing with grep options of a different meaning (e.g. `--binary-files` not
+  `--binary`). `--locale` (a `ValueSetting<int>` in `Matching`, friendly names `neutral`=0 / `invariant`=0x7F
+  or a raw LCID number) maps to a new `SearchRequest.Lcid` — the case-folding/collation locale passed to
+  `RegEx.Create` at both compile sites (the job and `Validate`'s `TryCompilePattern`).
 - Setting grouping (`SettingCategory`): every `Setting` declares a `SettingCategory` (enum: `Matching`,
   `Replacement`, `Files`, `Encoding`; extensible) alongside its `Role`. `SettingGroup` exposes
   `GroupedSettings` (an ordered `SettingCategoryView { Category, Title, Settings }` list) built by bucketing
@@ -351,4 +364,4 @@ surfacing only:
   out _)` kept inside the wrapper assembly (Tools never touches `Interop.ISequentialStream`, avoiding
   embedded-interop-type/PIA problems). A `SearchHit.Verb` was deliberately NOT added (the verb is implied
   by which callback fired).
-- Tests: 361 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.
+- Tests: 375 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.
