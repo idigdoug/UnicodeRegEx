@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <WarningLevel>4</WarningLevel>
+
+    <AssemblyName>UnicodeRegExGui</AssemblyName>
+    <RootNamespace>UnicodeRegEx.Gui</RootNamespace>
+
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <!-- Run natively on ARM64 so the wrapper loads UnicodeRegEx_ARM64.dll instead of an
+         x64-emulated process looking for UnicodeRegEx_x64.dll. -->
+    <PreferNativeArm64>true</PreferNativeArm64>
+
+    <!-- Land the exe in out\{Config} alongside the native UnicodeRegEx_*.dll files so the
+         P/Invoke wrapper can find them. -->
+    <BaseOutputPath>..\out\</BaseOutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\managed\UnicodeRegExManaged.csproj" />
+    <ProjectReference Include="..\managed_tools\UnicodeRegExManagedTools.csproj" />
+  </ItemGroup>
+
+</Project>

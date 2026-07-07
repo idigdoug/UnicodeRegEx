@@ -189,8 +189,21 @@ Locked-in facts:
 The engine work is complete (see **Decisions (settled)** and the status snapshot), and `SearchSettings` now
 drives the full `SearchRequest` surface (syntax/match/format flags, directory disposition, binary handling,
 detection steps, parallelism — all wired to settings and the CLI). No engine or settings-coverage work is
-outstanding. Remaining work is the GUI itself (the primary UI + the auto-generated advanced property page),
-which consumes the settings model built here.
+outstanding. Remaining work is the **WinForms GUI** (`managed_gui`/`UnicodeRegExGui`): a find /
+find-and-selectively-replace tool. It is being built in slices on top of a UI-agnostic core:
+- **Slice 1a (done):** `UnicodeRegEx.Tools.Collecting` — the reusable, testable core (below).
+- **Slice 1b (done):** a minimal WinForms shell (`MainForm`) — pattern + path inputs, Search/Cancel,
+  a `ListView` of hits (file / offset / match), and a monospace context pane showing `Pre[Match]Post` for
+  the selected hit. Runs a `SearchJob` + `CollectingSink` on a background thread, validates up front
+  (`SearchRequest.Validate`, friendly message not a faulted run), and marshals the throttled `HitsAdded`
+  and completion to the UI thread via `BeginInvoke`, appending only the new tail (with a final flush).
+  `AnyCPU`+`PreferNativeArm64`, output to `out\Debug` beside the native DLLs.
+- **Slice 2 (next):** the input surface — primary UI options + the auto-generated advanced property page
+  (from `GroupedSettings` / `EditorKind` / `TrySetValue` / `Reset`), so a run is driven by `SearchSettings`
+  (`MakeRequest`) rather than just pattern+path.
+- **Slice 3:** selective replace — a checkbox per hit, then a fresh apply run whose `OnApply` returns
+  `Default` for checked / `Original` for unchecked, re-verifying the hit's `Pre`/`Match`/`Post` bytes still
+  match to guard against a file changing between preview and apply.
 
 ## Status snapshot
 
@@ -366,4 +379,21 @@ which consumes the settings model built here.
   out _)` kept inside the wrapper assembly (Tools never touches `Interop.ISequentialStream`, avoiding
   embedded-interop-type/PIA problems). A `SearchHit.Verb` was deliberately NOT added (the verb is implied
   by which callback fired).
-- Tests: 375 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.
+- GUI-agnostic collecting core (`UnicodeRegEx.Tools.Collecting`, for the WinForms find/replace UI):
+  `HitRecord` is a **storable** snapshot of a match copied out of the ref-struct `SearchHit` during the
+  callback — `SearchFile`, `MatchFileOffset`, and byte blobs `PreMatchBytes`/`MatchBytes`/`PostMatchBytes`/
+  `ReplacementBytes` (strings decoded on demand via `RegExEncoding.FromCodePage(File.CodePage)`). Context
+  windows are a bounded byte count (64) clamped at the file start/end, so they double as a later
+  apply-time staleness guard. `CollectingSink : SearchSinkBase` captures each `OnMatch` into a `HitRecord`
+  (formatting the replacement through a per-file `RegExMemoryStream` held on `SearchFile.Context` and
+  `Reset()` per hit, disposed at `OnFileComplete`), accumulates them thread-safely (`Hits` append-only
+  snapshot + collected `Errors`), and raises a **throttled** `HitsAdded` event (every ~100 ms or 256 hits)
+  so a UI can stream updates — fired on a worker thread, so a subscriber marshals. Fully unit-tested with no
+  UI.
+- WinForms GUI (`managed_gui`/`UnicodeRegExGui`, `net48`, `AnyCPU`+`PreferNativeArm64`, output to
+  `out\Debug` beside the native DLLs): slice-1b `MainForm` is a minimal find tool — pattern + path,
+  Search/Cancel, a details `ListView` (file / offset / match), and a monospace context pane
+  (`Pre[Match]Post`). It runs `SearchJob` + `CollectingSink`, validates the request up front, and marshals
+  the sink's throttled `HitsAdded` + run completion to the UI thread (`BeginInvoke`), appending only the
+  new tail. Consumes the `Collecting` core; no options page or replace yet (slices 2/3).
+- Tests: 386 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.

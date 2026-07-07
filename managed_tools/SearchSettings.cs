@@ -264,7 +264,7 @@ namespace UnicodeRegEx.Tools
             choices: new[]
             {
                 new Choice<string>("binary", "binary", null, "binary-files-binary", "Skip files that look binary (the default)."),
-                new Choice<string>("without-match", "without-match", null, "binary-files-without-match", "Skip files that look binary (same as binary for this tool)."),
+                new Choice<string>("without-match", "without-match", 'I', "binary-files-without-match", "Skip files that look binary (same as binary for this tool)."),
                 new Choice<string>("text", "text", 'a', "binary-files-text", "Search files that look binary as if they were text."),
             });
 
