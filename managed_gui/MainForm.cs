@@ -1,9 +1,12 @@
-namespace UnicodeRegEx.Gui
+﻿namespace UnicodeRegEx.Gui
 {
     using System;
     using System.Collections.Generic;
+    using System.ComponentModel;
+    using System.Data;
     using System.Drawing;
-    using System.Threading;
+    using System.Linq;
+    using System.Text;
     using System.Threading.Tasks;
     using System.Windows.Forms;
     using UnicodeRegEx;
@@ -11,20 +14,8 @@ namespace UnicodeRegEx.Gui
     using UnicodeRegEx.Tools.Collecting;
     using UnicodeRegEx.Tools.Engine;
 
-    /// <summary>
-    /// Slice 1b: a minimal find tool. Enter a pattern and a path, run a search, browse the hits, and see
-    /// each hit's surrounding context. No options page and no replace yet (later slices).
-    /// </summary>
-    internal sealed class MainForm : Form
+    internal partial class MainForm : Form
     {
-        private readonly TextBox patternBox;
-        private readonly TextBox pathBox;
-        private readonly Button searchButton;
-        private readonly Button cancelButton;
-        private readonly Label statusLabel;
-        private readonly ListView hitList;
-        private readonly TextBox contextBox;
-
         // The hits shown in the list, in order (list item N maps to shownHits[N]). Only touched on the UI thread.
         private readonly List<HitRecord> shownHits = new List<HitRecord>();
 
@@ -33,73 +24,33 @@ namespace UnicodeRegEx.Gui
 
         public MainForm()
         {
-            Text = "UnicodeRegEx";
-            Width = 900;
-            Height = 650;
-            MinimumSize = new Size(600, 400);
-
-            // --- Inputs row ---
-            var patternLabel = new Label { Text = "Pattern:", AutoSize = true, Left = 8, Top = 12 };
-            patternBox = new TextBox { Left = 70, Top = 8, Width = 500, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
-
-            var pathLabel = new Label { Text = "Path:", AutoSize = true, Left = 8, Top = 40 };
-            pathBox = new TextBox { Left = 70, Top = 36, Width = 500, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, Text = "." };
-
-            searchButton = new Button { Text = "Search", Left = 580, Top = 7, Width = 90, Anchor = AnchorStyles.Top | AnchorStyles.Right };
-            cancelButton = new Button { Text = "Cancel", Left = 580, Top = 35, Width = 90, Anchor = AnchorStyles.Top | AnchorStyles.Right, Enabled = false };
-            searchButton.Click += async (_, _) => await StartSearchAsync();
-            cancelButton.Click += (_, _) => job?.Cancel();
-            AcceptButton = searchButton;
-
-            statusLabel = new Label { Left = 8, Top = 68, Width = 660, AutoSize = false, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, Text = "Ready." };
-
-            // --- Results split ---
-            var split = new SplitContainer
-            {
-                Left = 8,
-                Top = 92,
-                Width = 860,
-                Height = 500,
-                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
-                Orientation = Orientation.Horizontal,
-                SplitterDistance = 320,
-            };
-
-            hitList = new ListView
-            {
-                Dock = DockStyle.Fill,
-                View = View.Details,
-                FullRowSelect = true,
-                MultiSelect = false,
-                HideSelection = false,
-            };
-            hitList.Columns.Add("File", 380);
-            hitList.Columns.Add("Offset", 90);
-            hitList.Columns.Add("Match", 340);
-            hitList.SelectedIndexChanged += (_, _) => ShowSelectedContext();
-
-            contextBox = new TextBox
-            {
-                Dock = DockStyle.Fill,
-                Multiline = true,
-                ReadOnly = true,
-                ScrollBars = ScrollBars.Both,
-                WordWrap = false,
-                Font = new Font(FontFamily.GenericMonospace, 9f),
-            };
-
-            split.Panel1.Controls.Add(hitList);
-            split.Panel2.Controls.Add(contextBox);
-
-            Controls.Add(patternLabel);
-            Controls.Add(patternBox);
-            Controls.Add(pathLabel);
-            Controls.Add(pathBox);
-            Controls.Add(searchButton);
-            Controls.Add(cancelButton);
-            Controls.Add(statusLabel);
-            Controls.Add(split);
+            InitializeComponent();
         }
+
+        #region Event handlers
+
+        private void MainForm_Load(object sender, EventArgs e)
+        {
+        }
+
+        private async void searchButton_Click(object sender, EventArgs e)
+        {
+            await StartSearchAsync();
+        }
+
+        private void cancelButton_Click(object sender, EventArgs e)
+        {
+            job?.Cancel();
+        }
+
+        private void hitList_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            ShowSelectedContext();
+        }
+
+        #endregion
+
+        #region Helpers
 
         private async Task StartSearchAsync()
         {
@@ -123,6 +74,7 @@ namespace UnicodeRegEx.Gui
             contextBox.Clear();
 
             var request = new SearchRequest { Pattern = pattern, DefaultCodePage = RegExCodePage.Utf8 };
+            request.Directories = DirectoryDisposition.RecurseNoLinks;
             request.Paths.Add(pathBox.Text.Length == 0 ? "." : pathBox.Text);
 
             // Validate up front so an invalid pattern is a friendly message, not a faulted run.
@@ -230,5 +182,7 @@ namespace UnicodeRegEx.Gui
         // Collapse newlines/tabs so a multi-line match shows on one list row.
         private static string OneLine(string text) =>
             text.Replace("\r", " ").Replace("\n", " ").Replace("\t", " ");
+
+        #endregion
     }
 }
