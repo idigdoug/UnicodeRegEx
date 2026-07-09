@@ -32,8 +32,27 @@ namespace UnicodeRegEx.Tools.Collecting
         private readonly List<HitRecord> hits = new List<HitRecord>();
         private readonly List<SearchError> errors = new List<SearchError>();
 
+        // When false, matches are recorded without a formatted replacement (Find mode): the replacement
+        // template is irrelevant and each hit's ReplacementBytes stays empty. When true (Replace mode), each
+        // hit's replacement is formatted and captured so the results can later be applied.
+        private readonly bool captureReplacements;
+
         private int lastRaisedTick;
         private int pendingSinceRaise;
+
+        /// <summary>
+        /// Creates a collecting sink.
+        /// </summary>
+        /// <param name="captureReplacements">
+        /// True (Replace mode) to format and capture each match's replacement into
+        /// <see cref="HitRecord.ReplacementBytes"/>; false (Find mode) to skip replacement formatting and
+        /// leave it empty. The engine verb is <c>Match</c> either way; this only controls whether the
+        /// replacement is materialized for a later apply.
+        /// </param>
+        public CollectingSink(bool captureReplacements = true)
+        {
+            this.captureReplacements = captureReplacements;
+        }
 
         /// <summary>
         /// Raised (throttled) as hits accumulate so a UI can update during the scan. Read <see cref="Hits"/>
@@ -41,6 +60,13 @@ namespace UnicodeRegEx.Tools.Collecting
         /// thread — marshal to the UI thread before touching controls.
         /// </summary>
         public event EventHandler? HitsAdded;
+
+        /// <summary>
+        /// Raised as each error is reported so a UI can show it in real time. Read <see cref="Errors"/> on the
+        /// event and append any entries past the count you last displayed. Not throttled (errors are
+        /// low-volume). May fire on a worker thread — marshal to the UI thread before touching controls.
+        /// </summary>
+        public event EventHandler? ErrorsAdded;
 
         /// <summary>
         /// A thread-safe snapshot of the hits collected so far, in the order they were found. Append-only:
@@ -72,10 +98,14 @@ namespace UnicodeRegEx.Tools.Collecting
         /// <inheritdoc/>
         public override SearchResponse OnFile(SearchFile file, RegExPinnedBytes fileBytes)
         {
-            // One memory stream per file, reused across the file's hits to format each replacement. Held on
-            // the file's Context (race-free: a single file's callbacks run on one thread) and disposed in
-            // OnFileComplete.
-            file.Context = RegEx.CreateMemoryStream();
+            // In Replace mode, keep one memory stream per file, reused across the file's hits to format each
+            // replacement. Held on the file's Context (race-free: a single file's callbacks run on one thread)
+            // and disposed in OnFileComplete. In Find mode no replacement is formatted, so no stream is made.
+            if (captureReplacements)
+            {
+                file.Context = RegEx.CreateMemoryStream();
+            }
+
             return SearchResponse.Continue;
         }
 
@@ -89,7 +119,7 @@ namespace UnicodeRegEx.Tools.Collecting
         /// <inheritdoc/>
         public override SearchResponse OnMatch(in SearchHit hit)
         {
-            var record = CaptureHit(hit, (RegExMemoryStream)hit.File.Context!);
+            var record = CaptureHit(hit, (RegExMemoryStream?)hit.File.Context);
 
             bool raise;
             lock (gate)
@@ -114,10 +144,13 @@ namespace UnicodeRegEx.Tools.Collecting
             {
                 errors.Add(new SearchError(path, exception));
             }
+
+            // Errors are low-volume, so raise immediately (no throttling) for a responsive UI.
+            ErrorsAdded?.Invoke(this, EventArgs.Empty);
         }
 
         // Copies the match and its clamped byte context out of the (call-lifetime) hit into a HitRecord.
-        private HitRecord CaptureHit(in SearchHit hit, RegExMemoryStream replacementStream)
+        private HitRecord CaptureHit(in SearchHit hit, RegExMemoryStream? replacementStream)
         {
             var input = hit.Match.Input;
             var whole = hit.Match.GetSubMatch(0);
@@ -133,10 +166,19 @@ namespace UnicodeRegEx.Tools.Collecting
             var matchBytes = input.Slice(matchBegin, whole.Size).ToArray();
             var postMatch = input.Slice(matchEnd, postLength).ToArray();
 
-            // Format the replacement into the reused per-file stream (reset first), then snapshot its bytes.
-            replacementStream.Reset();
-            hit.Match.FormatTo(replacementStream, hit.File.CodePage);
-            var replacementBytes = replacementStream.Buffer.ToArray();
+            // In Replace mode, format the replacement into the reused per-file stream (reset first) and
+            // snapshot its bytes. In Find mode there is no stream and the replacement stays empty.
+            byte[] replacementBytes;
+            if (replacementStream != null)
+            {
+                replacementStream.Reset();
+                hit.Match.FormatTo(replacementStream, hit.File.CodePage);
+                replacementBytes = replacementStream.Buffer.ToArray();
+            }
+            else
+            {
+                replacementBytes = Array.Empty<byte>();
+            }
 
             return new HitRecord(hit.File, matchBegin, preMatch, matchBytes, postMatch, replacementBytes);
         }

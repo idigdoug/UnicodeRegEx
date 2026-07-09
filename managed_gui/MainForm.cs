@@ -1,30 +1,52 @@
 ﻿namespace UnicodeRegEx.Gui
 {
     using System;
-    using System.Collections.Generic;
-    using System.ComponentModel;
-    using System.Data;
     using System.Drawing;
-    using System.Linq;
-    using System.Text;
     using System.Threading.Tasks;
     using System.Windows.Forms;
-    using UnicodeRegEx;
     using UnicodeRegEx.Tools;
     using UnicodeRegEx.Tools.Collecting;
     using UnicodeRegEx.Tools.Engine;
 
     internal partial class MainForm : Form
     {
-        // The hits shown in the list, in order (list item N maps to shownHits[N]). Only touched on the UI thread.
-        private readonly List<HitRecord> shownHits = new List<HitRecord>();
+        // How many of the sink's hits/errors have already been appended as rows. The hit and error records
+        // themselves live in the sink (and on each row's Tag); these are just append cursors. UI thread only.
+        private int hitsShownCount;
+        private int errorsShownCount;
+
+        // The single source of truth for the search; both panes edit this same instance by reference.
+        private readonly SearchSettings settings = new SearchSettings();
+
+        private readonly CoreSettingsPane corePane = new CoreSettingsPane();
+        private readonly CollapsedSettingsPane collapsedPane = new CollapsedSettingsPane();
 
         private CollectingSink? sink;
         private SearchJob? job;
 
+        // The verb of the most recent run: true if it was a Replace (results carry replacements and can be
+        // applied), false if a plain Find. Consulted by the results UI (selective apply arrives in slice 3).
+        private bool lastRunWasReplace;
+
         public MainForm()
         {
             InitializeComponent();
+
+            // Default to recursive search while the directory control lives on the (future) advanced page.
+            settings.Directories.TrySetValue(DirectoryDisposition.RecurseNoLinks, out _);
+
+            // Both panes edit the same settings object; each fills its controls from it.
+            corePane.Bind(settings);
+            collapsedPane.Bind(settings);
+
+            corePane.SearchRequested += OnSearchRequested;
+            corePane.ReplaceRequested += OnReplaceRequested;
+            corePane.CancelRequested += OnCancelRequested;
+            corePane.CollapseRequested += OnCollapseRequested;
+            collapsedPane.ExpandRequested += OnExpandRequested;
+
+            // Start expanded; MainForm owns swapping the active pane in and out of the host panel.
+            ShowPane(corePane);
         }
 
         #region Event handlers
@@ -33,14 +55,31 @@
         {
         }
 
-        private async void searchButton_Click(object sender, EventArgs e)
+        private async void OnSearchRequested(object? sender, EventArgs e)
         {
-            await StartSearchAsync();
+            await StartRunAsync(replace: false);
         }
 
-        private void cancelButton_Click(object sender, EventArgs e)
+        private async void OnReplaceRequested(object? sender, EventArgs e)
+        {
+            await StartRunAsync(replace: true);
+        }
+
+        private void OnCancelRequested(object? sender, EventArgs e)
         {
             job?.Cancel();
+        }
+
+        private void OnCollapseRequested(object? sender, EventArgs e)
+        {
+            collapsedPane.UpdateSummary();
+            ShowPane(collapsedPane);
+        }
+
+        private void OnExpandRequested(object? sender, EventArgs e)
+        {
+            corePane.PullFromSettings();
+            ShowPane(corePane);
         }
 
         private void hitList_SelectedIndexChanged(object sender, EventArgs e)
@@ -52,15 +91,15 @@
 
         #region Helpers
 
-        private async Task StartSearchAsync()
+        private async Task StartRunAsync(bool replace)
         {
             if (job != null)
             {
                 return; // a search is already running
             }
 
-            var pattern = patternBox.Text;
-            if (pattern.Length == 0)
+            // The pane already pushed its controls into settings before raising the run request.
+            if (settings.Pattern.Length == 0)
             {
                 statusLabel.Text = "Enter a pattern.";
                 return;
@@ -70,37 +109,44 @@
             hitList.BeginUpdate();
             hitList.Items.Clear();
             hitList.EndUpdate();
-            shownHits.Clear();
+            hitsShownCount = 0;
+            errorsShownCount = 0;
             contextBox.Clear();
 
-            var request = new SearchRequest { Pattern = pattern, DefaultCodePage = RegExCodePage.Utf8 };
-            request.Directories = DirectoryDisposition.RecurseNoLinks;
-            request.Paths.Add(pathBox.Text.Length == 0 ? "." : pathBox.Text);
-
             // Validate up front so an invalid pattern is a friendly message, not a faulted run.
-            var problems = request.Validate();
+            var problems = settings.Validate();
             if (problems.Count > 0)
             {
-                statusLabel.Text = "Error: " + request.DescribeProblemForCommandLine(problems[0]);
+                statusLabel.Text = "Error: " + problems[0].Message;
                 return;
             }
 
-            sink = new CollectingSink();
+            // Find and Replace both run the engine's Match verb (neither edits files here); the only
+            // difference is whether each hit records its replacement, so the results can later be applied.
+            var request = settings.MakeRequest();
+            lastRunWasReplace = replace;
+
+            sink = new CollectingSink(captureReplacements: replace);
             sink.HitsAdded += OnHitsAdded;
+            sink.ErrorsAdded += OnErrorsAdded;
             job = new SearchJob(request, sink);
 
             SetRunning(true);
-            statusLabel.Text = "Searching...";
+            statusLabel.Text = replace ? "Finding replacements..." : "Searching...";
 
             try
             {
                 await job.RunAsync();
-                AppendNewHits();          // final flush of any hits below the last throttled event
+
+                // Both hits and errors stream in during the run (throttled / immediate); flush any tail left
+                // after the last event so the final counts are exact.
+                AppendNewHits();
+                AppendNewErrors();
                 var summary = job.Summary;
                 var errorCount = sink.Errors.Count;
                 statusLabel.Text = summary.Cancelled
-                    ? $"Cancelled. {shownHits.Count} hit(s)."
-                    : $"Done. {shownHits.Count} hit(s){(errorCount > 0 ? $", {errorCount} error(s)" : string.Empty)}.";
+                    ? $"Cancelled. {hitsShownCount} hit(s)."
+                    : $"Done. {hitsShownCount} hit(s){(errorCount > 0 ? $", {errorCount} error(s)" : string.Empty)}.";
             }
             catch (Exception ex)
             {
@@ -109,6 +155,7 @@
             finally
             {
                 sink.HitsAdded -= OnHitsAdded;
+                sink.ErrorsAdded -= OnErrorsAdded;
                 job.Dispose();
                 job = null;
                 sink = null;
@@ -134,28 +181,71 @@
             }
         }
 
+        // Fired on a worker thread by the sink as each error occurs; marshal to the UI thread to append.
+        private void OnErrorsAdded(object? sender, EventArgs e)
+        {
+            if (IsDisposed)
+            {
+                return;
+            }
+
+            try
+            {
+                BeginInvoke((Action)AppendNewErrors);
+            }
+            catch (InvalidOperationException)
+            {
+                // Handle not created yet / form closing; ignore.
+            }
+        }
+
         // Appends any hits collected since we last updated the list. UI thread only.
         private void AppendNewHits()
         {
             var current = sink?.Hits;
-            if (current == null || current.Count <= shownHits.Count)
+            if (current == null || current.Count <= hitsShownCount)
             {
                 return;
             }
 
             hitList.BeginUpdate();
-            for (var i = shownHits.Count; i < current.Count; i++)
+            for (var i = hitsShownCount; i < current.Count; i++)
             {
                 var hit = current[i];
-                shownHits.Add(hit);
-                var item = new ListViewItem(hit.File.Path);
+                var item = new ListViewItem(hit.File.Path) { Tag = hit };
                 item.SubItems.Add(hit.MatchFileOffset.ToString());
                 item.SubItems.Add(OneLine(hit.MatchText));
                 hitList.Items.Add(item);
             }
 
+            hitsShownCount = current.Count;
             hitList.EndUpdate();
-            statusLabel.Text = $"Searching... {shownHits.Count} hit(s)";
+            statusLabel.Text = $"{(lastRunWasReplace ? "Finding replacements" : "Searching")}... {hitsShownCount} hit(s)";
+        }
+
+        // Appends any errors collected since we last updated the list, as distinguished rows. UI thread only.
+        private void AppendNewErrors()
+        {
+            var current = sink?.Errors;
+            if (current == null || current.Count <= errorsShownCount)
+            {
+                return;
+            }
+
+            hitList.BeginUpdate();
+            for (var i = errorsShownCount; i < current.Count; i++)
+            {
+                var error = current[i];
+                // Error rows reuse the columns: path in File, message in Match (Offset left blank). Colored to
+                // set them apart from hit rows; the row carries the error so selection can show its detail.
+                var item = new ListViewItem(error.Path) { Tag = error, ForeColor = Color.Firebrick };
+                item.SubItems.Add(string.Empty);                       // Offset column
+                item.SubItems.Add(OneLine(error.Exception.Message));   // Match column
+                hitList.Items.Add(item);
+            }
+
+            errorsShownCount = current.Count;
+            hitList.EndUpdate();
         }
 
         private void ShowSelectedContext()
@@ -166,17 +256,48 @@
                 return;
             }
 
-            var hit = shownHits[hitList.SelectedIndices[0]];
-            // Show context with the match delimited by brackets.
-            contextBox.Text = hit.PreMatchText + "[" + hit.MatchText + "]" + hit.PostMatchText;
+            switch (hitList.Items[hitList.SelectedIndices[0]].Tag)
+            {
+                case HitRecord hit:
+                    // Show context with the match delimited by brackets. In Replace mode, also show what the
+                    // match would become (its captured replacement) so the preview is visible before any apply.
+                    contextBox.Text = lastRunWasReplace
+                        ? hit.PreMatchText + "[" + hit.MatchText + " \u2192 " + hit.ReplacementText + "]" + hit.PostMatchText
+                        : hit.PreMatchText + "[" + hit.MatchText + "]" + hit.PostMatchText;
+                    break;
+
+                case SearchError error:
+                    contextBox.Text = $"{error.Path}: {error.Exception.Message}";
+                    break;
+
+                default:
+                    contextBox.Clear();
+                    break;
+            }
         }
 
         private void SetRunning(bool running)
         {
-            searchButton.Enabled = !running;
-            cancelButton.Enabled = running;
-            patternBox.Enabled = !running;
-            pathBox.Enabled = !running;
+            corePane.SetRunning(running);
+        }
+
+        // Swaps the active settings pane into the host panel, sizing the panel to the pane's height.
+        private void ShowPane(UserControl pane)
+        {
+            if (settingsPanel.Controls.Count == 1 && settingsPanel.Controls[0] == pane)
+            {
+                return;
+            }
+
+            settingsPanel.SuspendLayout();
+            settingsPanel.Controls.Clear();
+            var paneHeight = pane.Height;
+            pane.Dock = DockStyle.Fill;
+            settingsPanel.Controls.Add(pane);
+            settingsPanel.Height = paneHeight;
+            settingsPanel.ResumeLayout();
+
+            AcceptButton = pane == corePane ? corePane.SearchButton : null;
         }
 
         // Collapse newlines/tabs so a multi-line match shows on one list row.

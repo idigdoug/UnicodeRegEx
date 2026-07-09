@@ -28,47 +28,24 @@
         /// </summary>
         private void InitializeComponent()
         {
-            System.Windows.Forms.Label patternLabel;
-            System.Windows.Forms.Label pathLabel;
             System.Windows.Forms.ColumnHeader fileColumn;
             System.Windows.Forms.ColumnHeader offsetColumn;
             System.Windows.Forms.ColumnHeader matchColumn;
-            this.patternBox = new System.Windows.Forms.TextBox();
-            this.pathBox = new System.Windows.Forms.TextBox();
-            this.searchButton = new System.Windows.Forms.Button();
-            this.cancelButton = new System.Windows.Forms.Button();
-            this.statusLabel = new System.Windows.Forms.Label();
+            this.settingsPanel = new System.Windows.Forms.Panel();
+            this.statusStrip = new System.Windows.Forms.StatusStrip();
+            this.statusLabel = new System.Windows.Forms.ToolStripStatusLabel();
             this.hitList = new System.Windows.Forms.ListView();
             this.contextBox = new System.Windows.Forms.TextBox();
             this.split = new System.Windows.Forms.SplitContainer();
-            patternLabel = new System.Windows.Forms.Label();
-            pathLabel = new System.Windows.Forms.Label();
             fileColumn = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             offsetColumn = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             matchColumn = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            this.statusStrip.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.split)).BeginInit();
             this.split.Panel1.SuspendLayout();
             this.split.Panel2.SuspendLayout();
             this.split.SuspendLayout();
             this.SuspendLayout();
-            // 
-            // patternLabel
-            // 
-            patternLabel.AutoSize = true;
-            patternLabel.Location = new System.Drawing.Point(12, 15);
-            patternLabel.Name = "patternLabel";
-            patternLabel.Size = new System.Drawing.Size(87, 25);
-            patternLabel.TabIndex = 0;
-            patternLabel.Text = "Pattern:";
-            // 
-            // pathLabel
-            // 
-            pathLabel.AutoSize = true;
-            pathLabel.Location = new System.Drawing.Point(12, 63);
-            pathLabel.Name = "pathLabel";
-            pathLabel.Size = new System.Drawing.Size(62, 25);
-            pathLabel.TabIndex = 2;
-            pathLabel.Text = "Path:";
             // 
             // fileColumn
             // 
@@ -85,55 +62,27 @@
             matchColumn.Text = "Match";
             matchColumn.Width = 340;
             // 
-            // patternBox
+            // settingsPanel
             // 
-            this.patternBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.patternBox.Location = new System.Drawing.Point(105, 12);
-            this.patternBox.Name = "patternBox";
-            this.patternBox.Size = new System.Drawing.Size(631, 31);
-            this.patternBox.TabIndex = 1;
+            this.settingsPanel.Dock = System.Windows.Forms.DockStyle.Top;
+            this.settingsPanel.Location = new System.Drawing.Point(0, 0);
+            this.settingsPanel.Name = "settingsPanel";
+            this.settingsPanel.Size = new System.Drawing.Size(874, 96);
+            this.settingsPanel.TabIndex = 0;
             // 
-            // pathBox
+            // statusStrip
             // 
-            this.pathBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.pathBox.Location = new System.Drawing.Point(105, 60);
-            this.pathBox.Name = "pathBox";
-            this.pathBox.Size = new System.Drawing.Size(631, 31);
-            this.pathBox.TabIndex = 3;
-            // 
-            // searchButton
-            // 
-            this.searchButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.searchButton.Location = new System.Drawing.Point(742, 9);
-            this.searchButton.Name = "searchButton";
-            this.searchButton.Size = new System.Drawing.Size(120, 40);
-            this.searchButton.TabIndex = 4;
-            this.searchButton.Text = "Search";
-            this.searchButton.UseVisualStyleBackColor = true;
-            this.searchButton.Click += new System.EventHandler(this.searchButton_Click);
-            // 
-            // cancelButton
-            // 
-            this.cancelButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.cancelButton.Enabled = false;
-            this.cancelButton.Location = new System.Drawing.Point(742, 55);
-            this.cancelButton.Name = "cancelButton";
-            this.cancelButton.Size = new System.Drawing.Size(120, 40);
-            this.cancelButton.TabIndex = 5;
-            this.cancelButton.Text = "Cancel";
-            this.cancelButton.UseVisualStyleBackColor = true;
-            this.cancelButton.Click += new System.EventHandler(this.cancelButton_Click);
+            this.statusStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.statusLabel});
+            this.statusStrip.Location = new System.Drawing.Point(0, 557);
+            this.statusStrip.Name = "statusStrip";
+            this.statusStrip.Size = new System.Drawing.Size(874, 22);
+            this.statusStrip.TabIndex = 2;
             // 
             // statusLabel
             // 
-            this.statusLabel.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.statusLabel.Location = new System.Drawing.Point(12, 111);
             this.statusLabel.Name = "statusLabel";
-            this.statusLabel.Size = new System.Drawing.Size(850, 25);
-            this.statusLabel.TabIndex = 6;
+            this.statusLabel.Size = new System.Drawing.Size(42, 17);
             this.statusLabel.Text = "Ready.";
             // 
             // hitList
@@ -148,7 +97,7 @@
             this.hitList.Location = new System.Drawing.Point(0, 0);
             this.hitList.MultiSelect = false;
             this.hitList.Name = "hitList";
-            this.hitList.Size = new System.Drawing.Size(859, 287);
+            this.hitList.Size = new System.Drawing.Size(874, 289);
             this.hitList.TabIndex = 0;
             this.hitList.UseCompatibleStateImageBehavior = false;
             this.hitList.View = System.Windows.Forms.View.Details;
@@ -163,16 +112,14 @@
             this.contextBox.Name = "contextBox";
             this.contextBox.ReadOnly = true;
             this.contextBox.ScrollBars = System.Windows.Forms.ScrollBars.Both;
-            this.contextBox.Size = new System.Drawing.Size(859, 117);
+            this.contextBox.Size = new System.Drawing.Size(874, 168);
             this.contextBox.TabIndex = 0;
             this.contextBox.WordWrap = false;
             // 
             // split
             // 
-            this.split.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.split.Location = new System.Drawing.Point(12, 159);
+            this.split.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.split.Location = new System.Drawing.Point(0, 96);
             this.split.Name = "split";
             this.split.Orientation = System.Windows.Forms.Orientation.Horizontal;
             // 
@@ -183,28 +130,24 @@
             // split.Panel2
             // 
             this.split.Panel2.Controls.Add(this.contextBox);
-            this.split.Size = new System.Drawing.Size(859, 408);
-            this.split.SplitterDistance = 287;
-            this.split.TabIndex = 9;
+            this.split.Size = new System.Drawing.Size(874, 461);
+            this.split.SplitterDistance = 289;
+            this.split.TabIndex = 1;
             // 
             // MainForm
             // 
-            this.AcceptButton = this.searchButton;
             this.AutoScaleDimensions = new System.Drawing.SizeF(12F, 25F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(874, 579);
             this.Controls.Add(this.split);
-            this.Controls.Add(pathLabel);
-            this.Controls.Add(patternLabel);
-            this.Controls.Add(this.statusLabel);
-            this.Controls.Add(this.cancelButton);
-            this.Controls.Add(this.searchButton);
-            this.Controls.Add(this.pathBox);
-            this.Controls.Add(this.patternBox);
+            this.Controls.Add(this.statusStrip);
+            this.Controls.Add(this.settingsPanel);
             this.MinimumSize = new System.Drawing.Size(600, 400);
             this.Name = "MainForm";
             this.Text = "UnicodeRegEx";
             this.Load += new System.EventHandler(this.MainForm_Load);
+            this.statusStrip.ResumeLayout(false);
+            this.statusStrip.PerformLayout();
             this.split.Panel1.ResumeLayout(false);
             this.split.Panel2.ResumeLayout(false);
             this.split.Panel2.PerformLayout();
@@ -217,11 +160,9 @@
 
         #endregion
 
-        private System.Windows.Forms.TextBox patternBox;
-        private System.Windows.Forms.TextBox pathBox;
-        private System.Windows.Forms.Button searchButton;
-        private System.Windows.Forms.Button cancelButton;
-        private System.Windows.Forms.Label statusLabel;
+        private System.Windows.Forms.Panel settingsPanel;
+        private System.Windows.Forms.StatusStrip statusStrip;
+        private System.Windows.Forms.ToolStripStatusLabel statusLabel;
         private System.Windows.Forms.ListView hitList;
         private System.Windows.Forms.TextBox contextBox;
         private System.Windows.Forms.SplitContainer split;

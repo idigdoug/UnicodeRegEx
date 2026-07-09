@@ -198,9 +198,35 @@ find-and-selectively-replace tool. It is being built in slices on top of a UI-ag
   (`SearchRequest.Validate`, friendly message not a faulted run), and marshals the throttled `HitsAdded`
   and completion to the UI thread via `BeginInvoke`, appending only the new tail (with a final flush).
   `AnyCPU`+`PreferNativeArm64`, output to `out\Debug` beside the native DLLs.
-- **Slice 2 (next):** the input surface — primary UI options + the auto-generated advanced property page
-  (from `GroupedSettings` / `EditorKind` / `TrySetValue` / `Reset`), so a run is driven by `SearchSettings`
-  (`MakeRequest`) rather than just pattern+path.
+- **Slice 2a (done):** the pane-swap structure. The settings live in a top host panel (`settingsPanel`,
+  `Dock=Top`) that `MainForm` swaps between two distinct `UserControl`s: `CoreSettingsPane` (the expanded
+  editor) and `CollapsedSettingsPane` (a one-line summary strip), so the collapsed state is a real control,
+  not a resized splitter. Both panes are bound (`Bind`) to the **one** shared `SearchSettings` `MainForm`
+  owns; the panes raise intent events (`SearchRequested`/`CancelRequested`/`CollapseRequested` and
+  `ExpandRequested`) and `MainForm` owns the swap + the run. The run now flows through
+  `SearchSettings.MakeRequest()` / `.Validate()` (friendly `SettingProblem.Message`) instead of a hand-built
+  `SearchRequest`. The collapse button lives inside `CoreSettingsPane` (bottom corner). Layout is code-built
+  (no per-pane designer files); `MainForm.Designer.cs` is a clean docked layout (host panel + results
+  `SplitContainer` `Dock=Fill` + a `StatusStrip`). This slice hosts only the fields the old shell had
+  (pattern + path) to prove the mechanics.
+- **Slice 2b-core (done):** built out `CoreSettingsPane`'s primary fields and introduced the **Find/Replace
+  verb model**. The pane gains a replacement-template box, a **Replace** button beside Search (Search and
+  Replace are verbs, not settings — so there is no `Apply` toggle), a **Match case** checkbox (inverts the
+  `IgnoreCase` setting), and a **Search subfolders** checkbox (a two-value view over the multi-valued
+  `Directories` setting: checked = `RecurseNoLinks`, unchecked = `ReadImmediateFiles`; any recursing
+  disposition reads as checked). Both Find and Replace run the engine's **`Match`** verb — neither edits
+  files — the only difference is the run mode: Find ignores the template and captures no replacement; Replace
+  honors the template and each hit records its replacement (via the new `CollectingSink(captureReplacements)`
+  flag) so the results can later be applied (slice 3). `MainForm` threads the mode into `StartRunAsync(bool
+  replace)`, constructs the sink accordingly, remembers `lastRunWasReplace`, and shows the captured
+  replacement in the context pane (`Pre[Match → Replacement]Post`) in Replace mode. The collapsed summary now
+  appends a compact hint of active non-default options (`replace → …`, `match case`, `no subfolders`).
+- **Slice 2b-rest / 2c (next):** the remaining `CoreSettingsPane` fields (include/exclude + exclude-dir
+  globs, syntax flavor, browse) and the auto-generated advanced property page (from `GroupedSettings` /
+  `EditorKind` / `TrySetValue` / `Reset` — surface confirmed present) for the rest of `SearchSettings`, edited
+  on a staging copy and committed on OK/Apply. Deferred: how a core-pane checkbox projects onto a multi-value
+  setting once the advanced page can set a value outside the checkbox's two (tri-state vs combo); the
+  C-escape transform (to live in `SearchRequest`/`SearchJob`, not `SearchSettings`); MRU.
 - **Slice 3:** selective replace — a checkbox per hit, then a fresh apply run whose `OnApply` returns
   `Default` for checked / `Original` for unchecked, re-verifying the hit's `Pre`/`Match`/`Post` bytes still
   match to guard against a file changing between preview and apply.
@@ -385,15 +411,50 @@ find-and-selectively-replace tool. It is being built in slices on top of a UI-ag
   `ReplacementBytes` (strings decoded on demand via `RegExEncoding.FromCodePage(File.CodePage)`). Context
   windows are a bounded byte count (64) clamped at the file start/end, so they double as a later
   apply-time staleness guard. `CollectingSink : SearchSinkBase` captures each `OnMatch` into a `HitRecord`
-  (formatting the replacement through a per-file `RegExMemoryStream` held on `SearchFile.Context` and
-  `Reset()` per hit, disposed at `OnFileComplete`), accumulates them thread-safely (`Hits` append-only
-  snapshot + collected `Errors`), and raises a **throttled** `HitsAdded` event (every ~100 ms or 256 hits)
-  so a UI can stream updates — fired on a worker thread, so a subscriber marshals. Fully unit-tested with no
-  UI.
+  and accumulates them thread-safely (`Hits` append-only snapshot + collected `Errors`), raising a
+  **throttled** `HitsAdded` event (every ~100 ms or 256 hits) and an **unthrottled** `ErrorsAdded` event
+  (errors are low-volume) so a UI can stream both hits and errors as they occur — fired on a worker thread,
+  so a subscriber marshals.
+  Replace mode it formats each replacement through a per-file `RegExMemoryStream` held on `SearchFile.Context`
+  (`Reset()` per hit, disposed at `OnFileComplete`); in Find mode it makes no stream and leaves each
+  `ReplacementBytes` empty (the engine verb is `Match` either way — the flag only controls whether the
+  replacement is materialized for a later apply). Fully unit-tested with no UI.
 - WinForms GUI (`managed_gui`/`UnicodeRegExGui`, `net48`, `AnyCPU`+`PreferNativeArm64`, output to
-  `out\Debug` beside the native DLLs): slice-1b `MainForm` is a minimal find tool — pattern + path,
-  Search/Cancel, a details `ListView` (file / offset / match), and a monospace context pane
-  (`Pre[Match]Post`). It runs `SearchJob` + `CollectingSink`, validates the request up front, and marshals
-  the sink's throttled `HitsAdded` + run completion to the UI thread (`BeginInvoke`), appending only the
-  new tail. Consumes the `Collecting` core; no options page or replace yet (slices 2/3).
-- Tests: 386 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.
+  `out\Debug` beside the native DLLs): `MainForm` is a find/replace tool over the `Collecting` core — a
+  details `ListView` (file / offset / match), a monospace context pane, and a `StatusStrip`. It runs
+  `SearchJob` + `CollectingSink`, validates up front, and marshals the sink's throttled `HitsAdded` and its
+  (unthrottled) `ErrorsAdded` events plus run completion to the UI thread (`BeginInvoke`), appending only the
+  new tail. Each row's `Tag` carries its model (a `HitRecord` for hits); errors stream in as they occur as
+  distinguished rows (path in File, message in Match, `Firebrick` fore color, `Tag` = the `SearchError`), and
+  the context pane shows the selected row's detail (match context for a hit, `{path}: {message}` for an
+  error) by branching on `Tag`.
+  The settings surface is a **pane swap** (slice 2a): a top host panel (`settingsPanel`, `Dock=Top`) holds
+  either `CoreSettingsPane` (expanded editor) or `CollapsedSettingsPane` (a one-line summary that expands
+  back), so collapsing hands the screen to the results while keeping a glance-back. `MainForm` owns the
+  **one** shared `SearchSettings`, `Bind`s both panes to it, and orchestrates the swap; panes only raise
+  intent events.
+  Verbs (slice 2b-core): `CoreSettingsPane`'s rows follow the old app — **Search for** (pattern), **Replace
+  with** (template), **In files** (include globs), **In folders** (path) — each paired with the button that
+  acts on it (Search / Replace / Cancel / Browse). The four input boxes are editable `ComboBox`es (so each
+  can become an MRU dropdown later; persistence isn't wired yet). The **In files** box is a
+  semicolon-separated include-file glob list (e.g. `*.cs;*.h`, pushed to `FileNameFilters` as all-`Include`
+  filters — the ordered/mixed include-exclude case is intentionally out of scope for the core page since these
+  are `WorkingState`, never on the advanced page), a **Search** and a **Replace** button (Search/Replace are
+  verbs, not settings — no `Apply` toggle), a **Match case** checkbox (inverts `IgnoreCase`), a **Search
+  subfolders** checkbox (a *tri-state* view over `Directories`: checked = a recursing disposition, unchecked =
+  `ReadImmediateFiles`, indeterminate = `Error`/`Skip` — a push in that state leaves it untouched, and a
+  checked push preserves an already-recursing value like `RecurseWithLinks` rather than downgrading it), and a
+  **Perl regular expression** checkbox (a *tri-state* view over `SyntaxFlavor`: checked = `Perl`, unchecked =
+  `Literal`/fixed strings, indeterminate = a flavor the checkbox doesn't model such as `Basic`/`Extended` — a
+  push in that state leaves `SyntaxFlavor` untouched). Both tri-state checkboxes use `AutoCheck = false` so a
+  user click only toggles checked/unchecked (never into indeterminate, which is code-set only). A
+  **Browse...** button (aligned with the Path row) opens a `FolderBrowserDialog` seeded with the current path
+  and writes the chosen folder back to the Path box. Both run buttons execute the engine's `Match` verb (no
+  file edits here); `MainForm.StartRunAsync(bool replace)` constructs `CollectingSink(captureReplacements:
+  replace)`, so Find ignores the template and Replace records each hit's replacement (shown as `Pre[Match →
+  Replacement]Post` in the context pane) for a later selective apply. The collapsed summary appends a compact
+  hint of active non-default options. Pane layout is code-built. A C-style escape-translation checkbox was
+  deemed unnecessary for now (Perl/Extended flavors already handle C-style escapes; a toggle would only add
+  value for Literal/Basic, deferred until wanted). The auto-generated advanced options page and selective
+  replace are still to come (slices 2c/3).
+- Tests: 389 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.

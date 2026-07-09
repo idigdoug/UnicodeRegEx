@@ -72,6 +72,14 @@ namespace UnicodeRegEx.Tests.Tools
             return sink;
         }
 
+        private static async Task<CollectingSink> RunAsync(SearchRequest request, bool captureReplacements)
+        {
+            var sink = new CollectingSink(captureReplacements);
+            using var job = new SearchJob(request, sink);
+            await job.RunAsync();
+            return sink;
+        }
+
         [TestMethod]
         public async Task Collects_MatchOffsetAndBytes()
         {
@@ -196,6 +204,36 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         [TestMethod]
+        public async Task CaptureReplacements_True_RecordsReplacement()
+        {
+            // Replace mode: replacement is formatted and captured.
+            var file = WriteUtf8("a.txt", "xx foo yy");
+            var sink = await RunAsync(Request("foo", file, replaceTemplate: "BAZ"), captureReplacements: true);
+
+            Assert.AreEqual(1, sink.Hits.Count);
+            var hit = sink.Hits[0];
+            Assert.AreEqual("BAZ", hit.ReplacementText);
+            CollectionAssert.AreEqual(Encoding.UTF8.GetBytes("BAZ"), hit.ReplacementBytes);
+        }
+
+        [TestMethod]
+        public async Task CaptureReplacements_False_LeavesReplacementEmpty_ButKeepsContext()
+        {
+            // Find mode: even with a template present, no replacement is captured, but the match and its
+            // context are still recorded.
+            var file = WriteUtf8("a.txt", "before-foo-after");
+            var sink = await RunAsync(Request("foo", file, replaceTemplate: "BAZ"), captureReplacements: false);
+
+            Assert.AreEqual(1, sink.Hits.Count);
+            var hit = sink.Hits[0];
+            Assert.AreEqual(0, hit.ReplacementBytes.Length);
+            Assert.AreEqual(string.Empty, hit.ReplacementText);
+            Assert.AreEqual("foo", hit.MatchText);
+            Assert.AreEqual("before-", hit.PreMatchText);
+            Assert.AreEqual("-after", hit.PostMatchText);
+        }
+
+        [TestMethod]
         public async Task Error_MissingPath_IsCollected()
         {
             var missing = Path.Combine(tempDir, "does-not-exist.txt");
@@ -203,6 +241,23 @@ namespace UnicodeRegEx.Tests.Tools
 
             Assert.AreEqual(1, sink.Errors.Count);
             Assert.AreEqual(missing, sink.Errors[0].Path);
+        }
+
+        [TestMethod]
+        public async Task Error_RaisesErrorsAdded()
+        {
+            var missing = Path.Combine(tempDir, "does-not-exist.txt");
+            var request = Request("x", missing);
+
+            var sink = new CollectingSink();
+            var raised = 0;
+            sink.ErrorsAdded += (_, _) => raised++;
+
+            using var job = new SearchJob(request, sink);
+            await job.RunAsync();
+
+            Assert.AreEqual(1, sink.Errors.Count);
+            Assert.IsTrue(raised >= 1, "ErrorsAdded should fire at least once when an error occurs.");
         }
     }
 }
