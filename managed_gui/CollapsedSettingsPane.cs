@@ -2,7 +2,6 @@ namespace UnicodeRegEx.Gui
 {
     using System;
     using System.Collections.Generic;
-    using System.Drawing;
     using System.Windows.Forms;
     using UnicodeRegEx;
     using UnicodeRegEx.Tools;
@@ -12,38 +11,27 @@ namespace UnicodeRegEx.Gui
     /// <see cref="SearchSettings"/> that gives the results/details the screen while preserving a
     /// glance-back at what was searched. Clicking the summary (or the expand button) raises
     /// <see cref="ExpandRequested"/>; <see cref="MainForm"/> owns swapping back to the editor.
+    /// <para>
+    /// The controls and layout live in <c>CollapsedSettingsPane.Designer.cs</c> (VS-designer-owned); this file
+    /// holds the behavior — the expand event, settings binding, and the summary rendering.
+    /// </para>
     /// </summary>
-    internal sealed class CollapsedSettingsPane : UserControl
+    internal sealed partial class CollapsedSettingsPane : UserControl
     {
-        private readonly Label summaryLabel;
-        private readonly Button expandButton;
-
         private SearchSettings? settings;
 
         public CollapsedSettingsPane()
         {
-            summaryLabel = new Label
-            {
-                Left = 8,
-                Top = 8,
-                Width = 360,
-                AutoSize = false,
-                Height = 20,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-            };
-
-            expandButton = new Button { Text = "Edit \u25BE", Left = 380, Top = 5, Width = 90, Anchor = AnchorStyles.Top | AnchorStyles.Right };
-            expandButton.Click += (_, _) => ExpandRequested?.Invoke(this, EventArgs.Empty);
-
-            Width = 500;
-            Height = 34;
-
-            Controls.Add(summaryLabel);
-            Controls.Add(expandButton);
+            InitializeComponent();
         }
 
         /// <summary>Raised when the user asks to expand back to the full settings editor.</summary>
         public event EventHandler? ExpandRequested;
+
+        private void expandButton_Click(object sender, EventArgs e)
+        {
+            ExpandRequested?.Invoke(this, EventArgs.Empty);
+        }
 
         /// <summary>Binds the shared settings this pane summarizes, and refreshes the summary line.</summary>
         public void Bind(SearchSettings sharedSettings)

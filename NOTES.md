@@ -453,7 +453,11 @@ find-and-selectively-replace tool. It is being built in slices on top of a UI-ag
   file edits here); `MainForm.StartRunAsync(bool replace)` constructs `CollectingSink(captureReplacements:
   replace)`, so Find ignores the template and Replace records each hit's replacement (shown as `Pre[Match →
   Replacement]Post` in the context pane) for a later selective apply. The collapsed summary appends a compact
-  hint of active non-default options. Pane layout is code-built. A C-style escape-translation checkbox was
+  hint of active non-default options. `CoreSettingsPane` and `CollapsedSettingsPane` are both
+  VS-designer-compatible splits — controls/layout in a `*.Designer.cs` (`InitializeComponent`, absolute
+  `Location`/`Size` + `Anchor`, named `*_Click` handlers) with a nominal `*.resx`; the code-behind `*.cs`
+  holds behavior (intent events, settings binding via `Bind`/`PullFromSettings`/`PushToSettings` /
+  `UpdateSummary`, `SetRunning`, `BrowseForPath`, tri-state helpers). A C-style escape-translation checkbox was
   deemed unnecessary for now (Perl/Extended flavors already handle C-style escapes; a toggle would only add
   value for Literal/Basic, deferred until wanted). The auto-generated advanced options page and selective
   replace are still to come (slices 2c/3).

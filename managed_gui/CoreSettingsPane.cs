@@ -16,102 +16,20 @@ namespace UnicodeRegEx.Gui
     /// Search and Replace are verbs, not settings: both run the engine's <c>Match</c> verb (neither edits
     /// files here). <see cref="SearchRequested"/> is a plain find (the replacement template is ignored);
     /// <see cref="ReplaceRequested"/> asks for a replacement preview (the template is honored and each hit
-    /// records its replacement so the results can later be applied). Layout is built in code for now and can
-    /// be re-laid-out in the designer later.
+    /// records its replacement so the results can later be applied).
+    /// </para>
+    /// <para>
+    /// The controls and layout live in <c>CoreSettingsPane.Designer.cs</c> (VS-designer-owned); this file holds
+    /// the behavior — intent events, settings binding, and the button/checkbox handlers.
     /// </para>
     /// </summary>
-    internal sealed class CoreSettingsPane : UserControl
+    internal sealed partial class CoreSettingsPane : UserControl
     {
-        // The four core inputs are editable combo boxes so each can become an MRU dropdown later (persistence
-        // is not wired yet — they start with an empty item list and behave like text boxes).
-        private readonly ComboBox patternBox;
-        private readonly ComboBox pathBox;
-        private readonly ComboBox replaceBox;
-        private readonly ComboBox includeFilesBox;
-        private readonly CheckBox matchCaseCheck;
-        private readonly CheckBox recurseCheck;
-        private readonly CheckBox perlRegexCheck;
-        private readonly Button searchButton;
-        private readonly Button browseButton;
-        private readonly Button replaceButton;
-        private readonly Button cancelButton;
-        private readonly Button collapseButton;
-
         private SearchSettings? settings;
 
         public CoreSettingsPane()
         {
-            // Row order and labels follow the old app: Search for / Replace with / In files / In folders, each
-            // paired with the button that acts on that row (Search / Replace / Cancel / Browse).
-            var patternLabel = new Label { Text = "Search for:", AutoSize = true, Left = 8, Top = 12 };
-            patternBox = new ComboBox { Left = 95, Top = 8, Width = 275, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, DropDownStyle = ComboBoxStyle.DropDown };
-
-            var replaceLabel = new Label { Text = "Replace with:", AutoSize = true, Left = 8, Top = 40 };
-            replaceBox = new ComboBox { Left = 95, Top = 36, Width = 275, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, DropDownStyle = ComboBoxStyle.DropDown };
-
-            // Semicolon-separated include-file globs (e.g. *.cs;*.h). All entries are include filters; the
-            // ordered/mixed include-exclude case is out of scope for the core page (these are WorkingState).
-            var includeFilesLabel = new Label { Text = "In files:", AutoSize = true, Left = 8, Top = 68 };
-            includeFilesBox = new ComboBox { Left = 95, Top = 64, Width = 275, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, DropDownStyle = ComboBoxStyle.DropDown };
-
-            var pathLabel = new Label { Text = "In folders:", AutoSize = true, Left = 8, Top = 96 };
-            pathBox = new ComboBox { Left = 95, Top = 92, Width = 275, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right, DropDownStyle = ComboBoxStyle.DropDown, Text = "." };
-
-            matchCaseCheck = new CheckBox { Text = "Match case", AutoSize = true, Left = 95, Top = 124 };
-
-            // "Search subfolders" is a three-state view over the multi-choice Directories setting: checked =
-            // a recursing disposition, unchecked = ReadImmediateFiles, indeterminate = a disposition the
-            // checkbox doesn't model (Error/Skip) — a push in that state leaves Directories untouched. Like the
-            // Perl checkbox, AutoCheck is off so a user click only toggles checked/unchecked.
-            recurseCheck = new CheckBox { Text = "Search subfolders", AutoSize = true, Left = 225, Top = 124, ThreeState = true, AutoCheck = false, CheckState = CheckState.Checked };
-
-            // "Perl regular expression" is a three-state view over the multi-choice SyntaxFlavor setting:
-            // checked = Perl, unchecked = Literal (fixed strings), indeterminate = some other flavor the
-            // checkbox does not model (Basic/Extended) — in which case a push leaves SyntaxFlavor untouched.
-            // AutoCheck is off so a user click can't cycle *into* indeterminate (only code sets that); the
-            // Click handler below drives a clean two-way toggle.
-            perlRegexCheck = new CheckBox { Text = "Perl regular expression", AutoSize = true, Left = 95, Top = 148, ThreeState = true, AutoCheck = false, CheckState = CheckState.Checked };
-
-            // Right-hand buttons, each aligned with the input row it acts on.
-            searchButton = new Button { Text = "Search", Left = 380, Top = 7, Width = 90, Anchor = AnchorStyles.Top | AnchorStyles.Right };
-            replaceButton = new Button { Text = "Replace", Left = 380, Top = 35, Width = 90, Anchor = AnchorStyles.Top | AnchorStyles.Right };
-            cancelButton = new Button { Text = "Cancel", Left = 380, Top = 63, Width = 90, Anchor = AnchorStyles.Top | AnchorStyles.Right, Enabled = false };
-            browseButton = new Button { Text = "Browse...", Left = 380, Top = 91, Width = 90, Anchor = AnchorStyles.Top | AnchorStyles.Right };
-
-            // Collapse button in the bottom-right corner: the pane owns the control; MainForm owns the swap.
-            collapseButton = new Button { Text = "Hide \u25B4", Left = 380, Top = 172, Width = 90, Anchor = AnchorStyles.Top | AnchorStyles.Right };
-
-            searchButton.Click += (_, _) => { PushToSettings(); SearchRequested?.Invoke(this, EventArgs.Empty); };
-            replaceButton.Click += (_, _) => { PushToSettings(); ReplaceRequested?.Invoke(this, EventArgs.Empty); };
-            cancelButton.Click += (_, _) => CancelRequested?.Invoke(this, EventArgs.Empty);
-            browseButton.Click += (_, _) => BrowseForPath();
-            collapseButton.Click += (_, _) => { PushToSettings(); CollapseRequested?.Invoke(this, EventArgs.Empty); };
-
-            // These two checkboxes are tri-state so code can reflect an out-of-model setting as indeterminate;
-            // with AutoCheck off the state doesn't change on its own, so drive a clean two-way toggle here (a
-            // user click always lands on checked or unchecked; a click on indeterminate commits to checked).
-            perlRegexCheck.Click += (_, _) => ToggleTwoState(perlRegexCheck);
-            recurseCheck.Click += (_, _) => ToggleTwoState(recurseCheck);
-
-            Width = 500;
-            Height = 204;
-
-            Controls.Add(patternLabel);
-            Controls.Add(patternBox);
-            Controls.Add(replaceLabel);
-            Controls.Add(replaceBox);
-            Controls.Add(includeFilesLabel);
-            Controls.Add(includeFilesBox);
-            Controls.Add(pathLabel);
-            Controls.Add(pathBox);
-            Controls.Add(matchCaseCheck);
-            Controls.Add(recurseCheck);
-            Controls.Add(perlRegexCheck);
-            Controls.Add(searchButton);
-            Controls.Add(replaceButton);
-            Controls.Add(cancelButton);
-            Controls.Add(browseButton);
-            Controls.Add(collapseButton);
+            InitializeComponent();
         }
 
         /// <summary>Raised when the user asks to run a plain find (settings have been pushed).</summary>
@@ -128,6 +46,51 @@ namespace UnicodeRegEx.Gui
 
         /// <summary>The button that starts a search (so <see cref="MainForm"/> can wire Enter/AcceptButton).</summary>
         public IButtonControl SearchButton => searchButton;
+
+        #region Event handlers
+
+        private void searchButton_Click(object sender, EventArgs e)
+        {
+            PushToSettings();
+            SearchRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void replaceButton_Click(object sender, EventArgs e)
+        {
+            PushToSettings();
+            ReplaceRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void cancelButton_Click(object sender, EventArgs e)
+        {
+            CancelRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void browseButton_Click(object sender, EventArgs e)
+        {
+            BrowseForPath();
+        }
+
+        private void collapseButton_Click(object sender, EventArgs e)
+        {
+            PushToSettings();
+            CollapseRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        // These two checkboxes are tri-state so code can reflect an out-of-model setting as indeterminate; with
+        // AutoCheck off the state doesn't change on its own, so drive a clean two-way toggle here (a user click
+        // always lands on checked or unchecked; a click on indeterminate commits to checked).
+        private void perlRegexCheck_Click(object sender, EventArgs e)
+        {
+            ToggleTwoState(perlRegexCheck);
+        }
+
+        private void recurseCheck_Click(object sender, EventArgs e)
+        {
+            ToggleTwoState(recurseCheck);
+        }
+
+        #endregion
 
         /// <summary>Binds the shared settings this pane edits, and loads the controls from it.</summary>
         public void Bind(SearchSettings sharedSettings)
