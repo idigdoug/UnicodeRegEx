@@ -20,6 +20,7 @@
 
         private readonly CoreSettingsPane corePane = new CoreSettingsPane();
         private readonly CollapsedSettingsPane collapsedPane = new CollapsedSettingsPane();
+        private readonly ActionBar actionBar = new ActionBar();
 
         private CollectingSink? sink;
         private SearchJob? job;
@@ -41,12 +42,21 @@
 
             corePane.SearchRequested += OnSearchRequested;
             corePane.ReplaceRequested += OnReplaceRequested;
-            corePane.CancelRequested += OnCancelRequested;
             corePane.CollapseRequested += OnCollapseRequested;
             collapsedPane.ExpandRequested += OnExpandRequested;
 
+            // The action bar owns the operation/results verbs (Cancel, Apply, Select All/None) and progress;
+            // MainForm owns all the logic, same as it does for the panes.
+            actionBar.CancelRequested += OnCancelRequested;
+            actionBar.ApplyRequested += OnApplyRequested;
+            actionBar.SelectAllRequested += OnSelectAllRequested;
+            actionBar.SelectNoneRequested += OnSelectNoneRequested;
+            actionBar.Dock = DockStyle.Fill;
+            actionBarHost.Controls.Add(actionBar);
+
             // Start expanded; MainForm owns swapping the active pane in and out of the host panel.
             ShowPane(corePane);
+            UpdateRunUiState(running: false);
         }
 
         #region Event handlers
@@ -68,6 +78,20 @@
         private void OnCancelRequested(object? sender, EventArgs e)
         {
             job?.Cancel();
+        }
+
+        // Results verbs — active only when a Replace run has produced checkable rows (slice 3 wires the
+        // per-row checkboxes and the actual apply pass; these are reserved no-ops until then).
+        private void OnApplyRequested(object? sender, EventArgs e)
+        {
+        }
+
+        private void OnSelectAllRequested(object? sender, EventArgs e)
+        {
+        }
+
+        private void OnSelectNoneRequested(object? sender, EventArgs e)
+        {
         }
 
         private void OnCollapseRequested(object? sender, EventArgs e)
@@ -130,8 +154,9 @@
             sink.HitsAdded += OnHitsAdded;
             sink.ErrorsAdded += OnErrorsAdded;
             job = new SearchJob(request, sink);
+            job.ProgressChanged += OnProgressChanged;
 
-            SetRunning(true);
+            UpdateRunUiState(running: true);
             statusLabel.Text = replace ? "Finding replacements..." : "Searching...";
 
             try
@@ -156,10 +181,11 @@
             {
                 sink.HitsAdded -= OnHitsAdded;
                 sink.ErrorsAdded -= OnErrorsAdded;
+                job.ProgressChanged -= OnProgressChanged;
                 job.Dispose();
                 job = null;
                 sink = null;
-                SetRunning(false);
+                UpdateRunUiState(running: false);
             }
         }
 
@@ -196,6 +222,34 @@
             catch (InvalidOperationException)
             {
                 // Handle not created yet / form closing; ignore.
+            }
+        }
+
+        // Fired on the job's worker thread as the phase / file counts change; marshal and update the bar.
+        private void OnProgressChanged(object? sender, EventArgs e)
+        {
+            if (IsDisposed)
+            {
+                return;
+            }
+
+            try
+            {
+                BeginInvoke((Action)UpdateProgress);
+            }
+            catch (InvalidOperationException)
+            {
+                // Handle not created yet / form closing; ignore.
+            }
+        }
+
+        // Reads the current job phase/counts and drives the action bar's progress. UI thread only.
+        private void UpdateProgress()
+        {
+            var current = job;
+            if (current != null)
+            {
+                actionBar.SetProgress(current.State, current.CompletedFileCount, current.TotalFileCount);
             }
         }
 
@@ -276,9 +330,24 @@
             }
         }
 
-        private void SetRunning(bool running)
+        // The single place run/session UI state is decided. Panes disable their inputs/verbs while running;
+        // the action bar enables Cancel while running and governs the results verbs otherwise. When a run
+        // finishes, the results verbs are available only after a Replace run produced checkable rows (the
+        // per-row checkboxes and "any checked" tracking arrive in slice 3, so anyChecked is false for now).
+        private void UpdateRunUiState(bool running)
         {
             corePane.SetRunning(running);
+            actionBar.SetRunning(running);
+
+            if (running)
+            {
+                actionBar.SetProgress(SearchJobState.Created, 0, 0);
+            }
+            else
+            {
+                actionBar.SetProgress(SearchJobState.Completed, 0, 0);
+                actionBar.SetResultsState(hasCheckableResults: lastRunWasReplace && hitsShownCount > 0, anyChecked: false);
+            }
         }
 
         // Swaps the active settings pane into the host panel, sizing the panel to the pane's height.

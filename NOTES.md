@@ -435,7 +435,7 @@ find-and-selectively-replace tool. It is being built in slices on top of a UI-ag
   intent events.
   Verbs (slice 2b-core): `CoreSettingsPane`'s rows follow the old app — **Search for** (pattern), **Replace
   with** (template), **In files** (include globs), **In folders** (path) — each paired with the button that
-  acts on it (Search / Replace / Cancel / Browse). The four input boxes are editable `ComboBox`es (so each
+  acts on it (Search / Replace / Browse). The four input boxes are editable `ComboBox`es (so each
   can become an MRU dropdown later; persistence isn't wired yet). The **In files** box is a
   semicolon-separated include-file glob list (e.g. `*.cs;*.h`, pushed to `FileNameFilters` as all-`Include`
   filters — the ordered/mixed include-exclude case is intentionally out of scope for the core page since these
@@ -453,11 +453,23 @@ find-and-selectively-replace tool. It is being built in slices on top of a UI-ag
   file edits here); `MainForm.StartRunAsync(bool replace)` constructs `CollectingSink(captureReplacements:
   replace)`, so Find ignores the template and Replace records each hit's replacement (shown as `Pre[Match →
   Replacement]Post` in the context pane) for a later selective apply. The collapsed summary appends a compact
-  hint of active non-default options. `CoreSettingsPane` and `CollapsedSettingsPane` are both
-  VS-designer-compatible splits — controls/layout in a `*.Designer.cs` (`InitializeComponent`, absolute
-  `Location`/`Size` + `Anchor`, named `*_Click` handlers) with a nominal `*.resx`; the code-behind `*.cs`
-  holds behavior (intent events, settings binding via `Bind`/`PullFromSettings`/`PushToSettings` /
-  `UpdateSummary`, `SetRunning`, `BrowseForPath`, tri-state helpers). A C-style escape-translation checkbox was
+  hint of active non-default options. `CoreSettingsPane`, `CollapsedSettingsPane`, and `ActionBar` are all
+  VS-designer-compatible splits following one shared contract — controls/layout in a `*.Designer.cs`
+  (`InitializeComponent`, absolute `Location`/`Size` + `Anchor`, named `*_Click` handlers) with a nominal
+  `*.resx`; the code-behind `*.cs` raises intent events and exposes imperative setters, while `MainForm` owns
+  all logic (the panes' settings binding via `Bind`/`PullFromSettings`/`PushToSettings`/`UpdateSummary`,
+  `SetRunning`, `BrowseForPath`, tri-state helpers).
+  Run/results verbs that are not settings live in a single always-visible **`ActionBar`** docked below the
+  settings pane (host `actionBarHost`, above the results): **Apply**, **Select All**, **Select None**, a
+  **progress bar**, and **Cancel** — fixed positions that only enable/disable (never move/hide, so a click
+  target can't shift mid-interaction). It has no `Bind(settings)` (run/results state only); it raises
+  `ApplyRequested`/`SelectAllRequested`/`SelectNoneRequested`/`CancelRequested` and exposes
+  `SetRunning`/`SetResultsState`/`SetProgress`. `MainForm` centralizes run-UI state in `UpdateRunUiState` and
+  drives progress from `SearchJob.ProgressChanged` (marshaled like the sink events): marquee while
+  `Enumerating`, determinate `CompletedFileCount/TotalFileCount` while `Processing`, empty when idle. Cancel is
+  an operation verb, so it moved out of `CoreSettingsPane` into the bar; the `StatusStrip` is kept for text
+  only (run summary + validation). Apply / Select All / Select None are present but disabled until slice 3
+  wires the per-row checkboxes. A C-style escape-translation checkbox was
   deemed unnecessary for now (Perl/Extended flavors already handle C-style escapes; a toggle would only add
   value for Literal/Basic, deferred until wanted). The auto-generated advanced options page and selective
   replace are still to come (slices 2c/3).

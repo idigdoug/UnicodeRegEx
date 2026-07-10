@@ -31,7 +31,9 @@
             System.Windows.Forms.ColumnHeader fileColumn;
             System.Windows.Forms.ColumnHeader offsetColumn;
             System.Windows.Forms.ColumnHeader matchColumn;
+            System.Windows.Forms.Label label1;
             this.settingsPanel = new System.Windows.Forms.Panel();
+            this.actionBarHost = new System.Windows.Forms.Panel();
             this.statusStrip = new System.Windows.Forms.StatusStrip();
             this.statusLabel = new System.Windows.Forms.ToolStripStatusLabel();
             this.hitList = new System.Windows.Forms.ListView();
@@ -40,6 +42,8 @@
             fileColumn = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             offsetColumn = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             matchColumn = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            label1 = new System.Windows.Forms.Label();
+            this.actionBarHost.SuspendLayout();
             this.statusStrip.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.split)).BeginInit();
             this.split.Panel1.SuspendLayout();
@@ -67,22 +71,32 @@
             this.settingsPanel.Dock = System.Windows.Forms.DockStyle.Top;
             this.settingsPanel.Location = new System.Drawing.Point(0, 0);
             this.settingsPanel.Name = "settingsPanel";
-            this.settingsPanel.Size = new System.Drawing.Size(874, 96);
+            this.settingsPanel.Size = new System.Drawing.Size(979, 96);
             this.settingsPanel.TabIndex = 0;
+            // 
+            // actionBarHost
+            // 
+            this.actionBarHost.Controls.Add(label1);
+            this.actionBarHost.Dock = System.Windows.Forms.DockStyle.Top;
+            this.actionBarHost.Location = new System.Drawing.Point(0, 96);
+            this.actionBarHost.Name = "actionBarHost";
+            this.actionBarHost.Size = new System.Drawing.Size(979, 54);
+            this.actionBarHost.TabIndex = 1;
             // 
             // statusStrip
             // 
+            this.statusStrip.ImageScalingSize = new System.Drawing.Size(32, 32);
             this.statusStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.statusLabel});
-            this.statusStrip.Location = new System.Drawing.Point(0, 557);
+            this.statusStrip.Location = new System.Drawing.Point(0, 691);
             this.statusStrip.Name = "statusStrip";
-            this.statusStrip.Size = new System.Drawing.Size(874, 22);
+            this.statusStrip.Size = new System.Drawing.Size(979, 42);
             this.statusStrip.TabIndex = 2;
             // 
             // statusLabel
             // 
             this.statusLabel.Name = "statusLabel";
-            this.statusLabel.Size = new System.Drawing.Size(42, 17);
+            this.statusLabel.Size = new System.Drawing.Size(83, 32);
             this.statusLabel.Text = "Ready.";
             // 
             // hitList
@@ -97,7 +111,7 @@
             this.hitList.Location = new System.Drawing.Point(0, 0);
             this.hitList.MultiSelect = false;
             this.hitList.Name = "hitList";
-            this.hitList.Size = new System.Drawing.Size(874, 289);
+            this.hitList.Size = new System.Drawing.Size(979, 339);
             this.hitList.TabIndex = 0;
             this.hitList.UseCompatibleStateImageBehavior = false;
             this.hitList.View = System.Windows.Forms.View.Details;
@@ -112,14 +126,14 @@
             this.contextBox.Name = "contextBox";
             this.contextBox.ReadOnly = true;
             this.contextBox.ScrollBars = System.Windows.Forms.ScrollBars.Both;
-            this.contextBox.Size = new System.Drawing.Size(874, 168);
+            this.contextBox.Size = new System.Drawing.Size(979, 198);
             this.contextBox.TabIndex = 0;
             this.contextBox.WordWrap = false;
             // 
             // split
             // 
             this.split.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.split.Location = new System.Drawing.Point(0, 96);
+            this.split.Location = new System.Drawing.Point(0, 150);
             this.split.Name = "split";
             this.split.Orientation = System.Windows.Forms.Orientation.Horizontal;
             // 
@@ -130,22 +144,33 @@
             // split.Panel2
             // 
             this.split.Panel2.Controls.Add(this.contextBox);
-            this.split.Size = new System.Drawing.Size(874, 461);
-            this.split.SplitterDistance = 289;
+            this.split.Size = new System.Drawing.Size(979, 541);
+            this.split.SplitterDistance = 339;
             this.split.TabIndex = 1;
+            // 
+            // label1
+            // 
+            label1.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
+            label1.Dock = System.Windows.Forms.DockStyle.Top;
+            label1.Location = new System.Drawing.Point(0, 0);
+            label1.Name = "label1";
+            label1.Size = new System.Drawing.Size(979, 1);
+            label1.TabIndex = 6;
             // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(12F, 25F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(874, 579);
+            this.ClientSize = new System.Drawing.Size(979, 733);
             this.Controls.Add(this.split);
             this.Controls.Add(this.statusStrip);
+            this.Controls.Add(this.actionBarHost);
             this.Controls.Add(this.settingsPanel);
             this.MinimumSize = new System.Drawing.Size(600, 400);
             this.Name = "MainForm";
             this.Text = "UnicodeRegEx";
             this.Load += new System.EventHandler(this.MainForm_Load);
+            this.actionBarHost.ResumeLayout(false);
             this.statusStrip.ResumeLayout(false);
             this.statusStrip.PerformLayout();
             this.split.Panel1.ResumeLayout(false);
@@ -161,6 +186,7 @@
         #endregion
 
         private System.Windows.Forms.Panel settingsPanel;
+        private System.Windows.Forms.Panel actionBarHost;
         private System.Windows.Forms.StatusStrip statusStrip;
         private System.Windows.Forms.ToolStripStatusLabel statusLabel;
         private System.Windows.Forms.ListView hitList;

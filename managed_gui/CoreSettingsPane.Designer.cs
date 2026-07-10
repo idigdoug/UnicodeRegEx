@@ -41,7 +41,6 @@ namespace UnicodeRegEx.Gui
             this.perlRegexCheck = new System.Windows.Forms.CheckBox();
             this.searchButton = new System.Windows.Forms.Button();
             this.replaceButton = new System.Windows.Forms.Button();
-            this.cancelButton = new System.Windows.Forms.Button();
             this.browseButton = new System.Windows.Forms.Button();
             this.collapseButton = new System.Windows.Forms.Button();
             this.SuspendLayout();
@@ -189,18 +188,6 @@ namespace UnicodeRegEx.Gui
             this.replaceButton.Text = "Replace";
             this.replaceButton.Click += new System.EventHandler(this.replaceButton_Click);
             // 
-            // cancelButton
-            // 
-            this.cancelButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.cancelButton.Enabled = false;
-            this.cancelButton.Location = new System.Drawing.Point(698, 106);
-            this.cancelButton.Margin = new System.Windows.Forms.Padding(5, 5, 5, 5);
-            this.cancelButton.Name = "cancelButton";
-            this.cancelButton.Size = new System.Drawing.Size(154, 38);
-            this.cancelButton.TabIndex = 13;
-            this.cancelButton.Text = "Cancel";
-            this.cancelButton.Click += new System.EventHandler(this.cancelButton_Click);
-            // 
             // browseButton
             // 
             this.browseButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
@@ -240,7 +227,6 @@ namespace UnicodeRegEx.Gui
             this.Controls.Add(this.perlRegexCheck);
             this.Controls.Add(this.searchButton);
             this.Controls.Add(this.replaceButton);
-            this.Controls.Add(this.cancelButton);
             this.Controls.Add(this.browseButton);
             this.Controls.Add(this.collapseButton);
             this.Margin = new System.Windows.Forms.Padding(5, 5, 5, 5);
@@ -266,7 +252,6 @@ namespace UnicodeRegEx.Gui
         private System.Windows.Forms.CheckBox perlRegexCheck;
         private System.Windows.Forms.Button searchButton;
         private System.Windows.Forms.Button replaceButton;
-        private System.Windows.Forms.Button cancelButton;
         private System.Windows.Forms.Button browseButton;
         private System.Windows.Forms.Button collapseButton;
     }

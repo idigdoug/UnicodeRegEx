@@ -38,9 +38,6 @@ namespace UnicodeRegEx.Gui
         /// <summary>Raised when the user asks to run a replacement preview (settings have been pushed).</summary>
         public event EventHandler? ReplaceRequested;
 
-        /// <summary>Raised when the user asks to cancel a running search.</summary>
-        public event EventHandler? CancelRequested;
-
         /// <summary>Raised when the user asks to collapse this pane (settings have been pushed).</summary>
         public event EventHandler? CollapseRequested;
 
@@ -59,11 +56,6 @@ namespace UnicodeRegEx.Gui
         {
             PushToSettings();
             ReplaceRequested?.Invoke(this, EventArgs.Empty);
-        }
-
-        private void cancelButton_Click(object sender, EventArgs e)
-        {
-            CancelRequested?.Invoke(this, EventArgs.Empty);
         }
 
         private void browseButton_Click(object sender, EventArgs e)
@@ -169,12 +161,11 @@ namespace UnicodeRegEx.Gui
             }
         }
 
-        /// <summary>Enables/disables the inputs while a search runs (Cancel is enabled only while running).</summary>
+        /// <summary>Enables/disables the settings inputs and run verbs while a search runs.</summary>
         public void SetRunning(bool running)
         {
             searchButton.Enabled = !running;
             replaceButton.Enabled = !running;
-            cancelButton.Enabled = running;
             patternBox.Enabled = !running;
             pathBox.Enabled = !running;
             browseButton.Enabled = !running;
