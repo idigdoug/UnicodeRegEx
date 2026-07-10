@@ -20,7 +20,6 @@
 
         private readonly CoreSettingsPane corePane = new CoreSettingsPane();
         private readonly CollapsedSettingsPane collapsedPane = new CollapsedSettingsPane();
-        private readonly ActionBar actionBar = new ActionBar();
 
         private CollectingSink? sink;
         private SearchJob? job;
@@ -44,15 +43,6 @@
             corePane.ReplaceRequested += OnReplaceRequested;
             corePane.CollapseRequested += OnCollapseRequested;
             collapsedPane.ExpandRequested += OnExpandRequested;
-
-            // The action bar owns the operation/results verbs (Cancel, Apply, Select All/None) and progress;
-            // MainForm owns all the logic, same as it does for the panes.
-            actionBar.CancelRequested += OnCancelRequested;
-            actionBar.ApplyRequested += OnApplyRequested;
-            actionBar.SelectAllRequested += OnSelectAllRequested;
-            actionBar.SelectNoneRequested += OnSelectNoneRequested;
-            actionBar.Dock = DockStyle.Fill;
-            actionBarHost.Controls.Add(actionBar);
 
             // Start expanded; MainForm owns swapping the active pane in and out of the host panel.
             ShowPane(corePane);

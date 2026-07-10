@@ -67,8 +67,6 @@ namespace UnicodeRegEx.Gui
             // 
             // progressBar
             // 
-            this.progressBar.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
             this.progressBar.Location = new System.Drawing.Point(483, 10);
             this.progressBar.MarqueeAnimationSpeed = 40;
             this.progressBar.Name = "progressBar";
@@ -77,7 +75,6 @@ namespace UnicodeRegEx.Gui
             // 
             // cancelButton
             // 
-            this.cancelButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.cancelButton.Enabled = false;
             this.cancelButton.Location = new System.Drawing.Point(483, 10);
             this.cancelButton.Name = "cancelButton";
@@ -95,10 +92,9 @@ namespace UnicodeRegEx.Gui
             this.Controls.Add(this.selectNoneButton);
             this.Controls.Add(this.progressBar);
             this.Controls.Add(this.cancelButton);
-            this.MaximumSize = new System.Drawing.Size(874, 54);
             this.MinimumSize = new System.Drawing.Size(640, 54);
             this.Name = "ActionBar";
-            this.Size = new System.Drawing.Size(640, 54);
+            this.Size = new System.Drawing.Size(874, 54);
             this.ResumeLayout(false);
 
         }

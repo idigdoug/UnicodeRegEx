@@ -459,10 +459,19 @@ find-and-selectively-replace tool. It is being built in slices on top of a UI-ag
   `*.resx`; the code-behind `*.cs` raises intent events and exposes imperative setters, while `MainForm` owns
   all logic (the panes' settings binding via `Bind`/`PullFromSettings`/`PushToSettings`/`UpdateSummary`,
   `SetRunning`, `BrowseForPath`, tri-state helpers).
-  Run/results verbs that are not settings live in a single always-visible **`ActionBar`** docked below the
-  settings pane (host `actionBarHost`, above the results): **Apply**, **Select All**, **Select None**, a
-  **progress bar**, and **Cancel** — fixed positions that only enable/disable (never move/hide, so a click
-  target can't shift mid-interaction). It has no `Bind(settings)` (run/results state only); it raises
+  Run/results verbs that are not settings live in a single always-visible **`ActionBar`** placed below the
+  settings pane (a full-width `Fixed3D` `actionBarSeparator` line divides them; above the results): **Apply**,
+  **Select All**, **Select None**, a **progress bar**, and **Cancel**. The verb buttons enable/disable but
+  never hide (a click target can't disappear mid-interaction). The bar is full-width (`Dock=Top`, no
+  `MaximumSize` — an earlier width cap fought the dock stretch and clipped Cancel); the left cluster
+  (Apply/Select All/Select None) is fixed, and `ActionBar.OnResize` lays out the progress bar to grow with the
+  bar up to a cap (`ProgressMaxWidth`) with Cancel placed just to its right (so empty space falls to the far
+  right). The full-width separator lives on the form (not in the bar) so it spans the whole window. Both
+  the separator and the `ActionBar` are **designer-declared on `MainForm`** (created in `InitializeComponent`,
+  dock stack settingsPanel -> separator -> actionBar -> results via `Controls.Add` order, `ActionBar` events
+  serialized designer-style); the swapped panes (`corePane`/`collapsedPane`) stay runtime-created since the
+  designer can't express two controls taking turns in one `settingsPanel` slot. It has no `Bind(settings)`
+  (run/results state only); it raises
   `ApplyRequested`/`SelectAllRequested`/`SelectNoneRequested`/`CancelRequested` and exposes
   `SetRunning`/`SetResultsState`/`SetProgress`. `MainForm` centralizes run-UI state in `UpdateRunUiState` and
   drives progress from `SearchJob.ProgressChanged` (marshaled like the sink events): marquee while
