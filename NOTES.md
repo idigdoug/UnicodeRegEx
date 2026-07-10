@@ -477,9 +477,28 @@ find-and-selectively-replace tool. It is being built in slices on top of a UI-ag
   drives progress from `SearchJob.ProgressChanged` (marshaled like the sink events): marquee while
   `Enumerating`, determinate `CompletedFileCount/TotalFileCount` while `Processing`, empty when idle. Cancel is
   an operation verb, so it moved out of `CoreSettingsPane` into the bar; the `StatusStrip` is kept for text
-  only (run summary + validation). Apply / Select All / Select None are present but disabled until slice 3
-  wires the per-row checkboxes. A C-style escape-translation checkbox was
+  only (run summary + validation). A C-style escape-translation checkbox was
   deemed unnecessary for now (Perl/Extended flavors already handle C-style escapes; a toggle would only add
-  value for Literal/Basic, deferred until wanted). The auto-generated advanced options page and selective
-  replace are still to come (slices 2c/3).
-- Tests: 389 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.
+  value for Literal/Basic, deferred until wanted). The auto-generated advanced options page is still to come
+  (slice 2c).
+- Selective replace (slice 3, done): after a **Replace** run the results rows are checkable
+  (`hitList.CheckBoxes` on only for Replace; error rows vetoed via `ItemCheck`; all rows default checked).
+  **Select All/None** toggle them and **Apply** runs a standalone **`ReplaceJob`** (`UnicodeRegEx.Tools.Engine`,
+  parallel in shape to `SearchJob`) over just the chosen `HitRecord`s — it does **not** re-enumerate or re-run
+  the regex. It groups the chosen hits by file, memory-maps each file, and before rewriting **re-verifies**
+  each match's captured `Pre`/`Match`/`Post` bytes still surround its `MatchFileOffset` (a staleness guard):
+  valid matches are rewritten with the preview's captured `HitRecord.ReplacementBytes` (WYSIWYG, no re-format)
+  via `RegEx.CreateReplacementFileStream` (`Write` unchanged spans + replacement bytes, then `Flush` +
+  `MoveTo(ReplaceExisting)`); a changed match is left as-is and counted skipped-stale. Only files with at
+  least one valid edit are rewritten (no no-op rewrites). One bad file is isolated (per-file try/catch →
+  `Errors`), the rest still apply. This slice is serial and cancels at file boundaries; `ReplaceJob` exposes
+  `RunAsync`/`Cancel`/`ProgressChanged`/`State`/`TotalFileCount`/`CompletedFileCount`/`AppliedCount`/
+  `SkippedStaleCount`/`ChangedFiles`/`Errors`, shaped to grow toward mid-file cancel (the write stream
+  supports `LinkCancellation`) and cross-file parallelism later. `MainForm.StartApplyAsync` drives it with the
+  same progress/Cancel/`UpdateRunUiState` scaffolding as a search (via a distinct `replaceJob` field); on
+  completion the results are cleared and a summary shown ("Applied N replacement(s)[, M skipped (file
+  changed)][, K error(s)]"). Headless unit-tested (all / subset / none / stale-skip / multi-file / per-file
+  error isolation). (The earlier `ApplyingSink`/`Verb=Apply` approach was retired — `SearchJob` only partially
+  overlapped: it re-enumerated and re-matched, and rewrote matched files byte-identically even when nothing
+  changed.)
+- Tests: 395 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.

@@ -44,6 +44,12 @@ namespace UnicodeRegEx.Gui
         /// <summary>The button that starts a search (so <see cref="MainForm"/> can wire Enter/AcceptButton).</summary>
         public IButtonControl SearchButton => searchButton;
 
+        /// <summary>
+        /// Moves focus to the collapse ("Hide") button. <see cref="MainForm"/> calls this after expanding this
+        /// pane so focus lands on the toggle that got us here (symmetric with the collapsed pane's Edit button).
+        /// </summary>
+        public void FocusCollapseButton() => collapseButton.Focus();
+
         #region Event handlers
 
         private void searchButton_Click(object sender, EventArgs e)

@@ -108,7 +108,7 @@
             this.hitList.FullRowSelect = true;
             this.hitList.HideSelection = false;
             this.hitList.Location = new System.Drawing.Point(0, 0);
-            this.hitList.MultiSelect = false;
+            this.hitList.MultiSelect = true;
             this.hitList.Name = "hitList";
             this.hitList.Size = new System.Drawing.Size(1109, 798);
             this.hitList.TabIndex = 0;

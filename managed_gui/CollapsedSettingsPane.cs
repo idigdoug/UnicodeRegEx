@@ -28,6 +28,12 @@ namespace UnicodeRegEx.Gui
         /// <summary>Raised when the user asks to expand back to the full settings editor.</summary>
         public event EventHandler? ExpandRequested;
 
+        /// <summary>
+        /// Moves focus to the expand ("Edit") button. <see cref="MainForm"/> calls this after collapsing to
+        /// this pane so focus lands on the toggle that got us here (symmetric with the core pane's Hide button).
+        /// </summary>
+        public void FocusExpandButton() => expandButton.Focus();
+
         private void expandButton_Click(object sender, EventArgs e)
         {
             ExpandRequested?.Invoke(this, EventArgs.Empty);
