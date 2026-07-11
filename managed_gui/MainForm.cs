@@ -42,9 +42,22 @@
         // How many entries each MRU list keeps.
         private const int MruCap = 10;
 
+        // Details-pane highlight styling. The match/replacement runs are drawn with a background color (and,
+        // for the removed match in Replace mode, strike-through) so the eye can pick them out of the context.
+        private static readonly Color MatchHighlight = Color.FromArgb(255, 245, 170);   // pale yellow (Find match)
+        private static readonly Color RemovedHighlight = Color.FromArgb(255, 205, 205); // pale red   (replaced-away)
+        private static readonly Color AddedHighlight = Color.FromArgb(200, 240, 200);   // pale green (replacement)
+
+        // A strike-through variant of the details box's font, built once from its designer font and reused for
+        // the removed-match run. Created after InitializeComponent; disposed with the form.
+        private Font? strikeFont;
+
         public MainForm()
         {
             InitializeComponent();
+
+            // Reuse the details box's font, adding strike-through, for the removed-match run in Replace mode.
+            strikeFont = new Font(contextBox.Font, FontStyle.Strikeout);
 
             settings.Paths.Add(Environment.CurrentDirectory);
 
@@ -538,14 +551,32 @@
                 return;
             }
 
+            contextBox.Clear();
+
             switch (hitList.Items[hitList.SelectedIndices[0]].Tag)
             {
                 case HitRecord hit:
-                    // Show context with the match delimited by brackets. In Replace mode, also show what the
-                    // match would become (its captured replacement) so the preview is visible before any apply.
-                    contextBox.Text = lastRunWasReplace
-                        ? hit.PreMatchText + "[" + hit.MatchText + " \u2192 " + hit.ReplacementText + "]" + hit.PostMatchText
-                        : hit.PreMatchText + "[" + hit.MatchText + "]" + hit.PostMatchText;
+                    // Draw the context with the match (and, in Replace mode, its captured replacement)
+                    // highlighted so it stands out. Find: match = highlight. Replace: matched text is struck
+                    // through in the "removed" color, immediately followed by the replacement in the "added"
+                    // color (so the before/after reads without an arrow).
+                    AppendRun(hit.PreMatchText, strike: false, back: null);
+                    if (lastRunWasReplace)
+                    {
+                        AppendRun(hit.MatchText, strike: true, back: RemovedHighlight);
+                        AppendRun(hit.ReplacementText, strike: false, back: AddedHighlight);
+                    }
+                    else
+                    {
+                        AppendRun(hit.MatchText, strike: false, back: MatchHighlight);
+                    }
+
+                    AppendRun(hit.PostMatchText, strike: false, back: null);
+
+                    // Keep the view at the start rather than scrolled to the end after appending.
+                    contextBox.SelectionStart = 0;
+                    contextBox.SelectionLength = 0;
+                    contextBox.ScrollToCaret();
                     break;
 
                 case SearchError error:
@@ -556,6 +587,22 @@
                     contextBox.Clear();
                     break;
             }
+        }
+
+        // Appends one styled run to the details box: sets the font (optionally strike-through) and background
+        // color for the appended text, restoring the defaults afterward.
+        private void AppendRun(string text, bool strike, Color? back)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return;
+            }
+
+            contextBox.SelectionStart = contextBox.TextLength;
+            contextBox.SelectionLength = 0;
+            contextBox.SelectionFont = strike && strikeFont != null ? strikeFont : contextBox.Font;
+            contextBox.SelectionBackColor = back ?? contextBox.BackColor;
+            contextBox.AppendText(text);
         }
 
         // The single place run/session UI state is decided. Panes disable their inputs/verbs while running;

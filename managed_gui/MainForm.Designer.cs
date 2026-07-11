@@ -17,6 +17,12 @@
             {
                 components.Dispose();
             }
+
+            if (disposing)
+            {
+                strikeFont?.Dispose();
+            }
+
             base.Dispose(disposing);
         }
 
@@ -32,11 +38,12 @@
             System.Windows.Forms.ColumnHeader offsetColumn;
             System.Windows.Forms.ColumnHeader matchColumn;
             System.Windows.Forms.Label actionBarSeparator;
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             this.settingsPanel = new System.Windows.Forms.Panel();
             this.statusStrip = new System.Windows.Forms.StatusStrip();
             this.statusLabel = new System.Windows.Forms.ToolStripStatusLabel();
             this.hitList = new System.Windows.Forms.ListView();
-            this.contextBox = new System.Windows.Forms.TextBox();
+            this.contextBox = new System.Windows.Forms.RichTextBox();
             this.split = new System.Windows.Forms.SplitContainer();
             this.actionBar = new UnicodeRegEx.Gui.ActionBar();
             fileColumn = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
@@ -108,7 +115,6 @@
             this.hitList.FullRowSelect = true;
             this.hitList.HideSelection = false;
             this.hitList.Location = new System.Drawing.Point(0, 0);
-            this.hitList.MultiSelect = true;
             this.hitList.Name = "hitList";
             this.hitList.Size = new System.Drawing.Size(1109, 798);
             this.hitList.TabIndex = 0;
@@ -121,12 +127,11 @@
             this.contextBox.Dock = System.Windows.Forms.DockStyle.Fill;
             this.contextBox.Font = new System.Drawing.Font("Lucida Console", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.contextBox.Location = new System.Drawing.Point(0, 0);
-            this.contextBox.Multiline = true;
             this.contextBox.Name = "contextBox";
             this.contextBox.ReadOnly = true;
-            this.contextBox.ScrollBars = System.Windows.Forms.ScrollBars.Both;
             this.contextBox.Size = new System.Drawing.Size(1109, 87);
             this.contextBox.TabIndex = 0;
+            this.contextBox.Text = "";
             this.contextBox.WordWrap = false;
             // 
             // split
@@ -168,6 +173,7 @@
             this.Controls.Add(this.actionBar);
             this.Controls.Add(actionBarSeparator);
             this.Controls.Add(this.settingsPanel);
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MinimumSize = new System.Drawing.Size(600, 400);
             this.Name = "MainForm";
             this.Text = "UnicodeRegEx";
@@ -176,7 +182,6 @@
             this.statusStrip.PerformLayout();
             this.split.Panel1.ResumeLayout(false);
             this.split.Panel2.ResumeLayout(false);
-            this.split.Panel2.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.split)).EndInit();
             this.split.ResumeLayout(false);
             this.ResumeLayout(false);
@@ -190,7 +195,7 @@
         private System.Windows.Forms.StatusStrip statusStrip;
         private System.Windows.Forms.ToolStripStatusLabel statusLabel;
         private System.Windows.Forms.ListView hitList;
-        private System.Windows.Forms.TextBox contextBox;
+        private System.Windows.Forms.RichTextBox contextBox;
         private System.Windows.Forms.SplitContainer split;
         private ActionBar actionBar;
     }

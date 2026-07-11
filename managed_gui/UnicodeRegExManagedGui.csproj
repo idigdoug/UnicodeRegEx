@@ -22,7 +22,12 @@
          P/Invoke wrapper can find them. -->
     <BaseOutputPath>..\out\</BaseOutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <ApplicationIcon>RepStr.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="RepStr.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\managed\UnicodeRegExManaged.csproj" />
