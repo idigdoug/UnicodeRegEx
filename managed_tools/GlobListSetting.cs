@@ -74,6 +74,9 @@ namespace UnicodeRegEx.Tools
         public override bool TrySetValue(object? value, out string? error) =>
             throw new NotSupportedException($"{nameof(GlobListSetting)} is edited via {nameof(Filters)}, not the scalar value surface.");
 
+        public override string GetPersistedValue() =>
+            throw new NotSupportedException($"{nameof(GlobListSetting)} persists its list via {nameof(ToDisplayString)} / {nameof(Filters)}, not the scalar value surface.");
+
         public override void Apply(string? value, CommandLineBinding binding)
         {
             if (value == null)

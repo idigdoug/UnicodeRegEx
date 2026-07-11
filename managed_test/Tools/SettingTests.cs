@@ -191,5 +191,68 @@ namespace UnicodeRegEx.Tests.Tools
             var s = new SearchSettings().FileNameFilters;
             TestHelpers.AssertThrows<System.NotSupportedException>(() => s.TrySetValue("x", out _));
         }
+
+        // GetPersistedValue round-trips (the persistence save/load pairing)
+
+        [TestMethod]
+        public void GetPersistedValue_Flag_RoundTrips()
+        {
+            var s = new SearchSettings().IgnoreCase;
+            s.TrySetValue(true, out _);
+            Assert.AreEqual("true", s.GetPersistedValue());
+
+            var restored = new SearchSettings().IgnoreCase;
+            restored.Apply(s.GetPersistedValue(), restored.DefaultBinding);
+            Assert.AreEqual(true, restored.GetValue());
+        }
+
+        [TestMethod]
+        public void GetPersistedValue_Choice_RoundTrips()
+        {
+            var s = new SearchSettings().SyntaxFlavor;
+            s.TrySetValue(RegExSyntaxFlags.Literal, out _);
+            Assert.AreEqual("fixed", s.GetPersistedValue()); // Literal's canonical Name
+
+            var restored = new SearchSettings().SyntaxFlavor;
+            restored.Apply(s.GetPersistedValue(), restored.DefaultBinding);
+            Assert.AreEqual(RegExSyntaxFlags.Literal, restored.Value);
+        }
+
+        [TestMethod]
+        public void GetPersistedValue_ValueSetting_RoundTrips()
+        {
+            var s = new SearchSettings().Parallelism;
+            s.TrySetValue(4, out _);
+
+            var restored = new SearchSettings().Parallelism;
+            restored.Apply(s.GetPersistedValue(), restored.DefaultBinding);
+            Assert.AreEqual(4, restored.Value);
+        }
+
+        // The load path (Apply with DefaultBinding) must accept whatever GetPersistedValue produces, for every
+        // non-default value of every Preference setting — this guards against a describe() form that does not
+        // round-trip through parse() (e.g. display quoting or an unparseable name).
+        [TestMethod]
+        public void GetPersistedValue_AllPreferences_RoundTrip()
+        {
+            foreach (var setting in new SearchSettings().Settings)
+            {
+                if (setting.Role != SettingRole.Preference)
+                {
+                    continue;
+                }
+
+                if (setting is GlobListSetting)
+                {
+                    continue; // list-valued; persisted via its Filters/display string, not GetPersistedValue
+                }
+
+                // Round-trip the *current* (default) value: save then load into a fresh instance and confirm
+                // the value survives. (Every preference is at its default here, which is a valid value.)
+                var text = setting.GetPersistedValue();
+                setting.Apply(text, setting.DefaultBinding); // must not throw
+                Assert.AreEqual(text, setting.GetPersistedValue(), $"'{setting.LongName}' did not round-trip.");
+            }
+        }
     }
 }

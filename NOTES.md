@@ -501,4 +501,19 @@ find-and-selectively-replace tool. It is being built in slices on top of a UI-ag
   error isolation). (The earlier `ApplyingSink`/`Verb=Apply` approach was retired — `SearchJob` only partially
   overlapped: it re-enumerated and re-matched, and rewrote matched files byte-identically even when nothing
   changed.)
-- Tests: 395 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.
+- Persistence (MRU + preferences): `PersistedState` + `StateStore` (`UnicodeRegEx.Tools`, front-end-neutral,
+  unit-tested) round-trip GUI state to `%APPDATA%\UnicodeRegEx\state.xml` via hand-written `XmlReader`/`XmlWriter`
+  (the schema is small/stable, so no `XmlSerializer` reflection or temp assembly; `PersistedState` is a plain
+  data model with no `[Xml*]` attributes, and `StateStore` owns the I/O with shared element/attribute-name
+  constants; missing/corrupt file -> empty, never blocks startup). Two kinds of state, partitioned by
+  `SettingRole`: **WorkingState** inputs get **MRU lists** (most-recent-first, de-duplicated, capped at 10) keyed
+  by `pattern` / `paths` / `replace` / `file-name-filters`; **Preference** settings are saved/restored as scalars
+  keyed by `LongName` via the new `Setting.GetPersistedValue()` (pairs with the `Apply(string, DefaultBinding)`
+  load path; round-trip guarded by a data-driven test over every preference). `MainForm` loads on launch (seeds
+  the `file-name-filters` MRU from a hard-coded list so there's always a top; applies persisted preferences to
+  `settings`; restores the Search/Replace/In-files box values from their MRU top while the In-folders (Path) box
+  is populated from `Environment.CurrentDirectory`; fills the combo dropdowns), records the committed inputs to
+  MRU on each run, and saves preferences + MRU on `FormClosing`. `CoreSettingsPane` exposes
+  `SetMruItems(key, items)` and the shared `*Key` constants; `GlobListSetting` throws from `GetPersistedValue`
+  (list-valued, persisted via MRU).
+- Tests: 409 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.

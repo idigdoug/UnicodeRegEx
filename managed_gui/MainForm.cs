@@ -7,6 +7,7 @@
     using UnicodeRegEx.Tools;
     using UnicodeRegEx.Tools.Collecting;
     using UnicodeRegEx.Tools.Engine;
+    using UnicodeRegEx.Tools.Settings;
 
     internal partial class MainForm : Form
     {
@@ -35,12 +36,25 @@
         // results state on every row (recompute once at the end instead).
         private bool suppressCheckRecompute;
 
+        // Persisted GUI state (MRU lists + preference values), loaded on launch and saved on close.
+        private readonly PersistedState state = StateStore.Load(StateStore.DefaultPath);
+
+        // How many entries each MRU list keeps.
+        private const int MruCap = 10;
+
         public MainForm()
         {
             InitializeComponent();
 
-            // Default to recursive search while the directory control lives on the (future) advanced page.
+            settings.Paths.Add(Environment.CurrentDirectory);
+
+            // A GUI default: recurse unless a persisted preference (applied below) says otherwise.
             settings.Directories.TrySetValue(DirectoryDisposition.RecurseNoLinks, out _);
+
+            // Restore persisted state into the settings before binding, so the panes reflect it.
+            SeedMruDefaults();
+            ApplyPreferencesFromState();
+            RestoreWorkingValuesFromMru();
 
             // Both panes edit the same settings object; each fills its controls from it.
             corePane.Bind(settings);
@@ -63,6 +77,10 @@
             hitList.ItemCheck += hitList_ItemCheck;
             hitList.ItemChecked += hitList_ItemChecked;
             hitList.KeyDown += hitList_KeyDown;
+
+            // Fill the combo dropdowns from the (seeded) MRU lists, and save on close.
+            PopulateMruDropdowns();
+            FormClosing += MainForm_FormClosing;
 
             // Start expanded; MainForm owns swapping the active pane in and out of the host panel.
             ShowPane(corePane);
@@ -263,6 +281,9 @@
                 statusLabel.Text = "Error: " + problems[0].Message;
                 return;
             }
+
+            // The inputs are valid and committed: record them as most-recent (MRU) entries.
+            AddCurrentValuesToMru();
 
             // Find and Replace both run the engine's Match verb (neither edits files here); the only
             // difference is whether each hit records its replacement, so the results can later be applied.
@@ -648,6 +669,125 @@
 
             AcceptButton = pane == corePane ? corePane.SearchButton : null;
         }
+
+        #region Persistence (MRU + preferences)
+
+        private static readonly (string Key, string[] Seeds)[] MruSeeds =
+        {
+            (CoreSettingsPane.FileFiltersKey, new[] {
+                "*.cs",
+                "*.c;*.cpp;*.h;*.hxx",
+                "*.txt",
+                "*.*",
+            }),
+        };
+
+        // Any MRU list that has no stored entries yet is filled from its seed list.
+        private void SeedMruDefaults()
+        {
+            foreach (var (key, seeds) in MruSeeds)
+            {
+                if (seeds.Length > 0 && state.GetMru(key).Count == 0)
+                {
+                    state.SetMru(key, seeds);
+                }
+            }
+        }
+
+        // Applies every persisted preference (by the setting's LongName) onto the shared settings. List-valued
+        // (GlobList) settings are working-state, not preferences, so they are skipped.
+        private void ApplyPreferencesFromState()
+        {
+            foreach (var setting in settings.Settings)
+            {
+                if (setting.Role != SettingRole.Preference || setting is GlobListSetting)
+                {
+                    continue;
+                }
+
+                var saved = state.GetPreference(setting.LongName);
+                if (saved != null)
+                {
+                    try
+                    {
+                        setting.Apply(saved, setting.DefaultBinding);
+                    }
+                    catch (Exception)
+                    {
+                        // A stale/invalid persisted value must not block startup; keep the current value.
+                    }
+                }
+            }
+        }
+
+        // Restores the working-value boxes that should carry over between sessions: In folders (paths) and In
+        // files (file globs) take their MRU top. Search/Replace intentionally start empty.
+        private void RestoreWorkingValuesFromMru()
+        {
+            var files = state.GetMru(CoreSettingsPane.FileFiltersKey);
+            if (files.Count > 0)
+            {
+                settings.FileNameFilters.Filters.Clear();
+                foreach (var glob in files[0].Split(';'))
+                {
+                    var trimmed = glob.Trim();
+                    if (trimmed.Length != 0)
+                    {
+                        settings.FileNameFilters.Filters.Add(new GlobFilter(FilterKind.Include, trimmed));
+                    }
+                }
+            }
+        }
+
+        // Fills each combo's dropdown list from its MRU.
+        private void PopulateMruDropdowns()
+        {
+            corePane.SetMruItems(CoreSettingsPane.PatternKey, state.GetMru(CoreSettingsPane.PatternKey));
+            corePane.SetMruItems(CoreSettingsPane.ReplaceKey, state.GetMru(CoreSettingsPane.ReplaceKey));
+            corePane.SetMruItems(CoreSettingsPane.FileFiltersKey, state.GetMru(CoreSettingsPane.FileFiltersKey));
+            corePane.SetMruItems(CoreSettingsPane.PathsKey, state.GetMru(CoreSettingsPane.PathsKey));
+        }
+
+        // Records the current working-value inputs as most-recent MRU entries (called when a run is launched,
+        // after the pane has pushed its controls into settings). Also refreshes the dropdowns so a re-open of
+        // the list shows the new top without waiting for a restart.
+        private void AddCurrentValuesToMru()
+        {
+            state.AddMru(CoreSettingsPane.PatternKey, settings.Pattern, MruCap);
+            state.AddMru(CoreSettingsPane.ReplaceKey, settings.Replace.Value, MruCap);
+            state.AddMru(CoreSettingsPane.FileFiltersKey, settings.FileNameFilters.ToDisplayString(), MruCap);
+            state.AddMru(CoreSettingsPane.PathsKey, settings.Paths.Count > 0 ? settings.Paths[0] : ".", MruCap);
+            PopulateMruDropdowns();
+        }
+
+        // Captures every preference setting's current value into the persisted state (for save on close).
+        private void SavePreferencesToState()
+        {
+            foreach (var setting in settings.Settings)
+            {
+                if (setting.Role != SettingRole.Preference || setting is GlobListSetting)
+                {
+                    continue;
+                }
+
+                state.SetPreference(setting.LongName, setting.GetPersistedValue());
+            }
+        }
+
+        private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
+        {
+            SavePreferencesToState();
+            try
+            {
+                StateStore.Save(StateStore.DefaultPath, state);
+            }
+            catch (Exception)
+            {
+                // Failing to persist state on exit should never block closing.
+            }
+        }
+
+        #endregion
 
         // Collapse newlines/tabs so a multi-line match shows on one list row.
         private static string OneLine(string text) =>

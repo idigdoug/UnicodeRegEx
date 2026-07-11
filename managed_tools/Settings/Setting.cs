@@ -189,6 +189,15 @@ namespace UnicodeRegEx.Tools.Settings
         /// <summary>The synthesized binding used when applying from a source with no command-line binding (e.g. a config overlay): the setting's own long/short name, no implied value or tag.</summary>
         public CommandLineBinding DefaultBinding => new CommandLineBinding(LongName, ShortName, null);
 
+        /// <summary>
+        /// The current value rendered as a string that round-trips through <see cref="Apply"/> (with
+        /// <see cref="DefaultBinding"/>) — the persistence form. Pairs with the string-based load path so a
+        /// front-end can save a setting with <c>GetPersistedValue()</c> and restore it with
+        /// <c>Apply(saved, DefaultBinding)</c>. Not meaningful for list-valued settings
+        /// (<see cref="GlobListSetting"/>), which persist their list elsewhere.
+        /// </summary>
+        public abstract string GetPersistedValue();
+
         // PROPERTY-PAGE SURFACE
         //
         // A small, typed, observable surface a single property-page dialog binds to. The dialog decides
@@ -276,6 +285,8 @@ namespace UnicodeRegEx.Tools.Settings
         // A bare flag (null value, e.g. command-line "-i") sets true; an explicit value
         // (e.g. config "false" or "--ignore-case=false") is parsed as a boolean.
         public override void Apply(string? value, CommandLineBinding binding) => SetValue(value == null || ParseBool(value));
+
+        public override string GetPersistedValue() => Value ? "true" : "false";
 
         private void SetValue(bool value)
         {
@@ -388,6 +399,19 @@ namespace UnicodeRegEx.Tools.Settings
             }
 
             SetValue(parse(value));
+        }
+
+        public override string GetPersistedValue()
+        {
+            // The persisted form must round-trip through parse(). For a string value that is the value
+            // verbatim (parse is identity; describe would add display quotes that don't round-trip). For other
+            // types the describe form is the canonical, parseable token (e.g. an LCID name or number).
+            if (Value is string s)
+            {
+                return s;
+            }
+
+            return describe(Value);
         }
 
         private void SetValue(T value)
@@ -585,6 +609,20 @@ namespace UnicodeRegEx.Tools.Settings
             }
 
             throw new FormatException($"'{value}' is not a valid value for {LongName}");
+        }
+
+        public override string GetPersistedValue()
+        {
+            // The current choice's canonical Name is the value Apply() matches on (round-trips).
+            foreach (var choice in choices)
+            {
+                if (EqualityComparer<T>.Default.Equals(choice.Value, Value))
+                {
+                    return choice.Name;
+                }
+            }
+
+            return defaultChoice.Name;
         }
 
         private void SetValue(T value)

@@ -1,6 +1,7 @@
 namespace UnicodeRegEx.Gui
 {
     using System;
+    using System.Collections.Generic;
     using System.Windows.Forms;
     using UnicodeRegEx;
     using UnicodeRegEx.Tools;
@@ -25,6 +26,14 @@ namespace UnicodeRegEx.Gui
     /// </summary>
     internal sealed partial class CoreSettingsPane : UserControl
     {
+        // MRU keys for the four working-state combo boxes. The plain pattern/paths inputs use literal keys;
+        // the Setting-backed inputs use their LongName so the key matches the persistence convention. Shared
+        // with MainForm (which owns the StateStore) so both agree on the key strings.
+        public const string PatternKey = "pattern";
+        public const string PathsKey = "paths";
+        public const string ReplaceKey = "replace";              // == Replace.LongName
+        public const string FileFiltersKey = "file-name-filters"; // == FileNameFilters.LongName
+
         private SearchSettings? settings;
 
         public CoreSettingsPane()
@@ -49,6 +58,49 @@ namespace UnicodeRegEx.Gui
         /// pane so focus lands on the toggle that got us here (symmetric with the collapsed pane's Edit button).
         /// </summary>
         public void FocusCollapseButton() => collapseButton.Focus();
+
+        /// <summary>
+        /// Populates the dropdown items of the combo box identified by <paramref name="key"/> (one of the
+        /// public *Key constants) from its most-recently-used list. Leaves the box's current text unchanged.
+        /// Unknown keys are ignored.
+        /// </summary>
+        public void SetMruItems(string key, IReadOnlyList<string> items)
+        {
+            var combo = ComboForKey(key);
+            if (combo == null)
+            {
+                return;
+            }
+
+            var text = combo.Text;
+            combo.BeginUpdate();
+            try
+            {
+                combo.Items.Clear();
+                foreach (var item in items)
+                {
+                    combo.Items.Add(item);
+                }
+            }
+            finally
+            {
+                combo.EndUpdate();
+            }
+
+            combo.Text = text; // Items.Clear can disturb the edit text; restore it.
+        }
+
+        private ComboBox? ComboForKey(string key)
+        {
+            switch (key)
+            {
+                case PatternKey: return patternBox;
+                case PathsKey: return pathBox;
+                case ReplaceKey: return replaceBox;
+                case FileFiltersKey: return includeFilesBox;
+                default: return null;
+            }
+        }
 
         #region Event handlers
 
