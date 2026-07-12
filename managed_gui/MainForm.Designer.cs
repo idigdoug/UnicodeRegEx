@@ -21,6 +21,7 @@
             if (disposing)
             {
                 strikeFont?.Dispose();
+                hitContextMenu?.Dispose();
             }
 
             base.Dispose(disposing);

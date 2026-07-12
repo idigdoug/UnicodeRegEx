@@ -22,6 +22,9 @@ namespace UnicodeRegEx.Tools
         /// <summary>The saved values for preference settings, keyed by the setting's long name.</summary>
         public List<PreferenceValue> Preferences { get; set; } = new List<PreferenceValue>();
 
+        /// <summary>The user's "open with" tools for the results context menu, in menu order.</summary>
+        public List<OpenWithTool> OpenWithTools { get; set; } = new List<OpenWithTool>();
+
         /// <summary>Returns the MRU entries for <paramref name="key"/>, or an empty list if none.</summary>
         public IReadOnlyList<string> GetMru(string key)
         {
@@ -98,6 +101,15 @@ namespace UnicodeRegEx.Tools
             Preferences.Add(new PreferenceValue { Key = key, Value = value });
         }
 
+        /// <summary>The saved "open with" tools, in menu order (empty if none saved).</summary>
+        public IReadOnlyList<OpenWithTool> GetOpenWithTools() => OpenWithTools;
+
+        /// <summary>Replaces the "open with" tool list (used when the editor dialog commits).</summary>
+        public void SetOpenWithTools(IEnumerable<OpenWithTool> tools)
+        {
+            OpenWithTools = new List<OpenWithTool>(tools);
+        }
+
         private MruList? FindMru(string key)
         {
             foreach (var list in MruLists)
@@ -126,5 +138,27 @@ namespace UnicodeRegEx.Tools
         public string Key { get; set; } = string.Empty;
 
         public string Value { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// One "open with" tool: a display <see cref="Name"/> and a <see cref="CommandLine"/> template whose
+    /// tokens (<c>$F</c> file, <c>$L</c> line, <c>$C</c> column, <c>$$</c> literal <c>$</c>) are substituted
+    /// per hit before launching (see the tool-launch helper).
+    /// </summary>
+    public sealed class OpenWithTool
+    {
+        public OpenWithTool()
+        {
+        }
+
+        public OpenWithTool(string name, string commandLine)
+        {
+            Name = name;
+            CommandLine = commandLine;
+        }
+
+        public string Name { get; set; } = string.Empty;
+
+        public string CommandLine { get; set; } = string.Empty;
     }
 }

@@ -52,6 +52,10 @@
         // the removed-match run. Created after InitializeComponent; disposed with the form.
         private Font? strikeFont;
 
+        // The results context menu ("open with" tools + "Edit this menu..."), rebuilt whenever the tool list
+        // changes. Owned by MainForm and assigned to hitList.
+        private readonly ContextMenuStrip hitContextMenu = new ContextMenuStrip();
+
         public MainForm()
         {
             InitializeComponent();
@@ -90,6 +94,17 @@
             hitList.ItemCheck += hitList_ItemCheck;
             hitList.ItemChecked += hitList_ItemChecked;
             hitList.KeyDown += hitList_KeyDown;
+
+            // "Open with" tools: seed the list if empty (so the menu always has an entry), build the results
+            // context menu, and open the first tool on double-click.
+            if (state.GetOpenWithTools().Count == 0)
+            {
+                state.SetOpenWithTools(OpenWithCommand.DefaultTools());
+            }
+
+            hitList.ContextMenuStrip = hitContextMenu;
+            hitList.DoubleClick += hitList_DoubleClick;
+            RebuildOpenWithMenu();
 
             // Fill the combo dropdowns from the (seeded) MRU lists, and save on close.
             PopulateMruDropdowns();
@@ -831,6 +846,120 @@
             catch (Exception)
             {
                 // Failing to persist state on exit should never block closing.
+            }
+        }
+
+        #endregion
+
+        #region Open-with tools
+
+        // Rebuilds hitList's context menu from the persisted tool list: one item per tool, a separator, then
+        // "Edit this menu...". Called on launch and after the editor commits.
+        private void RebuildOpenWithMenu()
+        {
+            hitContextMenu.Items.Clear();
+
+            foreach (var tool in state.GetOpenWithTools())
+            {
+                var captured = tool;
+                var item = new ToolStripMenuItem(tool.Name);
+                item.Click += (s, e) => LaunchTool(captured);
+                hitContextMenu.Items.Add(item);
+            }
+
+            if (hitContextMenu.Items.Count > 0)
+            {
+                hitContextMenu.Items.Add(new ToolStripSeparator());
+            }
+
+            var edit = new ToolStripMenuItem("Edit this menu...");
+            edit.Click += (s, e) => EditOpenWithMenu();
+            hitContextMenu.Items.Add(edit);
+        }
+
+        // Opens the currently selected row with the given tool, substituting its path/line/column. Error rows
+        // (no hit) still open their file, falling back to line 1, column 1.
+        private void LaunchTool(OpenWithTool tool)
+        {
+            if (!TryGetSelectedTarget(out var file, out var line, out var column))
+            {
+                return;
+            }
+
+            try
+            {
+                OpenWithCommand.Launch(tool, file, line, column);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    this,
+                    $"Could not run \"{tool.Name}\":\n{ex.Message}",
+                    "Open with",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+
+        // Resolves the selected result row into a file path and 1-based line/column. Returns false if nothing
+        // usable is selected.
+        private bool TryGetSelectedTarget(out string file, out ulong line, out ulong column)
+        {
+            file = string.Empty;
+            line = 1;
+            column = 1;
+
+            if (hitList.SelectedIndices.Count == 0)
+            {
+                return false;
+            }
+
+            switch (hitList.Items[hitList.SelectedIndices[0]].Tag)
+            {
+                case HitRecord hit:
+                    file = hit.File.Path;
+                    line = (ulong)hit.LineNumber;
+                    column = (ulong)hit.ColumnNumber;
+                    return true;
+
+                case SearchError error:
+                    // No position for an error row; open the file at the top.
+                    file = error.Path;
+                    return true;
+
+                default:
+                    return false;
+            }
+        }
+
+        private void hitList_DoubleClick(object? sender, EventArgs e)
+        {
+            var tools = state.GetOpenWithTools();
+            if (tools.Count > 0)
+            {
+                LaunchTool(tools[0]);
+            }
+        }
+
+        private void EditOpenWithMenu()
+        {
+            using var dialog = new OpenWithEditorForm(state.GetOpenWithTools());
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+            {
+                return;
+            }
+
+            state.SetOpenWithTools(dialog.Tools);
+            RebuildOpenWithMenu();
+
+            // Persist immediately so the edited tools survive even if the app is killed before a clean close.
+            try
+            {
+                StateStore.Save(StateStore.DefaultPath, state);
+            }
+            catch (Exception)
+            {
+                // A failed save here is non-fatal; the tools are still active for this session.
             }
         }
 

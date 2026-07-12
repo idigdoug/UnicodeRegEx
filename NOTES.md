@@ -530,8 +530,17 @@ find-and-selectively-replace tool. It is being built in slices on top of a UI-ag
   `RegExSegmentEnumerable`) and advances it to each match's begin offset (matches arrive in ascending order).
   Line/column flow through `SearchHit` (0 when not tracked) into `HitRecord`; the GUI's former "Offset" column
   is now **"Position"** showing `Line,Column`.
+- **Open-with tools (done):** right-click a result row → one menu item per user-defined tool, a separator, then
+  "Edit this menu..."; double-click a row runs the first tool. Tools are `{ Name, CommandLine }` persisted in a
+  first-class `<OpenWithTools>` section of `state.xml` (via the hand-rolled reader/writer); the list is seeded
+  with `Open with Notepad` (`notepad.exe "$F"`) when empty. `OpenWithCommand` (Tools) does the work:
+  `Substitute` expands `$F`=file / `$L`=line / `$C`=column / `$$`=literal `$` in one left-to-right pass,
+  `SplitArguments` splits quote-aware, and `Launch` runs it via `Process.Start` (`UseShellExecute=false`,
+  args re-quoted per CommandLineToArgvW since netstandard2.0 lacks `ArgumentList`). Error rows open their file
+  with line/column falling back to 1,1. `OpenWithEditorForm` (designer-split modal) edits a staging copy with
+  Add/Update/Remove/Move Up/Move Down + OK/Cancel; `MainForm` commits via `PersistedState.SetOpenWithTools`,
+  rebuilds the menu, and saves immediately (plus the usual save on close).
 - **Fit-and-finish backlog** (feature-parity with the old app reached; these are polish, not critical):
-  multithreaded `ReplaceJob` (mid-file cancel via `RegExFileStream.LinkCancellation` + cross-file parallelism);
-  the auto-generated advanced-options page; and **double-click a result to open the match in the user's editor**
-  positioned on its line (the line/column data now exists — this is the editor-launch UX only).
-- Tests: 412 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.
+  multithreaded `ReplaceJob` (mid-file cancel via `RegExFileStream.LinkCancellation` + cross-file parallelism)
+  and the auto-generated advanced-options page.
+- Tests: 424 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.

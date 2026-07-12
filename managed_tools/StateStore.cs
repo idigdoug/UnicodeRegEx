@@ -23,6 +23,10 @@ namespace UnicodeRegEx.Tools
         private const string EntryElement = "Entry";
         private const string PreferencesElement = "Preferences";
         private const string PreferenceElement = "Preference";
+        private const string OpenWithToolsElement = "OpenWithTools";
+        private const string ToolElement = "Tool";
+        private const string NameAttribute = "name";
+        private const string CommandLineAttribute = "commandLine";
         private const string KeyAttribute = "key";
         private const string ValueAttribute = "value";
 
@@ -112,6 +116,17 @@ namespace UnicodeRegEx.Tools
 
             writer.WriteEndElement(); // Preferences
 
+            writer.WriteStartElement(OpenWithToolsElement);
+            foreach (var tool in state.OpenWithTools)
+            {
+                writer.WriteStartElement(ToolElement);
+                writer.WriteAttributeString(NameAttribute, tool.Name);
+                writer.WriteAttributeString(CommandLineAttribute, tool.CommandLine);
+                writer.WriteEndElement(); // Tool
+            }
+
+            writer.WriteEndElement(); // OpenWithTools
+
             writer.WriteEndElement(); // root
             writer.WriteEndDocument();
         }
@@ -142,6 +157,10 @@ namespace UnicodeRegEx.Tools
                 else if (root.Name == PreferencesElement)
                 {
                     ReadPreferences(root, state);
+                }
+                else if (root.Name == OpenWithToolsElement)
+                {
+                    ReadOpenWithTools(root, state);
                 }
             }
 
@@ -197,6 +216,21 @@ namespace UnicodeRegEx.Tools
                         Key = prefs.GetAttribute(KeyAttribute) ?? string.Empty,
                         Value = prefs.GetAttribute(ValueAttribute) ?? string.Empty,
                     });
+                }
+            }
+        }
+
+        private static void ReadOpenWithTools(XmlReader reader, PersistedState state)
+        {
+            using var tools = reader.ReadSubtree();
+            tools.Read();
+            while (tools.Read())
+            {
+                if (tools.NodeType == XmlNodeType.Element && tools.Name == ToolElement)
+                {
+                    state.OpenWithTools.Add(new OpenWithTool(
+                        tools.GetAttribute(NameAttribute) ?? string.Empty,
+                        tools.GetAttribute(CommandLineAttribute) ?? string.Empty));
                 }
             }
         }

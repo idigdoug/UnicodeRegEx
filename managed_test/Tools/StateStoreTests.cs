@@ -122,6 +122,28 @@ namespace UnicodeRegEx.Tests.Tools
         }
 
         [TestMethod]
+        public void SaveLoad_RoundTripsOpenWithTools()
+        {
+            var path = Path.Combine(tempDir, "state.xml");
+            var s = new PersistedState();
+            s.SetOpenWithTools(new[]
+            {
+                new OpenWithTool("Open with Notepad", "notepad.exe \"$F\""),
+                new OpenWithTool("gVim", "gvim.exe +$L \"$F\""),
+            });
+
+            StateStore.Save(path, s);
+            var loaded = StateStore.Load(path);
+
+            var tools = loaded.GetOpenWithTools();
+            Assert.AreEqual(2, tools.Count);
+            Assert.AreEqual("Open with Notepad", tools[0].Name);
+            Assert.AreEqual("notepad.exe \"$F\"", tools[0].CommandLine);
+            Assert.AreEqual("gVim", tools[1].Name);
+            Assert.AreEqual("gvim.exe +$L \"$F\"", tools[1].CommandLine);
+        }
+
+        [TestMethod]
         public void Save_CreatesDirectory()
         {
             var path = Path.Combine(tempDir, "nested", "sub", "state.xml");
