@@ -184,52 +184,42 @@ Locked-in facts:
   `OnFile` (now load-bearing).
 - `-q`: `job.Cancel()` or a StopAll response.
 
-## To-do (sequencing)
+## Remaining areas for improvement
 
-The engine work is complete (see **Decisions (settled)** and the status snapshot), and `SearchSettings` now
-drives the full `SearchRequest` surface (syntax/match/format flags, directory disposition, binary handling,
-detection steps, parallelism — all wired to settings and the CLI). No engine or settings-coverage work is
-outstanding. Remaining work is the **WinForms GUI** (`managed_gui`/`UnicodeRegExGui`): a find /
-find-and-selectively-replace tool. It is being built in slices on top of a UI-agnostic core:
-- **Slice 1a (done):** `UnicodeRegEx.Tools.Collecting` — the reusable, testable core (below).
-- **Slice 1b (done):** a minimal WinForms shell (`MainForm`) — pattern + path inputs, Search/Cancel,
-  a `ListView` of hits (file / offset / match), and a monospace context pane showing `Pre[Match]Post` for
-  the selected hit. Runs a `SearchJob` + `CollectingSink` on a background thread, validates up front
-  (`SearchRequest.Validate`, friendly message not a faulted run), and marshals the throttled `HitsAdded`
-  and completion to the UI thread via `BeginInvoke`, appending only the new tail (with a final flush).
-  `AnyCPU`+`PreferNativeArm64`, output to `out\Debug` beside the native DLLs.
-- **Slice 2a (done):** the pane-swap structure. The settings live in a top host panel (`settingsPanel`,
-  `Dock=Top`) that `MainForm` swaps between two distinct `UserControl`s: `CoreSettingsPane` (the expanded
-  editor) and `CollapsedSettingsPane` (a one-line summary strip), so the collapsed state is a real control,
-  not a resized splitter. Both panes are bound (`Bind`) to the **one** shared `SearchSettings` `MainForm`
-  owns; the panes raise intent events (`SearchRequested`/`CancelRequested`/`CollapseRequested` and
-  `ExpandRequested`) and `MainForm` owns the swap + the run. The run now flows through
-  `SearchSettings.MakeRequest()` / `.Validate()` (friendly `SettingProblem.Message`) instead of a hand-built
-  `SearchRequest`. The collapse button lives inside `CoreSettingsPane` (bottom corner). Layout is code-built
-  (no per-pane designer files); `MainForm.Designer.cs` is a clean docked layout (host panel + results
-  `SplitContainer` `Dock=Fill` + a `StatusStrip`). This slice hosts only the fields the old shell had
-  (pattern + path) to prove the mechanics.
-- **Slice 2b-core (done):** built out `CoreSettingsPane`'s primary fields and introduced the **Find/Replace
-  verb model**. The pane gains a replacement-template box, a **Replace** button beside Search (Search and
-  Replace are verbs, not settings — so there is no `Apply` toggle), a **Match case** checkbox (inverts the
-  `IgnoreCase` setting), and a **Search subfolders** checkbox (a two-value view over the multi-valued
-  `Directories` setting: checked = `RecurseNoLinks`, unchecked = `ReadImmediateFiles`; any recursing
-  disposition reads as checked). Both Find and Replace run the engine's **`Match`** verb — neither edits
-  files — the only difference is the run mode: Find ignores the template and captures no replacement; Replace
-  honors the template and each hit records its replacement (via the new `CollectingSink(captureReplacements)`
-  flag) so the results can later be applied (slice 3). `MainForm` threads the mode into `StartRunAsync(bool
-  replace)`, constructs the sink accordingly, remembers `lastRunWasReplace`, and shows the captured
-  replacement in the context pane (`Pre[Match → Replacement]Post`) in Replace mode. The collapsed summary now
-  appends a compact hint of active non-default options (`replace → …`, `match case`, `no subfolders`).
-- **Slice 2b-rest / 2c (next):** the remaining `CoreSettingsPane` fields (include/exclude + exclude-dir
-  globs, syntax flavor, browse) and the auto-generated advanced property page (from `GroupedSettings` /
-  `EditorKind` / `TrySetValue` / `Reset` — surface confirmed present) for the rest of `SearchSettings`, edited
-  on a staging copy and committed on OK/Apply. Deferred: how a core-pane checkbox projects onto a multi-value
-  setting once the advanced page can set a value outside the checkbox's two (tri-state vs combo); the
-  C-escape transform (to live in `SearchRequest`/`SearchJob`, not `SearchSettings`); MRU.
-- **Slice 3:** selective replace — a checkbox per hit, then a fresh apply run whose `OnApply` returns
-  `Default` for checked / `Original` for unchecked, re-verifying the hit's `Pre`/`Match`/`Post` bytes still
-  match to guard against a file changing between preview and apply.
+The **engine and settings model are complete** (see **Decisions (settled)** and **Status snapshot**):
+`SearchSettings` drives the full `SearchRequest` surface (syntax/match/format flags, directory disposition,
+binary handling, detection steps, parallelism), wired to both the CLI and the WinForms GUI. The GUI has
+reached feature-parity with the old app (find / selective-replace; MRU + preference persistence; rich-text
+details pane; line/column positions; "open with" tools). What's left is **polish, not critical
+functionality**, roughly in priority order:
+
+1. **Multithreaded / cancellable `ReplaceJob`.** The selective-apply job is currently serial and completes a
+   file before honoring cancel. Add mid-file cancellation (via `RegExFileStream.LinkCancellation`) and
+   cross-file parallelism, mirroring `SearchJob`'s `MaxDegreeOfParallelism` model.
+
+2. **In-app help page (GUI).** A built-in help/reference surface — at minimum a summary of the regex flavors
+   and their syntax, the substitution/replacement template tokens, the "open with" command tokens
+   (`$F`/`$L`/`$C`/`$$`), and the keyboard shortcuts. Form could double as an "about" page. Open question:
+   static content vs. generating parts from the settings model / `HelpFormatter` the CLI already uses.
+
+3. **Smaller GUI polish / ideas** (no design blockers): richer results affordances (e.g. group/sort by file,
+   copy selected results), remembering window size/position, and surfacing per-run summary stats (files
+   scanned, matches, elapsed) more prominently.
+
+## Ideas to consider for future
+
+Not planned; captured so they aren't re-litigated.
+
+- **C-escape transform (declined for now).** Interpreting `\n`/`\t`/`\xNN` in the pattern/template only makes
+  sense for the **Literal** flavor — every other flavor's grammar already interprets escapes, so a pre-pass
+  would double-process them. A standalone "C-escape" checkbox that is live only in Literal mode is confusing;
+  the clean shape would instead fold it into the flavor axis (replace the Perl-regex checkbox with a flavor
+  combo: `Perl, Basic, Extended, Sed, Literal, Literal with C-style escapes`). Low value for the effort
+  (transform + UI reshape), so not planned.
+- **"Escape text for regex" in the UI.** The API to escape a literal string into a safe pattern exists but is
+  not surfaced anywhere in the GUI. No clean home for it today; a natural fit would be a future
+  **"experiment with regex" pane** (a scratch area to build/test a pattern), which would also be the place
+  for the escape helper. Long way off.
 
 ## Status snapshot
 
@@ -533,14 +523,21 @@ find-and-selectively-replace tool. It is being built in slices on top of a UI-ag
 - **Open-with tools (done):** right-click a result row → one menu item per user-defined tool, a separator, then
   "Edit this menu..."; double-click a row runs the first tool. Tools are `{ Name, CommandLine }` persisted in a
   first-class `<OpenWithTools>` section of `state.xml` (via the hand-rolled reader/writer); the list is seeded
-  with `Open with Notepad` (`notepad.exe "$F"`) when empty. `OpenWithCommand` (Tools) does the work:
+  with a `Notepad` tool (`notepad.exe "$F"`) when empty. `OpenWithCommand` (Tools) does the work:
   `Substitute` expands `$F`=file / `$L`=line / `$C`=column / `$$`=literal `$` in one left-to-right pass,
   `SplitArguments` splits quote-aware, and `Launch` runs it via `Process.Start` (`UseShellExecute=false`,
   args re-quoted per CommandLineToArgvW since netstandard2.0 lacks `ArgumentList`). Error rows open their file
   with line/column falling back to 1,1. `OpenWithEditorForm` (designer-split modal) edits a staging copy with
   Add/Update/Remove/Move Up/Move Down + OK/Cancel; `MainForm` commits via `PersistedState.SetOpenWithTools`,
   rebuilds the menu, and saves immediately (plus the usual save on close).
-- **Fit-and-finish backlog** (feature-parity with the old app reached; these are polish, not critical):
-  multithreaded `ReplaceJob` (mid-file cancel via `RegExFileStream.LinkCancellation` + cross-file parallelism)
-  and the auto-generated advanced-options page.
-- Tests: 424 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.
+- **Advanced options page (done):** `AdvancedSettingsForm` auto-generates a dialog from
+  `SearchSettings.GroupedSettings` — every `Preference`-role setting (skipping `List`-valued ones), grouped by
+  category with a control per `EditorKind` (`Toggle`→CheckBox, `Choice`→ComboBox over `IChoiceSetting.Choices`,
+  `Integer`→NumericUpDown, else TextBox), each edit committed via `Setting.TrySetValue` (error → message +
+  revert). Staging is snapshot-based, not a second instance: `SearchSettings.SnapshotPreferences()` captures
+  each preference's `GetPersistedValue()`, edits apply live, and Cancel calls `RestorePreferences(snapshot)`
+  (OK keeps them); "Reset All" calls `Setting.Reset()` on each shown setting. Opened via an **"Advanced…"**
+  button on `CoreSettingsPane` (raises `AdvancedRequested`); on close `MainForm` calls `corePane.PullFromSettings()`
+  so the primary pane re-reads every control (tri-state/indeterminate for a value it can't model) and refreshes
+  the collapsed summary.
+- Tests: 427 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.

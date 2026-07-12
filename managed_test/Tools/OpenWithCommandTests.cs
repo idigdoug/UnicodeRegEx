@@ -81,7 +81,7 @@ namespace UnicodeRegEx.Tests.Tools
         {
             var tools = OpenWithCommand.DefaultTools();
             Assert.AreEqual(1, tools.Count);
-            Assert.AreEqual("Open with Notepad", tools[0].Name);
+            Assert.AreEqual("Notepad", tools[0].Name);
             StringAssert.Contains(tools[0].CommandLine, "$F");
         }
     }

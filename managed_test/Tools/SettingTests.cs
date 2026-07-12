@@ -71,7 +71,8 @@ namespace UnicodeRegEx.Tests.Tools
         public void Value_EditorKind_ComesFromDeclaration()
         {
             var settings = new SearchSettings();
-            Assert.AreEqual(EditorKind.Integer, settings.Encoding.EditorKind);
+            Assert.AreEqual(EditorKind.Integer, settings.Parallelism.EditorKind);
+            Assert.AreEqual(EditorKind.Text, settings.Encoding.EditorKind);
             Assert.AreEqual(EditorKind.Text, settings.Replace.EditorKind);
         }
 

@@ -62,11 +62,6 @@
             fileColumn.Text = "File";
             fileColumn.Width = 380;
             // 
-            // positionColumn
-            // 
-            this.positionColumn.Text = "Position";
-            this.positionColumn.Width = 63;
-            // 
             // matchColumn
             // 
             matchColumn.Text = "Match";
@@ -80,6 +75,11 @@
             actionBarSeparator.Name = "actionBarSeparator";
             actionBarSeparator.Size = new System.Drawing.Size(1109, 2);
             actionBarSeparator.TabIndex = 3;
+            // 
+            // positionColumn
+            // 
+            this.positionColumn.Text = "Position";
+            this.positionColumn.Width = 63;
             // 
             // settingsPanel
             // 

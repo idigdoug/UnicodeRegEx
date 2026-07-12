@@ -43,6 +43,7 @@ namespace UnicodeRegEx.Gui
             this.replaceButton = new System.Windows.Forms.Button();
             this.browseButton = new System.Windows.Forms.Button();
             this.collapseButton = new System.Windows.Forms.Button();
+            this.advancedButton = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // patternLabel
@@ -210,6 +211,17 @@ namespace UnicodeRegEx.Gui
             this.collapseButton.Text = "Hide ▴";
             this.collapseButton.Click += new System.EventHandler(this.collapseButton_Click);
             // 
+            // advancedButton
+            // 
+            this.advancedButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.advancedButton.Location = new System.Drawing.Point(538, 265);
+            this.advancedButton.Margin = new System.Windows.Forms.Padding(5);
+            this.advancedButton.Name = "advancedButton";
+            this.advancedButton.Size = new System.Drawing.Size(154, 38);
+            this.advancedButton.TabIndex = 14;
+            this.advancedButton.Text = "Advanced…";
+            this.advancedButton.Click += new System.EventHandler(this.advancedButton_Click);
+            // 
             // CoreSettingsPane
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(12F, 25F);
@@ -228,6 +240,7 @@ namespace UnicodeRegEx.Gui
             this.Controls.Add(this.searchButton);
             this.Controls.Add(this.replaceButton);
             this.Controls.Add(this.browseButton);
+            this.Controls.Add(this.advancedButton);
             this.Controls.Add(this.collapseButton);
             this.Margin = new System.Windows.Forms.Padding(5);
             this.Name = "CoreSettingsPane";
@@ -254,5 +267,6 @@ namespace UnicodeRegEx.Gui
         private System.Windows.Forms.Button replaceButton;
         private System.Windows.Forms.Button browseButton;
         private System.Windows.Forms.Button collapseButton;
+        private System.Windows.Forms.Button advancedButton;
     }
 }

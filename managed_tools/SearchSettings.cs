@@ -88,9 +88,9 @@ namespace UnicodeRegEx.Tools
             "locale",
             null,
             "lcid",
-            "Locale used for case-folding and collation. Can be neutral, invariant, or a Windows LCID number.",
+            "Locale used for case-folding and collation. Can be \"neutral\" (default), \"invariant\", or a Windows LCID number.",
             defaultValue: 0,
-            editorKind: EditorKind.Integer,
+            editorKind: EditorKind.Text,
             parse: ParseLcid,
             describe: DescribeLcid);
 
@@ -276,9 +276,9 @@ namespace UnicodeRegEx.Tools
             "encoding",
             null,
             "codepage",
-            "Text encoding to use for files where encoding was not automatically detected. Can be utf8, utf16, utf16be, latin1, or <win32-codepage-number>.",
+            "Text encoding to use for files where encoding was not automatically detected. Can be \"utf8\", \"utf16\", \"utf16be\", \"latin1\", or <win32-codepage-number>.",
             defaultValue: RegExCodePage.Latin1,
-            editorKind: EditorKind.Integer,
+            editorKind: EditorKind.Text,
             parse: ParseCodePage,
             describe: CodePages.GetName);
 
@@ -332,6 +332,62 @@ namespace UnicodeRegEx.Tools
             defaultValue: 1,
             editorKind: EditorKind.Integer,
             parse: ParseParallelism);
+
+        /// <summary>
+        /// Captures the current value of every persist-eligible preference setting (keyed by
+        /// <see cref="Settings.Setting.LongName"/>) as its round-trippable string form. Pairs with
+        /// <see cref="RestorePreferences"/> to give an editor dialog cheap staging: snapshot on open, edit the
+        /// live settings, then either keep the edits (OK) or restore the snapshot (Cancel). List-valued
+        /// settings (<see cref="GlobListSetting"/>) are excluded — they persist their list elsewhere.
+        /// </summary>
+        public Dictionary<string, string> SnapshotPreferences()
+        {
+            var snapshot = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var setting in Settings)
+            {
+                if (setting.Role != SettingRole.Preference || setting is GlobListSetting)
+                {
+                    continue;
+                }
+
+                snapshot[setting.LongName] = setting.GetPersistedValue();
+            }
+
+            return snapshot;
+        }
+
+        /// <summary>
+        /// Restores preference values captured by <see cref="SnapshotPreferences"/>. Any snapshot entry whose
+        /// key no longer matches a preference setting is ignored; a value that fails to apply is skipped so a
+        /// single bad entry cannot abort the restore.
+        /// </summary>
+        public void RestorePreferences(IReadOnlyDictionary<string, string> snapshot)
+        {
+            if (snapshot == null)
+            {
+                throw new ArgumentNullException(nameof(snapshot));
+            }
+
+            foreach (var setting in Settings)
+            {
+                if (setting.Role != SettingRole.Preference || setting is GlobListSetting)
+                {
+                    continue;
+                }
+
+                if (snapshot.TryGetValue(setting.LongName, out var value))
+                {
+                    try
+                    {
+                        setting.Apply(value, setting.DefaultBinding);
+                    }
+                    catch (FormatException)
+                    {
+                        // A malformed snapshot entry must not abort the whole restore.
+                    }
+                }
+            }
+        }
 
         /// <summary>
         /// Builds a fully-populated <see cref="SearchRequest"/> from this model — the single translation

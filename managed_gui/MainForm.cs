@@ -80,6 +80,7 @@
             corePane.SearchRequested += OnSearchRequested;
             corePane.ReplaceRequested += OnReplaceRequested;
             corePane.CollapseRequested += OnCollapseRequested;
+            corePane.AdvancedRequested += OnAdvancedRequested;
             collapsedPane.ExpandRequested += OnExpandRequested;
 
             // The action bar is a designer control, but its custom intent events are wired here in code: the
@@ -265,6 +266,17 @@
 
             // Keep the logical focus on the toggle: Hide (core) hands off to Edit (collapsed).
             collapsedPane.FocusExpandButton();
+        }
+
+        private void OnAdvancedRequested(object? sender, EventArgs e)
+        {
+            using var dialog = new AdvancedSettingsForm(settings);
+            dialog.ShowDialog(this);
+
+            // Whether committed (OK) or reverted (Cancel restores the snapshot), re-read the primary pane so it
+            // reflects the current settings — its checkboxes show indeterminate for a value they can't model.
+            corePane.PullFromSettings();
+            collapsedPane.UpdateSummary();
         }
 
         private void OnExpandRequested(object? sender, EventArgs e)

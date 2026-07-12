@@ -50,6 +50,9 @@ namespace UnicodeRegEx.Gui
         /// <summary>Raised when the user asks to collapse this pane (settings have been pushed).</summary>
         public event EventHandler? CollapseRequested;
 
+        /// <summary>Raised when the user opens the advanced options dialog (settings have been pushed first).</summary>
+        public event EventHandler? AdvancedRequested;
+
         /// <summary>The button that starts a search (so <see cref="MainForm"/> can wire Enter/AcceptButton).</summary>
         public IButtonControl SearchButton => searchButton;
 
@@ -125,6 +128,14 @@ namespace UnicodeRegEx.Gui
         {
             PushToSettings();
             CollapseRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void advancedButton_Click(object sender, EventArgs e)
+        {
+            // Flush the primary-pane controls into settings first so the advanced dialog snapshots and edits
+            // the same up-to-date values; MainForm re-pulls the controls when the dialog closes.
+            PushToSettings();
+            AdvancedRequested?.Invoke(this, EventArgs.Empty);
         }
 
         // These two checkboxes are tri-state so code can reflect an out-of-model setting as indeterminate; with
