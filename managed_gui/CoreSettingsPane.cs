@@ -95,7 +95,7 @@ namespace UnicodeRegEx.Gui
             switch (key)
             {
                 case PatternKey: return patternBox;
-                case PathsKey: return pathBox;
+                case PathsKey: return pathsBox;
                 case ReplaceKey: return replaceBox;
                 case FileFiltersKey: return includeFilesBox;
                 default: return null;
@@ -158,7 +158,7 @@ namespace UnicodeRegEx.Gui
             }
 
             patternBox.Text = settings.Pattern;
-            pathBox.Text = settings.Paths.Count > 0 ? settings.Paths[0] : ".";
+            pathsBox.Text = settings.Paths.Count > 0 ? settings.Paths[0] : ".";
             replaceBox.Text = settings.Replace.Value;
             includeFilesBox.Text = settings.FileNameFilters.ToDisplayString();
             matchCaseCheck.Checked = !settings.IgnoreCase.Value;
@@ -176,7 +176,7 @@ namespace UnicodeRegEx.Gui
 
             settings.Pattern = patternBox.Text;
             settings.Paths.Clear();
-            settings.Paths.Add(pathBox.Text.Length == 0 ? "." : pathBox.Text);
+            settings.Paths.Add(pathsBox.Text.Length == 0 ? "." : pathsBox.Text);
 
             // Rebuild the file-name filters from the semicolon list as all-include globs (the core page only
             // offers include-file globs; empty entries are ignored).
@@ -225,7 +225,7 @@ namespace UnicodeRegEx.Gui
             searchButton.Enabled = !running;
             replaceButton.Enabled = !running;
             patternBox.Enabled = !running;
-            pathBox.Enabled = !running;
+            pathsBox.Enabled = !running;
             browseButton.Enabled = !running;
             replaceBox.Enabled = !running;
             includeFilesBox.Enabled = !running;
@@ -243,7 +243,7 @@ namespace UnicodeRegEx.Gui
 
             try
             {
-                var current = pathBox.Text.Trim();
+                var current = pathsBox.Text.Trim();
                 if (current.Length != 0 && System.IO.Directory.Exists(current))
                 {
                     dialog.SelectedPath = System.IO.Path.GetFullPath(current);
@@ -256,7 +256,7 @@ namespace UnicodeRegEx.Gui
 
             if (dialog.ShowDialog(this) == DialogResult.OK)
             {
-                pathBox.Text = dialog.SelectedPath;
+                pathsBox.Text = dialog.SelectedPath;
             }
         }
 

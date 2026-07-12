@@ -35,7 +35,7 @@ namespace UnicodeRegEx.Gui
             this.includeFilesLabel = new System.Windows.Forms.Label();
             this.includeFilesBox = new System.Windows.Forms.ComboBox();
             this.pathLabel = new System.Windows.Forms.Label();
-            this.pathBox = new System.Windows.Forms.ComboBox();
+            this.pathsBox = new System.Windows.Forms.ComboBox();
             this.matchCaseCheck = new System.Windows.Forms.CheckBox();
             this.recurseCheck = new System.Windows.Forms.CheckBox();
             this.perlRegexCheck = new System.Windows.Forms.CheckBox();
@@ -60,7 +60,7 @@ namespace UnicodeRegEx.Gui
             this.patternBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.patternBox.Location = new System.Drawing.Point(163, 13);
-            this.patternBox.Margin = new System.Windows.Forms.Padding(5, 5, 5, 5);
+            this.patternBox.Margin = new System.Windows.Forms.Padding(5);
             this.patternBox.Name = "patternBox";
             this.patternBox.Size = new System.Drawing.Size(525, 33);
             this.patternBox.TabIndex = 1;
@@ -80,7 +80,7 @@ namespace UnicodeRegEx.Gui
             this.replaceBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.replaceBox.Location = new System.Drawing.Point(163, 60);
-            this.replaceBox.Margin = new System.Windows.Forms.Padding(5, 5, 5, 5);
+            this.replaceBox.Margin = new System.Windows.Forms.Padding(5);
             this.replaceBox.Name = "replaceBox";
             this.replaceBox.Size = new System.Drawing.Size(525, 33);
             this.replaceBox.TabIndex = 3;
@@ -91,16 +91,16 @@ namespace UnicodeRegEx.Gui
             this.includeFilesLabel.Location = new System.Drawing.Point(14, 113);
             this.includeFilesLabel.Margin = new System.Windows.Forms.Padding(5, 0, 5, 0);
             this.includeFilesLabel.Name = "includeFilesLabel";
-            this.includeFilesLabel.Size = new System.Drawing.Size(80, 25);
+            this.includeFilesLabel.Size = new System.Drawing.Size(122, 25);
             this.includeFilesLabel.TabIndex = 4;
-            this.includeFilesLabel.Text = "In files:";
+            this.includeFilesLabel.Text = "Match files:";
             // 
             // includeFilesBox
             // 
             this.includeFilesBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.includeFilesBox.Location = new System.Drawing.Point(163, 107);
-            this.includeFilesBox.Margin = new System.Windows.Forms.Padding(5, 5, 5, 5);
+            this.includeFilesBox.Margin = new System.Windows.Forms.Padding(5);
             this.includeFilesBox.Name = "includeFilesBox";
             this.includeFilesBox.Size = new System.Drawing.Size(525, 33);
             this.includeFilesBox.TabIndex = 5;
@@ -111,28 +111,28 @@ namespace UnicodeRegEx.Gui
             this.pathLabel.Location = new System.Drawing.Point(14, 160);
             this.pathLabel.Margin = new System.Windows.Forms.Padding(5, 0, 5, 0);
             this.pathLabel.Name = "pathLabel";
-            this.pathLabel.Size = new System.Drawing.Size(106, 25);
+            this.pathLabel.Size = new System.Drawing.Size(94, 25);
             this.pathLabel.TabIndex = 6;
-            this.pathLabel.Text = "In folders:";
+            this.pathLabel.Text = "In paths:";
             // 
-            // pathBox
+            // pathsBox
             // 
-            this.pathBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            this.pathsBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.pathBox.Location = new System.Drawing.Point(163, 153);
-            this.pathBox.Margin = new System.Windows.Forms.Padding(5, 5, 5, 5);
-            this.pathBox.Name = "pathBox";
-            this.pathBox.Size = new System.Drawing.Size(525, 33);
-            this.pathBox.TabIndex = 7;
-            this.pathBox.Text = ".";
+            this.pathsBox.Location = new System.Drawing.Point(163, 153);
+            this.pathsBox.Margin = new System.Windows.Forms.Padding(5);
+            this.pathsBox.Name = "pathsBox";
+            this.pathsBox.Size = new System.Drawing.Size(525, 33);
+            this.pathsBox.TabIndex = 7;
+            this.pathsBox.Text = ".";
             // 
             // matchCaseCheck
             // 
             this.matchCaseCheck.AutoSize = true;
             this.matchCaseCheck.Location = new System.Drawing.Point(163, 196);
-            this.matchCaseCheck.Margin = new System.Windows.Forms.Padding(5, 5, 5, 5);
+            this.matchCaseCheck.Margin = new System.Windows.Forms.Padding(5);
             this.matchCaseCheck.Name = "matchCaseCheck";
-            this.matchCaseCheck.Size = new System.Drawing.Size(142, 29);
+            this.matchCaseCheck.Size = new System.Drawing.Size(155, 29);
             this.matchCaseCheck.TabIndex = 8;
             this.matchCaseCheck.Text = "Match case";
             // 
@@ -143,9 +143,9 @@ namespace UnicodeRegEx.Gui
             this.recurseCheck.Checked = true;
             this.recurseCheck.CheckState = System.Windows.Forms.CheckState.Checked;
             this.recurseCheck.Location = new System.Drawing.Point(163, 235);
-            this.recurseCheck.Margin = new System.Windows.Forms.Padding(5, 5, 5, 5);
+            this.recurseCheck.Margin = new System.Windows.Forms.Padding(5);
             this.recurseCheck.Name = "recurseCheck";
-            this.recurseCheck.Size = new System.Drawing.Size(205, 29);
+            this.recurseCheck.Size = new System.Drawing.Size(218, 29);
             this.recurseCheck.TabIndex = 9;
             this.recurseCheck.Text = "Search subfolders";
             this.recurseCheck.ThreeState = true;
@@ -158,9 +158,9 @@ namespace UnicodeRegEx.Gui
             this.perlRegexCheck.Checked = true;
             this.perlRegexCheck.CheckState = System.Windows.Forms.CheckState.Checked;
             this.perlRegexCheck.Location = new System.Drawing.Point(163, 274);
-            this.perlRegexCheck.Margin = new System.Windows.Forms.Padding(5, 5, 5, 5);
+            this.perlRegexCheck.Margin = new System.Windows.Forms.Padding(5);
             this.perlRegexCheck.Name = "perlRegexCheck";
-            this.perlRegexCheck.Size = new System.Drawing.Size(253, 29);
+            this.perlRegexCheck.Size = new System.Drawing.Size(266, 29);
             this.perlRegexCheck.TabIndex = 10;
             this.perlRegexCheck.Text = "Perl regular expression";
             this.perlRegexCheck.ThreeState = true;
@@ -170,7 +170,7 @@ namespace UnicodeRegEx.Gui
             // 
             this.searchButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.searchButton.Location = new System.Drawing.Point(698, 13);
-            this.searchButton.Margin = new System.Windows.Forms.Padding(5, 5, 5, 5);
+            this.searchButton.Margin = new System.Windows.Forms.Padding(5);
             this.searchButton.Name = "searchButton";
             this.searchButton.Size = new System.Drawing.Size(154, 38);
             this.searchButton.TabIndex = 11;
@@ -181,7 +181,7 @@ namespace UnicodeRegEx.Gui
             // 
             this.replaceButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.replaceButton.Location = new System.Drawing.Point(698, 60);
-            this.replaceButton.Margin = new System.Windows.Forms.Padding(5, 5, 5, 5);
+            this.replaceButton.Margin = new System.Windows.Forms.Padding(5);
             this.replaceButton.Name = "replaceButton";
             this.replaceButton.Size = new System.Drawing.Size(154, 38);
             this.replaceButton.TabIndex = 12;
@@ -192,7 +192,7 @@ namespace UnicodeRegEx.Gui
             // 
             this.browseButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.browseButton.Location = new System.Drawing.Point(698, 153);
-            this.browseButton.Margin = new System.Windows.Forms.Padding(5, 5, 5, 5);
+            this.browseButton.Margin = new System.Windows.Forms.Padding(5);
             this.browseButton.Name = "browseButton";
             this.browseButton.Size = new System.Drawing.Size(154, 38);
             this.browseButton.TabIndex = 14;
@@ -203,7 +203,7 @@ namespace UnicodeRegEx.Gui
             // 
             this.collapseButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.collapseButton.Location = new System.Drawing.Point(698, 265);
-            this.collapseButton.Margin = new System.Windows.Forms.Padding(5, 5, 5, 5);
+            this.collapseButton.Margin = new System.Windows.Forms.Padding(5);
             this.collapseButton.Name = "collapseButton";
             this.collapseButton.Size = new System.Drawing.Size(154, 38);
             this.collapseButton.TabIndex = 15;
@@ -221,7 +221,7 @@ namespace UnicodeRegEx.Gui
             this.Controls.Add(this.includeFilesLabel);
             this.Controls.Add(this.includeFilesBox);
             this.Controls.Add(this.pathLabel);
-            this.Controls.Add(this.pathBox);
+            this.Controls.Add(this.pathsBox);
             this.Controls.Add(this.matchCaseCheck);
             this.Controls.Add(this.recurseCheck);
             this.Controls.Add(this.perlRegexCheck);
@@ -229,7 +229,7 @@ namespace UnicodeRegEx.Gui
             this.Controls.Add(this.replaceButton);
             this.Controls.Add(this.browseButton);
             this.Controls.Add(this.collapseButton);
-            this.Margin = new System.Windows.Forms.Padding(5, 5, 5, 5);
+            this.Margin = new System.Windows.Forms.Padding(5);
             this.Name = "CoreSettingsPane";
             this.Size = new System.Drawing.Size(857, 310);
             this.ResumeLayout(false);
@@ -246,7 +246,7 @@ namespace UnicodeRegEx.Gui
         private System.Windows.Forms.Label includeFilesLabel;
         private System.Windows.Forms.ComboBox includeFilesBox;
         private System.Windows.Forms.Label pathLabel;
-        private System.Windows.Forms.ComboBox pathBox;
+        private System.Windows.Forms.ComboBox pathsBox;
         private System.Windows.Forms.CheckBox matchCaseCheck;
         private System.Windows.Forms.CheckBox recurseCheck;
         private System.Windows.Forms.CheckBox perlRegexCheck;
