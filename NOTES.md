@@ -193,16 +193,12 @@ reached feature-parity with the old app (find / selective-replace; MRU + prefere
 details pane; line/column positions; "open with" tools). What's left is **polish, not critical
 functionality**, roughly in priority order:
 
-1. **Multithreaded / cancellable `ReplaceJob`.** The selective-apply job is currently serial and completes a
-   file before honoring cancel. Add mid-file cancellation (via `RegExFileStream.LinkCancellation`) and
-   cross-file parallelism, mirroring `SearchJob`'s `MaxDegreeOfParallelism` model.
-
-2. **In-app help page (GUI).** A built-in help/reference surface — at minimum a summary of the regex flavors
+1. **In-app help page (GUI).** A built-in help/reference surface — at minimum a summary of the regex flavors
    and their syntax, the substitution/replacement template tokens, the "open with" command tokens
    (`$F`/`$L`/`$C`/`$$`), and the keyboard shortcuts. Form could double as an "about" page. Open question:
    static content vs. generating parts from the settings model / `HelpFormatter` the CLI already uses.
 
-3. **Smaller GUI polish / ideas** (no design blockers): richer results affordances (e.g. group/sort by file,
+2. **Smaller GUI polish / ideas** (no design blockers): richer results affordances (e.g. group/sort by file,
    copy selected results), remembering window size/position, and surfacing per-run summary stats (files
    scanned, matches, elapsed) more prominently.
 
@@ -481,14 +477,18 @@ Not planned; captured so they aren't re-litigated.
   via `RegEx.CreateReplacementFileStream` (`Write` unchanged spans + replacement bytes, then `Flush` +
   `MoveTo(ReplaceExisting)`); a changed match is left as-is and counted skipped-stale. Only files with at
   least one valid edit are rewritten (no no-op rewrites). One bad file is isolated (per-file try/catch →
-  `Errors`), the rest still apply. This slice is serial and cancels at file boundaries; `ReplaceJob` exposes
+  `Errors`), the rest still apply. `ReplaceJob` exposes
   `RunAsync`/`Cancel`/`ProgressChanged`/`State`/`TotalFileCount`/`CompletedFileCount`/`AppliedCount`/
-  `SkippedStaleCount`/`ChangedFiles`/`Errors`, shaped to grow toward mid-file cancel (the write stream
-  supports `LinkCancellation`) and cross-file parallelism later. `MainForm.StartApplyAsync` drives it with the
+  `SkippedStaleCount`/`ChangedFiles`/`Errors`, and shares `SearchJob`'s parallelism model: a
+  `maxDegreeOfParallelism` ctor arg (same meaning as `SearchRequest.MaxDegreeOfParallelism`; `MainForm` passes
+  `settings.Parallelism.Value`) selects serial (1) vs. `Parallel.ForEach` over the file groups (0 = auto =
+  ProcessorCount), files being independent (each mapped/rewritten on its own; counters interlocked/gate-locked).
+  Cancels at file boundaries; mid-file cancel (the write stream supports `LinkCancellation`) is a later
+  refinement. `MainForm.StartApplyAsync` drives it with the
   same progress/Cancel/`UpdateRunUiState` scaffolding as a search (via a distinct `replaceJob` field); on
   completion the results are cleared and a summary shown ("Applied N replacement(s)[, M skipped (file
-  changed)][, K error(s)]"). Headless unit-tested (all / subset / none / stale-skip / multi-file / per-file
-  error isolation). (The earlier `ApplyingSink`/`Verb=Apply` approach was retired — `SearchJob` only partially
+  changed)][, K error(s)]"). Headless unit-tested (all / subset / none / stale-skip / multi-file / parallel /
+  per-file error isolation). (The earlier `ApplyingSink`/`Verb=Apply` approach was retired — `SearchJob` only partially
   overlapped: it re-enumerated and re-matched, and rewrote matched files byte-identically even when nothing
   changed.)
 - Persistence (MRU + preferences): `PersistedState` + `StateStore` (`UnicodeRegEx.Tools`, front-end-neutral,
@@ -540,4 +540,4 @@ Not planned; captured so they aren't re-litigated.
   button on `CoreSettingsPane` (raises `AdvancedRequested`); on close `MainForm` calls `corePane.PullFromSettings()`
   so the primary pane re-reads every control (tri-state/indeterminate for a value it can't model) and refreshes
   the collapsed summary.
-- Tests: 427 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.
+- Tests: 428 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.

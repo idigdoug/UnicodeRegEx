@@ -392,7 +392,7 @@
                 return; // nothing selected (Apply should be disabled, but guard anyway)
             }
 
-            var apply = new ReplaceJob(chosen);
+            var apply = new ReplaceJob(chosen, settings.Parallelism.Value);
             replaceJob = apply;
             apply.ProgressChanged += OnProgressChanged;
 

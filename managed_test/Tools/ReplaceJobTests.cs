@@ -68,9 +68,9 @@ namespace UnicodeRegEx.Tests.Tools
             return sink.Hits;
         }
 
-        private static async Task<ReplaceJob> ApplyAsync(IEnumerable<HitRecord> chosen)
+        private static async Task<ReplaceJob> ApplyAsync(IEnumerable<HitRecord> chosen, int maxDegreeOfParallelism = 1)
         {
-            var job = new ReplaceJob(chosen);
+            var job = new ReplaceJob(chosen, maxDegreeOfParallelism);
             await job.RunAsync();
             return job;
         }
@@ -151,6 +151,35 @@ namespace UnicodeRegEx.Tests.Tools
             Assert.AreEqual(4, job.AppliedCount);
             Assert.AreEqual(2, job.ChangedFiles.Count);
             Assert.AreEqual(2, job.TotalFileCount);
+        }
+
+        [TestMethod]
+        public async Task Apply_Parallel_RewritesEveryFileCorrectly()
+        {
+            // Enough files to exercise the parallel path; auto degree (0 => ProcessorCount).
+            const int fileCount = 12;
+            var paths = new string[fileCount];
+            for (var i = 0; i < fileCount; i++)
+            {
+                paths[i] = WriteUtf8($"p{i}.txt", "foo mid foo");
+            }
+
+            var hits = await PreviewAsync(paths, "foo", "BAZ");
+            Assert.AreEqual(fileCount * 2, hits.Count);
+
+            using var job = await ApplyAsync(hits, maxDegreeOfParallelism: 0);
+
+            Assert.AreEqual(SearchJobState.Completed, job.State);
+            Assert.AreEqual(fileCount, job.TotalFileCount);
+            Assert.AreEqual(fileCount, job.CompletedFileCount);
+            Assert.AreEqual(fileCount * 2, job.AppliedCount);
+            Assert.AreEqual(fileCount, job.ChangedFiles.Count);
+            Assert.AreEqual(0, job.Errors.Count);
+
+            foreach (var p in paths)
+            {
+                Assert.AreEqual("BAZ mid BAZ", File.ReadAllText(p));
+            }
         }
 
         [TestMethod]

@@ -20,9 +20,11 @@ namespace UnicodeRegEx.Tools.Engine
     /// re-run, no re-format). A match whose context no longer matches is left unchanged and counted as
     /// skipped-stale; unchosen matches are never touched.
     /// <para>
-    /// This slice is serial and cancels at file boundaries. It is shaped like <see cref="SearchJob"/>
-    /// (<see cref="RunAsync"/> / <see cref="Cancel"/> / <see cref="ProgressChanged"/> / counts) so it can grow
-    /// toward mid-file cancellation (the write stream supports it) and cross-file parallelism later.
+    /// Shaped like <see cref="SearchJob"/> (<see cref="RunAsync"/> / <see cref="Cancel"/> /
+    /// <see cref="ProgressChanged"/> / counts) and shares its parallelism model: files are rewritten
+    /// concurrently per <c>maxDegreeOfParallelism</c> (same meaning as
+    /// <see cref="SearchRequest.MaxDegreeOfParallelism"/>), and cancellation is honored at file boundaries.
+    /// Mid-file cancellation (the write stream supports it via <c>LinkCancellation</c>) is a later refinement.
     /// </para>
     /// </summary>
     public sealed class ReplaceJob : IDisposable
@@ -32,6 +34,10 @@ namespace UnicodeRegEx.Tools.Engine
 
         // Chosen matches grouped by file, each group sorted ascending by offset.
         private readonly List<KeyValuePair<SearchFile, List<HitRecord>>> byFile;
+
+        // How many files to rewrite concurrently: 0 = automatic (ProcessorCount), 1 = serial, >1 = capped.
+        // Shares the meaning of SearchRequest.MaxDegreeOfParallelism.
+        private readonly int maxDegreeOfParallelism;
 
         private readonly List<SearchError> errors = new List<SearchError>();
         private readonly List<string> changedFiles = new List<string>();
@@ -45,12 +51,21 @@ namespace UnicodeRegEx.Tools.Engine
         private bool disposed;
 
         /// <summary>Creates a job that will apply the given chosen matches when <see cref="RunAsync"/> is called.</summary>
-        public ReplaceJob(IEnumerable<HitRecord> selectedHits)
+        /// <param name="selectedHits">The matches the user chose to apply.</param>
+        /// <param name="maxDegreeOfParallelism">
+        /// How many files to rewrite concurrently, sharing the meaning of
+        /// <see cref="SearchRequest.MaxDegreeOfParallelism"/>: 0 = automatic (processor count), 1 = serial
+        /// (the default), any value &gt; 1 caps concurrency. Files are independent (each is mapped and
+        /// rewritten on its own), so this parallelizes cleanly.
+        /// </param>
+        public ReplaceJob(IEnumerable<HitRecord> selectedHits, int maxDegreeOfParallelism = 1)
         {
             if (selectedHits == null)
             {
                 throw new ArgumentNullException(nameof(selectedHits));
             }
+
+            this.maxDegreeOfParallelism = maxDegreeOfParallelism;
 
             // Group by file (preserving first-seen order); sort each file's hits by offset so the rewrite
             // walks the file front-to-back. The SearchFile instance is the key: all of a file's hits from one
@@ -128,30 +143,79 @@ namespace UnicodeRegEx.Tools.Engine
         {
             SetState(SearchJobState.Processing);
 
-            foreach (var group in byFile)
+            var dop = ResolveDegreeOfParallelism();
+
+            if (dop == 1)
             {
-                if (cancellation.IsCancellationRequested)
+                foreach (var group in byFile)
                 {
-                    break;
+                    if (cancellation.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
+                    ProcessOne(group);
                 }
+            }
+            else
+            {
+                // Parallel path: files are independent (each mapped and rewritten on its own), so this
+                // parallelizes without shared per-file state. The token stops in-flight workers at their next
+                // file boundary; per-file failures are captured in ProcessOne (they never abort the loop).
+                var options = new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = dop,
+                    CancellationToken = cancellation.Token,
+                };
 
                 try
                 {
-                    ApplyFile(group.Key, group.Value);
+                    Parallel.ForEach(byFile, options, ProcessOne);
                 }
-                catch (Exception ex)
+                catch (OperationCanceledException)
                 {
-                    lock (gate)
-                    {
-                        errors.Add(new SearchError(group.Key.Path, ex));
-                    }
+                    // Cancellation is reflected in the terminal state below.
                 }
-
-                Interlocked.Increment(ref completedFileCount);
-                RaiseProgress();
             }
 
             SetState(cancellation.IsCancellationRequested ? SearchJobState.Canceled : SearchJobState.Completed);
+        }
+
+        // Rewrites one file group: applies its chosen matches, capturing any per-file failure as an error, and
+        // ticks progress. Safe to call concurrently — the shared counters/lists are interlocked or gate-locked.
+        private void ProcessOne(KeyValuePair<SearchFile, List<HitRecord>> group)
+        {
+            if (cancellation.IsCancellationRequested)
+            {
+                return;
+            }
+
+            try
+            {
+                ApplyFile(group.Key, group.Value);
+            }
+            catch (Exception ex)
+            {
+                lock (gate)
+                {
+                    errors.Add(new SearchError(group.Key.Path, ex));
+                }
+            }
+
+            Interlocked.Increment(ref completedFileCount);
+            RaiseProgress();
+        }
+
+        // Resolves maxDegreeOfParallelism the same way SearchJob does: 0 => automatic (ProcessorCount),
+        // otherwise the requested value clamped to at least 1.
+        private int ResolveDegreeOfParallelism()
+        {
+            if (maxDegreeOfParallelism == 0)
+            {
+                return Math.Max(1, Environment.ProcessorCount);
+            }
+
+            return Math.Max(1, maxDegreeOfParallelism);
         }
 
         // Rewrites a single file: verify each chosen match against its captured context, then stream the file
