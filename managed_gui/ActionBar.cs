@@ -106,29 +106,48 @@ namespace UnicodeRegEx.Gui
         }
 
         /// <summary>
-        /// Drives the progress bar from the job's phase and file counts: marquee while enumerating (total
-        /// still growing), determinate while processing, and reset to empty when idle or finished. The bar
-        /// stays visible in all states so nothing in the strip shifts.
+        /// Drives the progress bar from the job's phase and file counts: empty while enumerating (total not
+        /// yet known), determinate 0 -> total while processing, and empty again when idle or finished. It is
+        /// deliberately NOT a marquee during enumeration — a scrolling marquee looks like real progress, so
+        /// the later switch to the determinate bar would read as a reset. The bar stays visible in all states
+        /// so nothing in the strip shifts.
         /// </summary>
         public void SetProgress(SearchJobState state, int completed, int total)
         {
             switch (state)
             {
-                case SearchJobState.Enumerating:
-                    progressBar.Style = ProgressBarStyle.Marquee;
-                    break;
-
                 case SearchJobState.Processing:
-                    progressBar.Style = ProgressBarStyle.Continuous;
-                    progressBar.Maximum = total > 0 ? total : 1;
+                    // Set Style/Maximum only when they actually change: reassigning them (even to the same
+                    // value) resets the control's paint state, which makes the bar flash back to empty on
+                    // every progress tick. Value is set last, after Maximum, so it is never clamped low.
+                    SetStyle(ProgressBarStyle.Continuous);
+                    var max = total > 0 ? total : 1;
+                    if (progressBar.Maximum != max)
+                    {
+                        progressBar.Maximum = max;
+                    }
+
                     progressBar.Value = total > 0 ? System.Math.Min(completed, total) : 0;
                     break;
 
                 default:
-                    // Created / Completed / Canceled / Faulted: idle — flat, empty, no marquee.
-                    progressBar.Style = ProgressBarStyle.Continuous;
+                    // Enumerating / Created / Completed / Canceled / Faulted: idle — flat and empty. We do NOT
+                    // use a marquee while enumerating: a scrolling marquee reads as forward progress, so the
+                    // switch to the determinate bar (starting at 0) looks like the progress "restarted". The
+                    // only motion the user sees is the genuine 0 -> total fill during Processing.
+                    SetStyle(ProgressBarStyle.Continuous);
                     progressBar.Value = 0;
                     break;
+            }
+        }
+
+        // Assigns the progress bar's style only when it differs. Reassigning the same style resets the
+        // control's animation/paint state and causes a visible flicker.
+        private void SetStyle(ProgressBarStyle style)
+        {
+            if (progressBar.Style != style)
+            {
+                progressBar.Style = style;
             }
         }
 

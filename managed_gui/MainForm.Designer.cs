@@ -35,10 +35,10 @@
         /// </summary>
         private void InitializeComponent()
         {
-            System.Windows.Forms.ColumnHeader fileColumn;
-            System.Windows.Forms.ColumnHeader matchColumn;
             System.Windows.Forms.Label actionBarSeparator;
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
+            this.fileColumn = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            this.matchColumn = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.positionColumn = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.settingsPanel = new System.Windows.Forms.Panel();
             this.statusStrip = new System.Windows.Forms.StatusStrip();
@@ -47,8 +47,6 @@
             this.contextBox = new System.Windows.Forms.RichTextBox();
             this.split = new System.Windows.Forms.SplitContainer();
             this.actionBar = new UnicodeRegEx.Gui.ActionBar();
-            fileColumn = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
-            matchColumn = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             actionBarSeparator = new System.Windows.Forms.Label();
             this.statusStrip.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.split)).BeginInit();
@@ -59,13 +57,13 @@
             // 
             // fileColumn
             // 
-            fileColumn.Text = "File";
-            fileColumn.Width = 380;
+            this.fileColumn.Text = "File";
+            this.fileColumn.Width = 380;
             // 
             // matchColumn
             // 
-            matchColumn.Text = "Match";
-            matchColumn.Width = 340;
+            this.matchColumn.Text = "Match";
+            this.matchColumn.Width = 340;
             // 
             // actionBarSeparator
             // 
@@ -108,9 +106,9 @@
             // hitList
             // 
             this.hitList.Columns.AddRange(new System.Windows.Forms.ColumnHeader[] {
-            fileColumn,
+            this.fileColumn,
             this.positionColumn,
-            matchColumn});
+            this.matchColumn});
             this.hitList.Dock = System.Windows.Forms.DockStyle.Fill;
             this.hitList.FullRowSelect = true;
             this.hitList.HideSelection = false;
@@ -121,6 +119,7 @@
             this.hitList.UseCompatibleStateImageBehavior = false;
             this.hitList.View = System.Windows.Forms.View.Details;
             this.hitList.SelectedIndexChanged += new System.EventHandler(this.hitList_SelectedIndexChanged);
+            this.hitList.ColumnClick += new System.Windows.Forms.ColumnClickEventHandler(this.hitList_ColumnClick);
             // 
             // contextBox
             // 
@@ -198,6 +197,8 @@
         private System.Windows.Forms.RichTextBox contextBox;
         private System.Windows.Forms.SplitContainer split;
         private ActionBar actionBar;
+        private System.Windows.Forms.ColumnHeader fileColumn;
         private System.Windows.Forms.ColumnHeader positionColumn;
+        private System.Windows.Forms.ColumnHeader matchColumn;
     }
 }

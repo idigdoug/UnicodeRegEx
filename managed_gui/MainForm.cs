@@ -56,6 +56,22 @@
         // changes. Owned by MainForm and assigned to hitList.
         private readonly ContextMenuStrip hitContextMenu = new ContextMenuStrip();
 
+        // Marks a context-menu item that requires a selected result row (Copy and the Open-with tools). The
+        // Opening handler enables/disables these based on the current selection.
+        private static readonly object SelectionDependentTag = new object();
+
+        // Results sort state: which column index is the active sort key (-1 = unsorted, order-of-search), and
+        // its direction. Sorting is applied only when the user clicks a header.
+        private int sortColumn = -1;
+        private bool sortAscending = true;
+
+        // Reserved PersistedState preference keys for GUI layout (not tied to a Setting).
+        private const string WindowWidthKey = "window.width";
+        private const string WindowHeightKey = "window.height";
+        private const string FileColumnWidthKey = "column.file.width";
+        private const string PositionColumnWidthKey = "column.position.width";
+        private const string MatchColumnWidthKey = "column.match.width";
+
         public MainForm()
         {
             InitializeComponent();
@@ -105,11 +121,15 @@
 
             hitList.ContextMenuStrip = hitContextMenu;
             hitList.DoubleClick += hitList_DoubleClick;
+            hitContextMenu.Opening += hitContextMenu_Opening;
             RebuildOpenWithMenu();
 
             // Fill the combo dropdowns from the (seeded) MRU lists, and save on close.
             PopulateMruDropdowns();
             FormClosing += MainForm_FormClosing;
+
+            // Restore the persisted window size (position stays auto) and results column widths.
+            RestoreWindowAndColumns();
 
             // Start expanded; MainForm owns swapping the active pane in and out of the host panel.
             ShowPane(corePane);
@@ -182,6 +202,14 @@
             if (e.Control && e.KeyCode == Keys.A)
             {
                 SelectAllRows();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                return;
+            }
+
+            if (e.Control && e.KeyCode == Keys.C)
+            {
+                CopySelectedResults();
                 e.Handled = true;
                 e.SuppressKeyPress = true;
                 return;
@@ -444,6 +472,12 @@
             hitList.EndUpdate();
             hitsShownCount = 0;
             errorsShownCount = 0;
+
+            // New results start in order-of-search until the user clicks a header again.
+            hitList.ListViewItemSorter = null;
+            sortColumn = -1;
+            sortAscending = true;
+
             contextBox.Clear();
         }
 
@@ -851,6 +885,7 @@
         private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
         {
             SavePreferencesToState();
+            SaveWindowAndColumns();
             try
             {
                 StateStore.Save(StateStore.DefaultPath, state);
@@ -871,15 +906,20 @@
         {
             hitContextMenu.Items.Clear();
 
+            var copy = new ToolStripMenuItem("Copy selected (path, line, column)") { Tag = SelectionDependentTag };
+            copy.Click += (s, e) => CopySelectedResults();
+            hitContextMenu.Items.Add(copy);
+            hitContextMenu.Items.Add(new ToolStripSeparator());
+
             foreach (var tool in state.GetOpenWithTools())
             {
                 var captured = tool;
-                var item = new ToolStripMenuItem(tool.Name);
+                var item = new ToolStripMenuItem(tool.Name) { Tag = SelectionDependentTag };
                 item.Click += (s, e) => LaunchTool(captured);
                 hitContextMenu.Items.Add(item);
             }
 
-            if (hitContextMenu.Items.Count > 0)
+            if (state.GetOpenWithTools().Count > 0)
             {
                 hitContextMenu.Items.Add(new ToolStripSeparator());
             }
@@ -887,6 +927,20 @@
             var edit = new ToolStripMenuItem("Edit this menu...");
             edit.Click += (s, e) => EditOpenWithMenu();
             hitContextMenu.Items.Add(edit);
+        }
+
+        // Enables the selection-dependent items (Copy and the Open-with tools) only when a row is selected;
+        // "Edit this menu..." is always available.
+        private void hitContextMenu_Opening(object? sender, System.ComponentModel.CancelEventArgs e)
+        {
+            var hasSelection = hitList.SelectedItems.Count > 0;
+            foreach (ToolStripItem item in hitContextMenu.Items)
+            {
+                if (ReferenceEquals(item.Tag, SelectionDependentTag))
+                {
+                    item.Enabled = hasSelection;
+                }
+            }
         }
 
         // Opens the currently selected row with the given tool, substituting its path/line/column. Error rows
@@ -973,6 +1027,197 @@
             {
                 // A failed save here is non-fatal; the tools are still active for this session.
             }
+        }
+
+        #endregion
+
+        #region Results sorting, copy, and window/column layout
+
+        private const int FileColumnIndex = 0;
+        private const int PositionColumnIndex = 1;
+        private const int MatchColumnIndex = 2;
+
+        // Sorts by the clicked column; clicking the active column again reverses the direction. Results start
+        // in order-of-search (no sorter); the first header click installs the sorter.
+        private void hitList_ColumnClick(object? sender, ColumnClickEventArgs e)
+        {
+            if (e.Column == sortColumn)
+            {
+                sortAscending = !sortAscending;
+            }
+            else
+            {
+                sortColumn = e.Column;
+                sortAscending = true;
+            }
+
+            hitList.ListViewItemSorter = new ResultsSorter(sortColumn, sortAscending);
+            hitList.Sort();
+        }
+
+        // Copies the selected result rows to the clipboard as tab-separated PATH\tLINE\tCOL, one row per line.
+        // Match text is deliberately omitted (it can contain tabs/newlines). Error rows have empty line/col.
+        private void CopySelectedResults()
+        {
+            if (hitList.SelectedItems.Count == 0)
+            {
+                return;
+            }
+
+            var builder = new System.Text.StringBuilder();
+            foreach (ListViewItem item in hitList.SelectedItems)
+            {
+                switch (item.Tag)
+                {
+                    case HitRecord hit:
+                        builder.Append(hit.File.Path).Append('\t').Append(hit.LineNumber).Append('\t').Append(hit.ColumnNumber);
+                        break;
+
+                    case SearchError error:
+                        builder.Append(error.Path).Append('\t').Append('\t');
+                        break;
+
+                    default:
+                        continue;
+                }
+
+                builder.AppendLine();
+            }
+
+            if (builder.Length > 0)
+            {
+                try
+                {
+                    Clipboard.SetText(builder.ToString());
+                }
+                catch (Exception)
+                {
+                    // Clipboard access can transiently fail; ignore rather than disrupt the user.
+                }
+            }
+        }
+
+        // Restores the persisted window size (size only; position stays auto) and column widths on launch.
+        private void RestoreWindowAndColumns()
+        {
+            var width = GetIntPreference(WindowWidthKey);
+            var height = GetIntPreference(WindowHeightKey);
+            if (width.HasValue && height.HasValue)
+            {
+                // Clamp to at least the minimum so a bad/tiny saved value can't produce an unusable window.
+                var w = Math.Max(width.Value, MinimumSize.Width);
+                var h = Math.Max(height.Value, MinimumSize.Height);
+                Size = new Size(w, h);
+            }
+
+            ApplyColumnWidth(fileColumn, FileColumnWidthKey);
+            ApplyColumnWidth(positionColumn, PositionColumnWidthKey);
+            ApplyColumnWidth(matchColumn, MatchColumnWidthKey);
+        }
+
+        private void ApplyColumnWidth(ColumnHeader column, string key)
+        {
+            var width = GetIntPreference(key);
+            if (width.HasValue && width.Value > 0)
+            {
+                column.Width = width.Value;
+            }
+        }
+
+        // Saves the window size (the restore size, so a maximized close still records the normal size) and the
+        // column widths into persisted state. Called from FormClosing before the state is written.
+        private void SaveWindowAndColumns()
+        {
+            var size = WindowState == FormWindowState.Normal ? Size : RestoreBounds.Size;
+            state.SetPreference(WindowWidthKey, size.Width.ToString());
+            state.SetPreference(WindowHeightKey, size.Height.ToString());
+
+            state.SetPreference(FileColumnWidthKey, fileColumn.Width.ToString());
+            state.SetPreference(PositionColumnWidthKey, positionColumn.Width.ToString());
+            state.SetPreference(MatchColumnWidthKey, matchColumn.Width.ToString());
+        }
+
+        private int? GetIntPreference(string key)
+        {
+            var text = state.GetPreference(key);
+            return int.TryParse(text, out var value) ? value : (int?)null;
+        }
+
+        // Sorts result rows by a chosen column. File sorts by path (ordinal, ignore case), Position by
+        // (line, column), Match by its displayed text. Rows are compared via their HitRecord/SearchError Tag.
+        private sealed class ResultsSorter : System.Collections.IComparer
+        {
+            private readonly int column;
+            private readonly int sign;
+
+            public ResultsSorter(int column, bool ascending)
+            {
+                this.column = column;
+                sign = ascending ? 1 : -1;
+            }
+
+            public int Compare(object? x, object? y)
+            {
+                var a = (ListViewItem)x!;
+                var b = (ListViewItem)y!;
+                return sign * CompareItems(a, b);
+            }
+
+            private int CompareItems(ListViewItem a, ListViewItem b)
+            {
+                switch (column)
+                {
+                    case PositionColumnIndex:
+                        return ComparePosition(a, b);
+
+                    case MatchColumnIndex:
+                        return string.Compare(SubText(a, MatchColumnIndex), SubText(b, MatchColumnIndex), StringComparison.Ordinal);
+
+                    default: // File column: path, ordinal ignore-case.
+                        return string.Compare(PathOf(a), PathOf(b), StringComparison.OrdinalIgnoreCase);
+                }
+            }
+
+            private static int ComparePosition(ListViewItem a, ListViewItem b)
+            {
+                if (a.Tag is HitRecord ha && b.Tag is HitRecord hb)
+                {
+                    if (ha.LineNumber != hb.LineNumber)
+                    {
+                        return ha.LineNumber < hb.LineNumber ? -1 : 1;
+                    }
+
+                    if (ha.ColumnNumber != hb.ColumnNumber)
+                    {
+                        return ha.ColumnNumber < hb.ColumnNumber ? -1 : 1;
+                    }
+
+                    return 0;
+                }
+
+                // Error rows (no position) sort after hit rows, then by their text.
+                if (a.Tag is HitRecord)
+                {
+                    return -1;
+                }
+
+                if (b.Tag is HitRecord)
+                {
+                    return 1;
+                }
+
+                return 0;
+            }
+
+            private static string PathOf(ListViewItem item) => item.Tag switch
+            {
+                HitRecord hit => hit.File.Path,
+                SearchError error => error.Path,
+                _ => item.Text,
+            };
+
+            private static string SubText(ListViewItem item, int index) =>
+                index < item.SubItems.Count ? item.SubItems[index].Text : string.Empty;
         }
 
         #endregion

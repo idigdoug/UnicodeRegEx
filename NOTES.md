@@ -198,9 +198,10 @@ functionality**, roughly in priority order:
    (`$F`/`$L`/`$C`/`$$`), and the keyboard shortcuts. Form could double as an "about" page. Open question:
    static content vs. generating parts from the settings model / `HelpFormatter` the CLI already uses.
 
-2. **Smaller GUI polish / ideas** (no design blockers): richer results affordances (e.g. group/sort by file,
-   copy selected results), remembering window size/position, and surfacing per-run summary stats (files
-   scanned, matches, elapsed) more prominently.
+2. **Smaller GUI polish** (no design blockers): a few remaining niceties — e.g. richer clipboard/export
+   options for results. (Window-size + column-width persistence, header-click sorting, and copy of selected
+   results are done — see the status snapshot. Results grouping and per-run stats were considered and
+   deliberately skipped.)
 
 ## Ideas to consider for future
 
@@ -540,4 +541,13 @@ Not planned; captured so they aren't re-litigated.
   button on `CoreSettingsPane` (raises `AdvancedRequested`); on close `MainForm` calls `corePane.PullFromSettings()`
   so the primary pane re-reads every control (tri-state/indeterminate for a value it can't model) and refreshes
   the collapsed summary.
+- **Results/window polish (done):** the main window's **size** (not position — auto-position kept) and the
+  results **column widths** persist across sessions, stored under reserved `PersistedState` preference keys
+  (`window.width/height`, `column.{file,position,match}.width`) written on `FormClosing` and restored on launch
+  (size clamped to `MinimumSize`; a maximized close records the restore size). Results stay in **order-of-search**
+  (new hits appended) until the user clicks a column header, which installs a `ResultsSorter` (`IComparer`): File
+  sorts by path (ordinal, ignore-case), Position by `(line, column)` off the row's `HitRecord`, Match by text;
+  re-clicking a header reverses direction, and a new run clears the sorter. **Copy** (Ctrl+C or the context-menu
+  "Copy" item) puts the selected rows on the clipboard as `PATH\tLINE\tCOL` (match text omitted to avoid embedded
+  tabs/newlines; error rows have empty line/col).
 - Tests: 428 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.
