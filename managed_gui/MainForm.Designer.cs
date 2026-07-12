@@ -35,10 +35,10 @@
         private void InitializeComponent()
         {
             System.Windows.Forms.ColumnHeader fileColumn;
-            System.Windows.Forms.ColumnHeader offsetColumn;
             System.Windows.Forms.ColumnHeader matchColumn;
             System.Windows.Forms.Label actionBarSeparator;
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
+            this.positionColumn = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.settingsPanel = new System.Windows.Forms.Panel();
             this.statusStrip = new System.Windows.Forms.StatusStrip();
             this.statusLabel = new System.Windows.Forms.ToolStripStatusLabel();
@@ -47,7 +47,6 @@
             this.split = new System.Windows.Forms.SplitContainer();
             this.actionBar = new UnicodeRegEx.Gui.ActionBar();
             fileColumn = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
-            offsetColumn = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             matchColumn = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             actionBarSeparator = new System.Windows.Forms.Label();
             this.statusStrip.SuspendLayout();
@@ -62,10 +61,10 @@
             fileColumn.Text = "File";
             fileColumn.Width = 380;
             // 
-            // offsetColumn
+            // positionColumn
             // 
-            offsetColumn.Text = "Offset";
-            offsetColumn.Width = 90;
+            this.positionColumn.Text = "Position";
+            this.positionColumn.Width = 63;
             // 
             // matchColumn
             // 
@@ -109,7 +108,7 @@
             // 
             this.hitList.Columns.AddRange(new System.Windows.Forms.ColumnHeader[] {
             fileColumn,
-            offsetColumn,
+            this.positionColumn,
             matchColumn});
             this.hitList.Dock = System.Windows.Forms.DockStyle.Fill;
             this.hitList.FullRowSelect = true;
@@ -198,5 +197,6 @@
         private System.Windows.Forms.RichTextBox contextBox;
         private System.Windows.Forms.SplitContainer split;
         private ActionBar actionBar;
+        private System.Windows.Forms.ColumnHeader positionColumn;
     }
 }

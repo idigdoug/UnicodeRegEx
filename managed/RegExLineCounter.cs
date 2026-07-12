@@ -22,7 +22,11 @@ namespace UnicodeRegEx
         private readonly bool utf16;
         private bool lastCharWasCarriageReturn;
         private nuint offset;
-        private long lineNumber;
+        private nuint lineNumber;
+
+        // The byte offset at which the current line begins (just past the most recent line break), used to
+        // derive the column. Column is measured in code units from the line start.
+        private nuint lineStartOffset;
 
         /// <summary>
         /// Creates a counter positioned at offset 0 (<see cref="LineNumber"/> 0) over <paramref name="input"/>.
@@ -108,13 +112,36 @@ namespace UnicodeRegEx
             lastCharWasCarriageReturn = false;
             offset = 0;
             lineNumber = 0;
+            lineStartOffset = 0;
         }
 
         /// <summary>
         /// The 1-based line number at the current offset. 0 means no input has been consumed yet;
         /// the first consumed code unit puts the cursor on line 1.
         /// </summary>
-        public long LineNumber => lineNumber;
+        public nuint LineNumber => lineNumber;
+
+        /// <summary>
+        /// The 1-based column at the current offset, measured in code units from the start of the current
+        /// line (a UTF-16 code unit is 2 bytes; all other code pages are single-byte). The first code unit
+        /// of a line is column 1. On a freshly-constructed counter (before any <see cref="AdvanceTo"/>) this
+        /// is 1 while <see cref="LineNumber"/> is 0.
+        /// </summary>
+        public nuint Column
+        {
+            get
+            {
+                var bytePos = offset - lineStartOffset;
+                if (utf16)
+                {
+                    return bytePos / 2 + 1;
+                }
+                else
+                {
+                    return bytePos + 1;
+                }
+            }
+        }
 
         /// <summary>The byte offset the cursor has advanced to.</summary>
         public nuint Offset => offset;
@@ -135,8 +162,10 @@ namespace UnicodeRegEx
                 throw new ArgumentOutOfRangeException(nameof(target), "Target must be within the input and at or after the current offset.");
             }
 
-            // The first code unit consumed moves the cursor onto line 1.
-            if (lineNumber == 0 && target >= (utf16 ? (uint)sizeof(ushort) : (uint)sizeof(byte)))
+            // Any advance puts the cursor onto line 1 (the input starts on line 1); subsequent line breaks
+            // move it forward. AdvanceTo is always called with a real position, so the reported line/column
+            // are 1-based from the first call. LineNumber stays 0 only before the first AdvanceTo.
+            if (lineNumber == 0)
             {
                 lineNumber = 1;
             }
@@ -150,7 +179,7 @@ namespace UnicodeRegEx
                     var pos = offset / sizeof(ushort);
                     for (; pos < end; pos++)
                     {
-                        CountUnit(data[pos]);
+                        CountUnit(data[pos], (pos + 1) * sizeof(ushort));
                     }
 
                     offset = pos * sizeof(ushort);
@@ -162,7 +191,7 @@ namespace UnicodeRegEx
                     var pos = offset;
                     for (; pos < end; pos++)
                     {
-                        CountUnit(data[pos]);
+                        CountUnit(data[pos], pos + 1);
                     }
 
                     offset = pos;
@@ -170,22 +199,27 @@ namespace UnicodeRegEx
             }
         }
 
-        private void CountUnit(ushort unit)
+        // Consumes one code unit that ends at byte offset unitEndOffset (the offset just past it). On a line
+        // break, lineStartOffset moves to that end offset so the next unit is column 1 of the new line.
+        private void CountUnit(ushort unit, nuint unitEndOffset)
         {
             if (unit == cr)
             {
                 // A CR is a line break on sight; the flag only suppresses a following LF (CRLF).
                 lineNumber++;
+                lineStartOffset = unitEndOffset;
                 lastCharWasCarriageReturn = true;
             }
             else if (unit == lf)
             {
-                // Count the LF unless it is the LF half of a CR-LF pair already counted by the CR.
+                // Count the LF unless it is the LF half of a CR-LF pair already counted by the CR; either
+                // way the next line starts just past the LF.
                 if (!lastCharWasCarriageReturn)
                 {
                     lineNumber++;
                 }
 
+                lineStartOffset = unitEndOffset;
                 lastCharWasCarriageReturn = false;
             }
             else

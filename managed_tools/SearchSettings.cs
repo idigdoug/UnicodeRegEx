@@ -353,6 +353,7 @@ namespace UnicodeRegEx.Tools
                 MaxDegreeOfParallelism = Parallelism.Value,
                 Lcid = Locale.Value,
                 Pattern = Pattern,
+                TrackLineNumbers = true,
             };
 
             request.SetSyntaxFlags(

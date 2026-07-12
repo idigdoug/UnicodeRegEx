@@ -516,22 +516,22 @@ find-and-selectively-replace tool. It is being built in slices on top of a UI-ag
   MRU on each run, and saves preferences + MRU on `FormClosing`. `CoreSettingsPane` exposes
   `SetMruItems(key, items)` and the shared `*Key` constants; `GlobListSetting` throws from `GetPersistedValue`
   (list-valued, persisted via MRU).
-- **Fit-and-finish backlog** (feature-parity with the old app reached; these are polish, not critical): the
-  two significant-but-non-critical features stay here too — multithreaded `ReplaceJob` (mid-file cancel via
-  `RegExFileStream.LinkCancellation` + cross-file parallelism) and the auto-generated advanced-options page.
-  New ideas: (a) **rich-text details pane** — swap `contextBox` (`TextBox`) for a `RichTextBox` and, in
-  `ShowSelectedContext`, render `HitRecord`'s already-separate segments as styled runs instead of bracketed
-  text: search mode = match **bold + highlight background**; replace mode = matched text **strike-through +
-  one highlight color** immediately followed by the replacement in a **second highlight color** (drops the
-  `->` arrow). Self-contained in `MainForm` + designer control swap; cache a `FontStyle.Strikeout` font; no
-  engine/Tools change. (b) **line numbers** — the primitive already exists: `RegExLineCounter` (managed
-  wrapper) is a forward, non-decreasing cursor giving a 1-based line number without decoding the whole file.
-  Tradeoff: *eager* (collect at search time) is nearly free per file because a file's matches are already
-  produced in ascending offset order, so one counter advanced across them is ~one byte pass — but you pay it
-  for every file and widen `HitRecord`; *lazy* (compute on demand, cache per file) costs nothing until asked,
-  but must re-map/re-scan, and since the cursor is forward-only, computing one hit means filling in all hits
-  in that file, and the file may have changed since search (same staleness the byte-context guards). Leaning:
-  **eager but opt-in per run** via a toggle (grep `-n`, off by default) — no cost when off, authoritative
-  numbers captured at search time when on, no post-hoc staleness logic; lazy-cache remains the fallback if we
-  prefer never widening the search pass.
-- Tests: 409 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.
+- **Rich-text details pane (done):** `contextBox` is a `RichTextBox`; `ShowSelectedContext` renders
+  `HitRecord`'s segments as styled runs via an `AppendRun` helper — Find mode highlights the match (bold +
+  pale-yellow background); Replace mode strikes the matched text (pale-red) immediately followed by the
+  replacement (pale-green), no arrow. A cached `FontStyle.Strikeout` font is disposed with the form. No
+  engine/Tools change.
+- **Line/column positions (done):** `RegExLineCounter` (managed wrapper) is a forward, non-decreasing cursor
+  giving a 1-based line number **and** code-unit column without decoding the whole file (line breaks LF/CR/CRLF;
+  UTF-8/UTF-16; `nuint` line + column; a fresh counter reads line 0 / column 1, and any `AdvanceTo` puts it on
+  line 1). Collected **eagerly** at search time: `SearchRequest.TrackLineNumbers` (opt-in; `Clone`d) gates it,
+  `SearchSettings.MakeRequest` always sets it true (the GUI always gets positions), and `SearchJob` builds one
+  counter per file from the enumerable's new `Input`/`InputCodePage` accessors (`RegExMatchEnumerable` /
+  `RegExSegmentEnumerable`) and advances it to each match's begin offset (matches arrive in ascending order).
+  Line/column flow through `SearchHit` (0 when not tracked) into `HitRecord`; the GUI's former "Offset" column
+  is now **"Position"** showing `Line,Column`.
+- **Fit-and-finish backlog** (feature-parity with the old app reached; these are polish, not critical):
+  multithreaded `ReplaceJob` (mid-file cancel via `RegExFileStream.LinkCancellation` + cross-file parallelism);
+  the auto-generated advanced-options page; and **double-click a result to open the match in the user's editor**
+  positioned on its line (the line/column data now exists — this is the editor-launch UX only).
+- Tests: 412 managed (+ 1 Perf, category-excluded) + 481 native (lib) passing.

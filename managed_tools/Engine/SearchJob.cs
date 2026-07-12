@@ -563,10 +563,25 @@ namespace UnicodeRegEx.Tools.Engine
 
                 return regex.EnumerateMatches(input, enumerateOptions, matches =>
                 {
+                    // When line tracking is on, advance one forward line/column cursor across this file's
+                    // matches (they arrive in ascending offset order). AdvanceTo(match position) always
+                    // yields a 1-based line/column.
+                    var track = request.TrackLineNumbers;
+                    var counter = new RegExLineCounter(matches.Input, matches.InputCodePage);
+
                     var matched = false;
                     foreach (var match in matches)
                     {
-                        var hit = new SearchHit(file, match);
+                        nuint line = 0;
+                        nuint column = 0;
+                        if (track)
+                        {
+                            counter.AdvanceTo(match.GetSubMatch(0).Begin);
+                            line = counter.LineNumber;
+                            column = counter.Column;
+                        }
+
+                        var hit = new SearchHit(file, match, line, column);
                         var response = ReportMatch(hit);
                         matched = true;
 
@@ -606,17 +621,31 @@ namespace UnicodeRegEx.Tools.Engine
                 // Write into a delete-on-close temp adjacent to the file; commit with MoveTo on success.
                 using var destination = RegEx.CreateReplacementFileStream(path);
                 var stopped = false;
+                var track = request.TrackLineNumbers;
                 var matched = regex.EnumerateSegments(input, options, segments =>
                 {
+                    // Line/column cursor for this file (over the same pinned input the segments index into);
+                    // ref-struct locals must live inside this lambda.
+                    var counter = new RegExLineCounter(segments.Input, segments.InputCodePage);
+
                     var any = false;
                     foreach (var segment in segments)
                     {
                         if (segment.IsMatch)
                         {
+                            nuint line = 0;
+                            nuint column = 0;
+                            if (track)
+                            {
+                                counter.AdvanceTo(segment.Match.GetSubMatch(0).Begin);
+                                line = counter.LineNumber;
+                                column = counter.Column;
+                            }
+
                             // Ask the sink what to write for this match before writing anything, so a
                             // StopFile/StopAll abandons the rewrite: we leave the loop without committing,
                             // the delete-on-close temp is discarded, and the original file is left untouched.
-                            var action = ReportApply(new SearchHit(file, segment.Match));
+                            var action = ReportApply(new SearchHit(file, segment.Match, line, column));
                             switch (action.Kind)
                             {
                                 case ApplyActionKind.StopFile:

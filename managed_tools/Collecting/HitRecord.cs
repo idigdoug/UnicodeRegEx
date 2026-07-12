@@ -20,6 +20,8 @@ namespace UnicodeRegEx.Tools.Collecting
         public HitRecord(
             SearchFile file,
             nuint matchFileOffset,
+            nuint lineNumber,
+            nuint columnNumber,
             byte[] preMatchBytes,
             byte[] matchBytes,
             byte[] postMatchBytes,
@@ -27,6 +29,8 @@ namespace UnicodeRegEx.Tools.Collecting
         {
             File = file;
             MatchFileOffset = matchFileOffset;
+            LineNumber = lineNumber;
+            ColumnNumber = columnNumber;
             PreMatchBytes = preMatchBytes;
             MatchBytes = matchBytes;
             PostMatchBytes = postMatchBytes;
@@ -38,6 +42,12 @@ namespace UnicodeRegEx.Tools.Collecting
 
         /// <summary>The byte offset of the match within the file. Always a valid in-memory offset (the whole file is mapped).</summary>
         public nuint MatchFileOffset { get; }
+
+        /// <summary>The 1-based line number of the match, or 0 when the run did not track line numbers.</summary>
+        public nuint LineNumber { get; }
+
+        /// <summary>The 1-based column (in code units) of the match, or 0 when the run did not track line numbers.</summary>
+        public nuint ColumnNumber { get; }
 
         /// <summary>File bytes immediately before the match (up to a bounded window; shorter near the file start).</summary>
         public byte[] PreMatchBytes { get; }

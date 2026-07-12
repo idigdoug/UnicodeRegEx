@@ -297,9 +297,16 @@ namespace UnicodeRegEx.Tools.Engine
     public readonly ref struct SearchHit
     {
         public SearchHit(SearchFile file, RegExMatch match)
+            : this(file, match, 0, 0)
+        {
+        }
+
+        public SearchHit(SearchFile file, RegExMatch match, nuint lineNumber, nuint columnNumber)
         {
             File = file;
             Match = match;
+            LineNumber = lineNumber;
+            ColumnNumber = columnNumber;
         }
 
         /// <summary>The file this hit is in (shared with the file's other hits and its <see cref="ISearchSink.OnFile"/> report).</summary>
@@ -307,6 +314,18 @@ namespace UnicodeRegEx.Tools.Engine
 
         /// <summary>The underlying match: sub-matches, byte offsets, input fileBytes, formatting.</summary>
         public RegExMatch Match { get; }
+
+        /// <summary>
+        /// The 1-based line number of the match's first character, or 0 when the run did not request line
+        /// tracking (<see cref="SearchRequest.TrackLineNumbers"/>).
+        /// </summary>
+        public nuint LineNumber { get; }
+
+        /// <summary>
+        /// The 1-based column (in code units, from the start of the line) of the match's first character, or
+        /// 0 when the run did not request line tracking (<see cref="SearchRequest.TrackLineNumbers"/>).
+        /// </summary>
+        public nuint ColumnNumber { get; }
 
         /// <summary>The matched text (sub-match 0), decoded with the file's code page.</summary>
         public string Text => Match.Text;

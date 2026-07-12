@@ -180,7 +180,7 @@ namespace UnicodeRegEx.Tools.Collecting
                 replacementBytes = Array.Empty<byte>();
             }
 
-            return new HitRecord(hit.File, matchBegin, preMatch, matchBytes, postMatch, replacementBytes);
+            return new HitRecord(hit.File, matchBegin, hit.LineNumber, hit.ColumnNumber, preMatch, matchBytes, postMatch, replacementBytes);
         }
 
         // Decide whether to raise HitsAdded now (caller holds the lock).

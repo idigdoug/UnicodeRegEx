@@ -501,7 +501,7 @@
             {
                 var hit = current[i];
                 var item = new ListViewItem(hit.File.Path) { Tag = hit };
-                item.SubItems.Add(hit.MatchFileOffset.ToString());
+                item.SubItems.Add($"{hit.LineNumber},{hit.ColumnNumber}");   // Position column (Line,Column)
                 item.SubItems.Add(OneLine(hit.MatchText));
 
                 // A Replace run's rows are checkable and default to checked (replace-all; deselect a few).
@@ -531,10 +531,10 @@
             for (var i = errorsShownCount; i < current.Count; i++)
             {
                 var error = current[i];
-                // Error rows reuse the columns: path in File, message in Match (Offset left blank). Colored to
+                // Error rows reuse the columns: path in File, message in Match (Position left blank). Colored to
                 // set them apart from hit rows; the row carries the error so selection can show its detail.
                 var item = new ListViewItem(error.Path) { Tag = error, ForeColor = Color.Firebrick };
-                item.SubItems.Add(string.Empty);                       // Offset column
+                item.SubItems.Add(string.Empty);                       // Position column
                 item.SubItems.Add(OneLine(error.Exception.Message));   // Match column
                 hitList.Items.Add(item);
             }

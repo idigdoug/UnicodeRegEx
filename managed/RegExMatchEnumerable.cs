@@ -43,5 +43,15 @@ namespace UnicodeRegEx
 
             return new RegExMatchEnumerator(cursor, input);
         }
+
+        /// <summary>
+        /// The pinned input bytes being enumerated. Valid for as long as this enumerable is (the input stays
+        /// pinned for the enumeration). Useful for building a <see cref="RegExLineCounter"/> over the same
+        /// bytes the matches index into.
+        /// </summary>
+        public RegExPinnedBytes Input => input;
+
+        /// <summary>The code page of the input being enumerated.</summary>
+        public int InputCodePage => inputCodePage;
     }
 }

@@ -103,6 +103,14 @@ namespace UnicodeRegEx.Tools
         /// </summary>
         public bool SkipBinaryFiles { get; set; } = true;
 
+        /// <summary>
+        /// When true, each hit is reported with its 1-based line number and code-unit column
+        /// (<see cref="Engine.SearchHit.LineNumber"/> / <see cref="Engine.SearchHit.ColumnNumber"/>);
+        /// when false (the default), both are 0. Computing them costs a single forward pass over each
+        /// matched file's bytes, so it is opt-in.
+        /// </summary>
+        public bool TrackLineNumbers { get; set; }
+
         /// <summary>Which encoding/binary detection steps to run (default: <see cref="EncodingDetectionOptions.Default"/> — all steps).</summary>
         public EncodingDetectionOptions EncodingDetection { get; set; } = EncodingDetectionOptions.Default;
 
@@ -228,6 +236,7 @@ namespace UnicodeRegEx.Tools
                 SkipBinaryFiles = SkipBinaryFiles,
                 EncodingDetection = EncodingDetection,
                 MaxDegreeOfParallelism = MaxDegreeOfParallelism,
+                TrackLineNumbers = TrackLineNumbers,
                 Pattern = Pattern,
             };
 
