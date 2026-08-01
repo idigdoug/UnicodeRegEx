@@ -29,13 +29,13 @@ jobs:
 
     steps:
       - name: Checkout (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # boost.regex and microsoft.wil are git submodules the native build needs.
           submodules: recursive
 
       - name: Add MSBuild to PATH
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
 
       # Confirm the version typed at dispatch matches the single source of truth so
       # the tag/release name can never drift from what the binaries are stamped with.
