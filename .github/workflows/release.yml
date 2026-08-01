@@ -158,7 +158,7 @@ jobs:
           Write-Host "Staged:`n  $installZip`n  $devZip"
 
       - name: Upload workflow artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: UnicodeRegEx-${{ steps.version.outputs.version }}
           path: |
