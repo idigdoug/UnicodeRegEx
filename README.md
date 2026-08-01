@@ -56,7 +56,8 @@ The project is a stack; each layer is usable on its own.
 | [`managed_gui/`](managed_gui/) | WinForms GUI tool (`UniRex.exe`) |
 | [`managed_test/`](managed_test/) | .NET unit tests |
 | [`test/`](test/) | Native unit tests |
-| [`sandbox/`](sandbox/) | Native scratch / benchmarks |
+| [`sandbox/`](sandbox/) | Native scratch / benchmarks (not shipped) |
+| [`msandbox/`](msandbox/) | Managed scratch (not shipped) |
 | [`external/`](external/) | Git submodules: `boost.regex`, `microsoft.wil` |
 
 ## Building
@@ -154,6 +155,10 @@ unigrep "\bcolour\b" docs\ --replace "color" --apply # write in place
 
 Each major directory has its own README describing that layer in more detail — see `inc/`, `lib/`,
 `dll/`, `managed/`, `managed_tools/`, `managed_cli/`, and `managed_gui/`.
+
+## Contributing
+
+Suggestions and feature requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
