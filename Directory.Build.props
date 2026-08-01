@@ -1,0 +1,37 @@
+<Project>
+
+  <!--
+	Single source of truth for the UnicodeRegEx version number.
+	Consumed by:
+	  * .NET projects (AssemblyVersion / FileVersion / InformationalVersion below).
+	  * The native DLL via dll\UnicodeRegExDll.vcxproj, which generates
+		$(IntDir)version.g.h from these properties for its VS_VERSION_INFO resource.
+
+	OfficialBuild:
+	  * Local/dev builds (default)  -> InformationalVersion "x.y.z+local", private build.
+	  * Official builds (CI/release) pass /p:OfficialBuild=true -> clean "x.y.z".
+  -->
+
+  <PropertyGroup>
+	<UrexVersionMajor>1</UrexVersionMajor>
+	<UrexVersionMinor>0</UrexVersionMinor>
+	<UrexVersionPatch>0</UrexVersionPatch>
+	<UrexVersion>$(UrexVersionMajor).$(UrexVersionMinor).$(UrexVersionPatch)</UrexVersion>
+
+	<OfficialBuild Condition="'$(OfficialBuild)' == ''">false</OfficialBuild>
+
+	<UrexInformationalVersion>$(UrexVersion)</UrexInformationalVersion>
+	<UrexInformationalVersion Condition="'$(OfficialBuild)' != 'true'">$(UrexVersion)+local</UrexInformationalVersion>
+  </PropertyGroup>
+
+  <!-- .NET assembly version stamping (managed projects only). -->
+  <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
+	<!-- Keep AssemblyVersion stable across a major release for binding compatibility. -->
+	<AssemblyVersion>$(UrexVersionMajor).0.0.0</AssemblyVersion>
+	<FileVersion>$(UrexVersion).0</FileVersion>
+	<Version>$(UrexVersion)</Version>
+	<InformationalVersion>$(UrexInformationalVersion)</InformationalVersion>
+	<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+</Project>

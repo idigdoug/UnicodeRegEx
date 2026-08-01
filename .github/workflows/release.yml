@@ -1,0 +1,189 @@
+name: Release
+
+# Manual-only: go to Actions -> Release -> "Run workflow", enter the version to
+# confirm (must match Directory.Build.props) and whether to publish the GitHub Release.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (must match Directory.Build.props, e.g. 1.0.0)'
+        required: true
+        type: string
+      publish_release:
+        description: 'Create/attach a GitHub Release (uncheck for a dry run that only uploads workflow artifacts)'
+        required: true
+        type: boolean
+        default: true
+
+defaults:
+  run:
+    shell: pwsh
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build release (Release | official) and package
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          # boost.regex and microsoft.wil are git submodules the native build needs.
+          submodules: recursive
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      # Confirm the version typed at dispatch matches the single source of truth so
+      # the tag/release name can never drift from what the binaries are stamped with.
+      - name: Validate version against Directory.Build.props
+        id: version
+        run: |
+          [xml]$props = Get-Content 'Directory.Build.props'
+          $pg = $props.Project.PropertyGroup
+          $major = ($pg.UrexVersionMajor | Where-Object { $_ }) | Select-Object -First 1
+          $minor = ($pg.UrexVersionMinor | Where-Object { $_ }) | Select-Object -First 1
+          $patch = ($pg.UrexVersionPatch | Where-Object { $_ }) | Select-Object -First 1
+          $fileVersion = "$major.$minor.$patch"
+          $input = '${{ inputs.version }}'.Trim()
+          if ($fileVersion -ne $input) {
+            throw "Input version '$input' does not match Directory.Build.props version '$fileVersion'. Update Directory.Build.props first."
+          }
+          Write-Host "Releasing version $fileVersion"
+          "version=$fileVersion" >> $env:GITHUB_OUTPUT
+
+      # Official build: OfficialBuild=true stamps clean x.y.z (no +local, not a private build).
+      # Release|x64 builds the whole solution: managed assemblies (AnyCPU) + UnicodeRegEx_x64.dll.
+      - name: Build solution (Release | x64, official)
+        run: >
+          msbuild UnicodeRegEx.sln
+          -restore
+          -maxcpucount
+          -verbosity:minimal
+          -p:Configuration=Release
+          -p:Platform=x64
+          -p:OfficialBuild=true
+
+      # The native COM DLL also ships for x86 and ARM64. Its OutDir has no platform in
+      # the path, so these land next to the x64 DLL in out\Release as UnicodeRegEx_x86.dll
+      # and UnicodeRegEx_ARM64.dll (TargetName is UnicodeRegEx_$(PlatformTarget)).
+      - name: Build native DLL (Release | Win32/x86, official)
+        run: >
+          msbuild dll\UnicodeRegExDll.vcxproj
+          -restore
+          -maxcpucount
+          -verbosity:minimal
+          -p:Configuration=Release
+          -p:Platform=Win32
+          -p:OfficialBuild=true
+
+      - name: Build native DLL (Release | ARM64, official)
+        run: >
+          msbuild dll\UnicodeRegExDll.vcxproj
+          -restore
+          -maxcpucount
+          -verbosity:minimal
+          -p:Configuration=Release
+          -p:Platform=ARM64
+          -p:OfficialBuild=true
+
+      # Gate the release on the managed test suite (same approach as CI: run the already
+      # built test assembly directly so the .NET SDK never traverses the C++ projects).
+      - name: Run managed tests
+        run: |
+          $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $vstest = Join-Path $vsPath 'Common7\IDE\Extensions\TestPlatform\vstest.console.exe'
+          if (-not (Test-Path $vstest)) { throw "vstest.console.exe not found at $vstest" }
+          & $vstest 'out\Release\UnicodeRegExManagedTests.dll' /Platform:x64
+          if ($LASTEXITCODE -ne 0) { throw "Tests failed (exit $LASTEXITCODE)." }
+
+      # Stage the two payloads. Fail fast if any expected file is missing so a broken
+      # release never gets published with a silently incomplete ZIP.
+      - name: Stage release payloads
+        id: stage
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $rel = 'out\Release'
+          $staging = 'staging'
+          $installDir = Join-Path $staging "UnicodeRegEx-$version-installables"
+          $devDir = Join-Path $staging "UnicodeRegEx-$version-devkit"
+          New-Item -ItemType Directory -Force -Path $installDir, $devDir | Out-Null
+
+          # End-user "installables": executables, their .config files, and all DLLs.
+          $installables = @(
+            "$rel\UniGrep.exe",
+            "$rel\UniGrep.exe.config",
+            "$rel\UniRex.exe",
+            "$rel\UniRex.exe.config",
+            "$rel\UnicodeRegEx.dll",
+            "$rel\UnicodeRegEx.Tools.dll",
+            "$rel\UnicodeRegEx_x64.dll",
+            "$rel\UnicodeRegEx_x86.dll",
+            "$rel\UnicodeRegEx_ARM64.dll"
+          )
+
+          # Developer artifacts: a PDB for each shipped binary plus the COM IDL.
+          $devkit = @(
+            "$rel\UniGrep.pdb",
+            "$rel\UniRex.pdb",
+            "$rel\UnicodeRegEx.pdb",
+            "$rel\UnicodeRegEx.Tools.pdb",
+            "$rel\UnicodeRegEx_x64.pdb",
+            "$rel\UnicodeRegEx_x86.pdb",
+            "$rel\UnicodeRegEx_ARM64.pdb",
+            "inc\UnicodeRegEx.idl"
+          )
+
+          $missing = @()
+          foreach ($f in ($installables + $devkit)) {
+            if (-not (Test-Path $f)) { $missing += $f }
+          }
+          if ($missing.Count -gt 0) {
+            throw "Missing expected release files:`n  $($missing -join "`n  ")"
+          }
+
+          Copy-Item $installables -Destination $installDir
+          Copy-Item $devkit -Destination $devDir
+
+          $installZip = Join-Path $staging "UnicodeRegEx-$version-installables.zip"
+          $devZip = Join-Path $staging "UnicodeRegEx-$version-devkit.zip"
+          Compress-Archive -Path "$installDir\*" -DestinationPath $installZip -Force
+          Compress-Archive -Path "$devDir\*" -DestinationPath $devZip -Force
+
+          "install_zip=$installZip" >> $env:GITHUB_OUTPUT
+          "dev_zip=$devZip" >> $env:GITHUB_OUTPUT
+          Write-Host "Staged:`n  $installZip`n  $devZip"
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: UnicodeRegEx-${{ steps.version.outputs.version }}
+          path: |
+            ${{ steps.stage.outputs.install_zip }}
+            ${{ steps.stage.outputs.dev_zip }}
+          if-no-files-found: error
+
+      # Create (or update) the GitHub Release using the built-in gh CLI, and attach both
+      # ZIPs. Creates the v<version> tag on the current commit if it does not exist yet.
+      - name: Publish GitHub Release
+        if: ${{ inputs.publish_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $tag = "v$version"
+          $installZip = '${{ steps.stage.outputs.install_zip }}'
+          $devZip = '${{ steps.stage.outputs.dev_zip }}'
+          $exists = (& gh release view $tag 2>$null; $LASTEXITCODE -eq 0)
+          if ($exists) {
+            Write-Host "Release $tag exists; uploading assets (clobbering existing)."
+            & gh release upload $tag $installZip $devZip --clobber
+            if ($LASTEXITCODE -ne 0) { throw "gh release upload failed (exit $LASTEXITCODE)." }
+          } else {
+            Write-Host "Creating release $tag."
+            & gh release create $tag $installZip $devZip --title "UnicodeRegEx $version" --generate-notes --target $env:GITHUB_SHA
+            if ($LASTEXITCODE -ne 0) { throw "gh release create failed (exit $LASTEXITCODE)." }
+          }

@@ -466,4 +466,27 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <ItemDefinitionGroup>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+  <Target Name="GenerateVersionHeader" BeforeTargets="ResourceCompile;ClCompile">
+    <PropertyGroup>
+      <_UrexOfficial>0</_UrexOfficial>
+      <_UrexOfficial Condition="'$(OfficialBuild)' == 'true'">1</_UrexOfficial>
+    </PropertyGroup>
+    <ItemGroup>
+      <_UrexVersionLines Include="// Generated from Directory.Build.props. Do not edit." />
+      <_UrexVersionLines Include="#pragma once" />
+      <_UrexVersionLines Include="#define UREX_VER_MAJOR $(UrexVersionMajor)" />
+      <_UrexVersionLines Include="#define UREX_VER_MINOR $(UrexVersionMinor)" />
+      <_UrexVersionLines Include="#define UREX_VER_PATCH $(UrexVersionPatch)" />
+      <_UrexVersionLines Include="#define UREX_VER_FILEVERSION_STR &quot;$(UrexVersion).0&quot;" />
+      <_UrexVersionLines Include="#define UREX_VER_PRODUCTVERSION_STR &quot;$(UrexInformationalVersion)&quot;" />
+      <_UrexVersionLines Include="#define UREX_VER_OFFICIAL $(_UrexOfficial)" />
+    </ItemGroup>
+    <MakeDir Directories="$(IntDir)" />
+    <WriteLinesToFile File="$(IntDir)version.g.h" Lines="@(_UrexVersionLines)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+  </Target>
 </Project>
