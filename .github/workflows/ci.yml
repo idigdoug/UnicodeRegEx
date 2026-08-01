@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel an in-progress run for the same ref when a new commit is pushed.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  build-test:
+    name: Build and test (Release | x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          # boost.regex and microsoft.wil are git submodules the native build needs.
+          submodules: recursive
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      # The C++ projects use $(DefaultPlatformToolset), so they build with whatever
+      # toolset the runner's Visual Studio provides (v143 on today's images, newer
+      # as the runner image updates) — no toolset pin to maintain here.
+      - name: Build solution
+        run: >
+          msbuild UnicodeRegEx.sln
+          -restore
+          -maxcpucount
+          -verbosity:minimal
+          -p:Configuration=Release
+          -p:Platform=x64
+
+      # Run the managed test assembly directly (already built above). Using
+      # vstest.console avoids having the .NET SDK traverse the C++ (vcxproj)
+      # project references, which it cannot build.
+      - name: Run managed tests
+        run: |
+          $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $vstest = Join-Path $vsPath 'Common7\IDE\Extensions\TestPlatform\vstest.console.exe'
+          if (-not (Test-Path $vstest)) { throw "vstest.console.exe not found at $vstest" }
+          & $vstest 'out\Release\UnicodeRegExManagedTests.dll' /Platform:x64
+          if ($LASTEXITCODE -ne 0) { throw "Tests failed (exit $LASTEXITCODE)." }
