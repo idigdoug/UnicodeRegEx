@@ -10,10 +10,10 @@ namespace UnicodeRegEx.Cli
     internal static class Program
     {
         private const string Usage =
-@"usage: unirex [options] <pattern> [path...]
+@"usage: unigrep [options] <pattern> [path...]
 Search and replace files with a Unicode-aware regex.";
 
-        private const string SuggestHelp = "Run 'unirex --help' for detailed usage.";
+        private const string SuggestHelp = "Run 'unigrep --help' for detailed usage.";
 
         private static async Task<int> Main(string[] args)
         {

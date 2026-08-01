@@ -130,14 +130,16 @@ namespace UnicodeRegEx.Tests.Tools
         [TestMethod]
         public async Task Context_IsClampedTo64Bytes()
         {
+            var contextByteCount = CollectingSink.ContextByteCount;
+
             // 100 'a' before and after the match; the window is bounded at 64 bytes each side.
-            var content = new string('a', 100) + "foo" + new string('a', 100);
+            var content = new string('a', contextByteCount + 10) + "foo" + new string('a', contextByteCount + 10);
             var file = WriteUtf8("a.txt", content);
             var sink = await RunAsync(Request("foo", file));
 
             var hit = sink.Hits[0];
-            Assert.AreEqual(64, hit.PreMatchBytes.Length);
-            Assert.AreEqual(64, hit.PostMatchBytes.Length);
+            Assert.AreEqual(contextByteCount, hit.PreMatchBytes.Length);
+            Assert.AreEqual(contextByteCount, hit.PostMatchBytes.Length);
         }
 
         [TestMethod]

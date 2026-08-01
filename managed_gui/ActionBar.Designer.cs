@@ -38,63 +38,69 @@ namespace UnicodeRegEx.Gui
             // applyButton
             // 
             this.applyButton.Enabled = false;
-            this.applyButton.Location = new System.Drawing.Point(3, 10);
+            this.applyButton.Location = new System.Drawing.Point(267, 6);
+            this.applyButton.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
             this.applyButton.Name = "applyButton";
-            this.applyButton.Size = new System.Drawing.Size(154, 38);
-            this.applyButton.TabIndex = 0;
+            this.applyButton.Size = new System.Drawing.Size(77, 20);
+            this.applyButton.TabIndex = 3;
             this.applyButton.Text = "Apply";
             this.applyButton.Click += new System.EventHandler(this.applyButton_Click);
             // 
             // selectAllButton
             // 
             this.selectAllButton.Enabled = false;
-            this.selectAllButton.Location = new System.Drawing.Point(163, 10);
+            this.selectAllButton.Location = new System.Drawing.Point(2, 6);
+            this.selectAllButton.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
             this.selectAllButton.Name = "selectAllButton";
-            this.selectAllButton.Size = new System.Drawing.Size(154, 38);
-            this.selectAllButton.TabIndex = 1;
+            this.selectAllButton.Size = new System.Drawing.Size(77, 20);
+            this.selectAllButton.TabIndex = 0;
             this.selectAllButton.Text = "Select All";
             this.selectAllButton.Click += new System.EventHandler(this.selectAllButton_Click);
             // 
             // selectNoneButton
             // 
             this.selectNoneButton.Enabled = false;
-            this.selectNoneButton.Location = new System.Drawing.Point(323, 10);
+            this.selectNoneButton.Location = new System.Drawing.Point(83, 6);
+            this.selectNoneButton.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
             this.selectNoneButton.Name = "selectNoneButton";
-            this.selectNoneButton.Size = new System.Drawing.Size(154, 38);
-            this.selectNoneButton.TabIndex = 2;
+            this.selectNoneButton.Size = new System.Drawing.Size(77, 20);
+            this.selectNoneButton.TabIndex = 1;
             this.selectNoneButton.Text = "Select None";
             this.selectNoneButton.Click += new System.EventHandler(this.selectNoneButton_Click);
             // 
             // progressBar
             // 
-            this.progressBar.Location = new System.Drawing.Point(483, 10);
+            this.progressBar.Location = new System.Drawing.Point(164, 6);
+            this.progressBar.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
             this.progressBar.MarqueeAnimationSpeed = 40;
             this.progressBar.Name = "progressBar";
-            this.progressBar.Size = new System.Drawing.Size(0, 38);
-            this.progressBar.TabIndex = 3;
+            this.progressBar.Size = new System.Drawing.Size(99, 20);
+            this.progressBar.TabIndex = 2;
             // 
             // cancelButton
             // 
             this.cancelButton.Enabled = false;
-            this.cancelButton.Location = new System.Drawing.Point(483, 10);
+            this.cancelButton.Location = new System.Drawing.Point(348, 6);
+            this.cancelButton.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
             this.cancelButton.Name = "cancelButton";
-            this.cancelButton.Size = new System.Drawing.Size(154, 38);
+            this.cancelButton.Size = new System.Drawing.Size(77, 20);
             this.cancelButton.TabIndex = 4;
             this.cancelButton.Text = "Cancel";
             this.cancelButton.Click += new System.EventHandler(this.cancelButton_Click);
             // 
             // ActionBar
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(12F, 25F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.Controls.Add(this.applyButton);
             this.Controls.Add(this.selectAllButton);
             this.Controls.Add(this.selectNoneButton);
             this.Controls.Add(this.progressBar);
             this.Controls.Add(this.cancelButton);
-            this.MinimumSize = new System.Drawing.Size(640, 54);
+            this.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.MinimumSize = new System.Drawing.Size(320, 28);
             this.Name = "ActionBar";
-            this.Size = new System.Drawing.Size(874, 54);
+            this.Size = new System.Drawing.Size(429, 28);
             this.ResumeLayout(false);
 
         }

@@ -21,7 +21,7 @@ namespace UnicodeRegEx.Tools.Collecting
     {
         // A bounded window of file bytes captured on each side of a match, for display and (later) staleness
         // re-verification. Hard-coded for now; a match near the file start/end yields a shorter window.
-        private const int ContextByteCount = 64;
+        public const int ContextByteCount = 128;
 
         // Coalesce HitsAdded so a fast scan does not flood a UI: raise at most this often, or once this many
         // new hits have accumulated, whichever comes first.

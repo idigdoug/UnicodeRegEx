@@ -9,7 +9,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <WarningLevel>4</WarningLevel>
 
-    <AssemblyName>UnicodeRegExGui</AssemblyName>
+    <AssemblyName>UniRex</AssemblyName>
     <RootNamespace>UnicodeRegEx.Gui</RootNamespace>
 
     <PlatformTarget>AnyCPU</PlatformTarget>

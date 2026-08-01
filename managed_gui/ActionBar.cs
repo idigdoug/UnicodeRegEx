@@ -12,57 +12,14 @@ namespace UnicodeRegEx.Gui
     /// driven). Unlike the panes it holds no <see cref="UnicodeRegEx.Tools.SearchSettings"/>; it deals only
     /// with run/results state.
     /// <para>
-    /// The verb buttons enable/disable but never hide, so a click target can't disappear mid-interaction. The
-    /// left cluster (Apply / Select All / Select None) is fixed; the progress bar and the adjacent Cancel are
-    /// laid out in <see cref="OnResize"/> so the progress bar grows with the bar up to a cap.
+    /// The verb buttons enable/disable but never hide, so a click target can't disappear mid-interaction.
     /// </para>
     /// </summary>
     internal sealed partial class ActionBar : UserControl
     {
-        // The progress bar grows to fill the space between the left button cluster and Cancel, but no wider
-        // than this; Cancel then sits just to its right (so on a wide, full-width bar the empty space falls to
-        // the far right rather than stretching the progress bar across the whole window). Design-time
-        // (96-DPI) value; LayoutProgressAndCancel scales it to the current DPI.
-        private const int ProgressMaxWidth = 300;
-
-        // Horizontal gap between the left cluster / progress / Cancel. Design-time (96-DPI) value; scaled.
-        private const int Gap = 6;
-
         public ActionBar()
         {
             InitializeComponent();
-            LayoutProgressAndCancel();
-        }
-
-        /// <summary>Keeps the growing-but-capped progress bar and the adjacent Cancel button positioned.</summary>
-        protected override void OnResize(EventArgs e)
-        {
-            base.OnResize(e);
-            LayoutProgressAndCancel();
-        }
-
-        // Manual layout for the two right-hand controls (they carry no anchors): the progress bar starts after
-        // the left button cluster and grows with the bar up to ProgressMaxWidth; Cancel is placed immediately
-        // to its right. This expresses "grow the progress bar but cap it, Cancel next to it" — something plain
-        // Anchor can't do — and stays inside the control.
-        private void LayoutProgressAndCancel()
-        {
-            // The constants are design-time (96-DPI) values; scale them to the control's current DPI.
-            var scale = DeviceDpi / 96f;
-            var gap = (int)(Gap * scale);
-            var progressMaxWidth = (int)(ProgressMaxWidth * scale);
-
-            var left = selectNoneButton.Right + gap;
-            var available = ClientSize.Width - left - gap - cancelButton.Width - gap;
-            if (available < 0)
-            {
-                available = 0;
-            }
-
-            var progressWidth = available < progressMaxWidth ? available : progressMaxWidth;
-            progressBar.Left = left;
-            progressBar.Width = progressWidth;
-            cancelButton.Left = progressBar.Right + gap;
         }
 
         /// <summary>Raised when the user asks to apply the checked results.</summary>
