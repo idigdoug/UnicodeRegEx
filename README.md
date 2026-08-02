@@ -19,8 +19,10 @@ It is built for a few different audiences, who may care about different layers:
 - **End users** who just want a search-and-replace tool (GUI or CLI) that handles Unicode and multiple
   file encodings correctly.
 
-> **Status:** Pre-1.0 and under active development. Public interfaces (the COM ABI, the C++ headers,
-> and the managed API) may change before a 1.0 release.
+![UniRex, the UnicodeRegEx GUI, showing search hits across files with a diff preview of the selected replacement](assets/UniRex1.png)
+
+*UniRex searches your files first and shows every proposed replacement, with a before/after preview.
+Select or deselect individual hits, then apply only the ones you want.*
 
 ## Why this exists
 
